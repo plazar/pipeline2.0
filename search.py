@@ -61,8 +61,8 @@ def main():
     workdir, resultsdir = init_workspace()
     # Copy data file locally?
 
-    search = config.init_search()
-    search.main(fns, workdir, resultsdir)
+    presto_search = config.init_presto_search()
+    presto_search.main(fns, workdir, resultsdir)
 
     # Copy search results to results RAID
 
