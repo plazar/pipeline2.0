@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-A background script for running pulsar search jobs.
+A few objects for keeping track of pulsar search jobs.
 
 Patrick Lazarus, June 5th, 2010
 """
@@ -17,36 +17,64 @@ class PulsarSearchJob:
             'datafiles' is a list of data files required for the job.
         """
         self.datafiles = datafiles
-        self.jobname = self.get_jobname(self.datafiles)
+        self.jobname = get_jobname(self.datafiles)
         self.logfilenm = self.jobname + ".log"
-        self.log = JobLog(self.logfilenm)
+        self.log = JobLog(self.logfilenm, self)
 
-    def get_jobname(self, datafiles):
-        """Based on data files determine the job's name and return it.
+    def get_status(self):
+        """Get and return the status of the most recent log entry.
         """
-        datafile0 = datafiles[0]
-        if datafile0.endswith(".fits")
-            jobname = datafile0[:-5]
-        else:
-            raise ValueError("First data file is not a FITS file!" \
-                                "\n(%s)" % datafile0)
-        return jobname
+        return self.log.logentries[-1].status
+
+    def count_status(self, status):
+        """Count and return the number of times the job has reported
+            'status' in its log.
+        """
+        count = 0
+        for entry in self.log.logentries:
+            if entry.status.lower() == status.lower():
+                count += 1
+        return count
+
+
+def get_jobname(datafiles):
+    """Based on data files determine the job's name and return it.
+    """
+    datafile0 = datafiles[0]
+    if datafile0.endswith(".fits"):
+        jobname = datafile0[:-5]
+    else:
+        raise ValueError("First data file is not a FITS file!" \
+                            "\n(%s)" % datafile0)
+    return jobname
+
+
+def jobs_from_datafiles(datafiles):
+    """Given a list of datafiles, group them into jobs.
+        For each job return a PulsarSearchJob object.
+    """
+    # For PALFA2.0 each observation is contained within a single file.
+    jobs = []
+    for datafile in datafiles:
+        jobs.append(PulsarSearchJob([datafile]))
+    return jobs
 
 
 class JobLog:
     """A object for reading/writing logfiles for search jobs.
     """
-    def __init__(self, logfn):
+    def __init__(self, logfn, job):
         self.logfn = logfn
+        self.job = job # PulsarSearchJob object that this log belongs to
         self.logfmt_re = re.compile("^(?P<date>.*) -- (?P<status>.*) -- " \
-                                    "(?P<host>.*) -- (?P<info>.*$)")
+                                    "(?P<host>.*) -- (?P<info>.*)$")
         if os.path.exists(self.logfn):
             # Read the logfile
-            self.logentries = self.read(self.logfn)
+            self.logentries = self.read()
         else:
             # Create the log file
             entry = LogEntry(status="New job", host=socket.gethostname(), \
-                                        info="Brand new job log.")
+                                        info="Datafiles: %s" % self.job.datafiles)
             self.addentry(entry)
             self.logentries = [entry]
         self.lastupdate = os.path.getmtime(self.logfn)
@@ -75,7 +103,7 @@ class JobLog:
             if self.logfmt_re.match(line) is None:
                 raise ValueError("Log file line doesn't have correct format" \
                                     "\n(%s)!" % line)
-        logentries = [parse_logline(line) for line in lines]
+        logentries = [self.parse_logline(line) for line in lines]
         return logentries
 
     def update(self):
@@ -95,21 +123,18 @@ class JobLog:
         """Open the log file and add 'entry', a LogEntry object.
         """
         logfile = open(self.logfn, 'a')
-        logfile.write(str(entry))
+        logfile.write(str(entry)+"\n")
         logfile.close()
 
 
 class LogEntry:
     """An object for describing entries in a JobLog object.
     """
-    def __init__(self, status, host, info, **kwargs):
+    def __init__(self, status, host, info="", date=datetime.datetime.now().isoformat(' ')):
         self.status = status
         self.host = host
         self.info = info
-        if "date" in kwargs:
-            self.date = date
-        else:
-            self.date = datetime.datetime.now().isoformat(' ')
+        self.date = date
 
     def __str__(self):
         return "%s -- %s -- %s -- %s" % (self.date, self.status, self.host, \

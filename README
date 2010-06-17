@@ -1,6 +1,7 @@
 A logistical pulsar search pipeline using Scott Ransom's PRESTO.
 
 A brief listing of contents:
+----------------------------
 PALFA.zaplist           - A list of frequencies to zap from the power spectrum 
                             (in PRESTO-readable format)
 
@@ -20,6 +21,23 @@ psrfits.py              - Definition of SpecInfo object for collecting useful
 search.py               - Logistical search script that calls one of the 
                             *_presto_search.py scripts.
 
+background.py           - Background script for running pulsar search jobs.
 
-GitHub: git://github.com/plazar/pipeline2.0.git
-Patrick Lazarus, June 7, 2010
+
+Dependencies:
+-------------
+PRESTO, a suite of pulsar search programs by Scott Ransom.
+    - Available on GitHub: http://github.com/scottransom/presto
+    - Python scripts and wrappers must be set up. (See PRESTO's documentation.)
+
+pySLALIB, python wrappers for SLALIB created by Scott Ransom.
+    - Available at: http://www.cv.nrao.edu/~sransom/
+
+pbs_python, python wrappers for PBS created by sara.nl
+    - Available at: http://subtrac.sara.nl/oss/pbs_python/wiki/TorqueInstallation
+
+
+About:
+------
+GitHub address: http://github.com/plazar/pipeline2.0
+Patrick Lazarus, June 17, 2010

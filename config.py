@@ -1,4 +1,4 @@
-###############################################################
+################################################################
 # Basic parameters
 ################################################################
 institution = "McGill"
@@ -10,6 +10,17 @@ survey = "PALFA2.0"
 ################################################################
 base_working_directory = "/scratch/PALFA/"
 zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
+max_jobs_running = 10
+job_basename = "%s_batchjob" % survey
+sleep_time = 10*60 # time to sleep between submitting jobs (in seconds)
+max_attempts = 2 # Maximum number of times a job is attempted due to errors
+resource_list = "nodes=borg94:ppn=1:JumboFrame" # resource list for PBS's qsub
+
+################################################################
+# Configurations for raw data
+################################################################
+rawdata_directory = "/data/alfa/FTP"
+rawdata_re_pattern = r"^p2030.*b[0-7]s[01]g?.*\.fits$"
 
 ################################################################
 # Import presto_search module and set parameters

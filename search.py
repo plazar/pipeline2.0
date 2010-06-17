@@ -59,6 +59,8 @@ def init_workspace():
 def main():
     fns = get_datafns()
     workdir, resultsdir = init_workspace()
+    
+    # Update job's log 
     # Copy data file locally?
 
     presto_search = config.init_presto_search()
