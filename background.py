@@ -134,7 +134,7 @@ def main():
         numrunning, numqueued = get_queue_status()
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
         for j in searchjobs:
-            status = j.get_status.lower():
+            status = j.get_status.lower()
             if (status == "submitted to queue") or \
                     (status == "processing in progress"):
                 pass
