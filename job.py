@@ -4,10 +4,31 @@ A few objects for keeping track of pulsar search jobs.
 
 Patrick Lazarus, June 5th, 2010
 """
+import os.path
+
 import datetime
 import re
 import socket
-import os.path
+
+class JobPool:
+    def __init__(self):
+        self.jobs = [PulsarSearchJob]
+        
+    def create_jobs_from_datafiles(self, datafiles):
+        """Given a list of datafiles, group them into jobs.
+            For each job return a PulsarSearchJob object.
+        """
+        # For PALFA2.0 each observation is contained within a single file.
+        
+        for datafile in datafiles:
+            p_searchjob = PulsarSearchJob([datafile])
+            if  isinstance(p_searchjob, PulsarSearchJob):
+                self.jobs.append(p_searchjob)
+
+    def delete_job(self):
+        return
+        
+
 
 class PulsarSearchJob:
     """A single pulsar search job object.
@@ -17,7 +38,7 @@ class PulsarSearchJob:
             'datafiles' is a list of data files required for the job.
         """
         self.datafiles = datafiles
-        self.jobname = get_jobname(self.datafiles)
+        self.jobname = self.get_jobname()
         self.logfilenm = self.jobname + ".log"
         self.log = JobLog(self.logfilenm, self)
 
@@ -36,6 +57,18 @@ class PulsarSearchJob:
                 count += 1
         return count
 
+    def get_jobname(self):
+        """Based on data files determine the job's name and return it.
+        """
+        datafile0 = self.datafiles[0]
+        if datafile0.endswith(".fits"):
+            jobname = datafile0[:-5]
+        else:
+            raise ValueError("First data file is not a FITS file!" \
+                             "\n(%s)" % datafile0)
+        return jobname
+
+
 
 def get_jobname(datafiles):
     """Based on data files determine the job's name and return it.
@@ -45,19 +78,8 @@ def get_jobname(datafiles):
         jobname = datafile0[:-5]
     else:
         raise ValueError("First data file is not a FITS file!" \
-                            "\n(%s)" % datafile0)
+                         "\n(%s)" % datafile0)
     return jobname
-
-
-def jobs_from_datafiles(datafiles):
-    """Given a list of datafiles, group them into jobs.
-        For each job return a PulsarSearchJob object.
-    """
-    # For PALFA2.0 each observation is contained within a single file.
-    jobs = []
-    for datafile in datafiles:
-        jobs.append(PulsarSearchJob([datafile]))
-    return jobs
 
 
 class JobLog:
@@ -74,7 +96,7 @@ class JobLog:
         else:
             # Create the log file
             entry = LogEntry(status="New job", host=socket.gethostname(), \
-                                        info="Datafiles: %s" % self.job.datafiles)
+                             info="Datafiles: %s" % self.job.datafiles)
             self.addentry(entry)
             self.logentries = [entry]
         self.lastupdate = os.path.getmtime(self.logfn)
@@ -83,7 +105,7 @@ class JobLog:
         """Parse a line from a log and return a LogEntry object.
         """
         m = self.logfmt_re.match(logline)
-        return LogEntry(**m.groupdict())
+        return LogEntry( ** m.groupdict())
 
     def read(self):
         """Open the log file, parse it and return a list
@@ -102,7 +124,7 @@ class JobLog:
         for line in lines:
             if self.logfmt_re.match(line) is None:
                 raise ValueError("Log file line doesn't have correct format" \
-                                    "\n(%s)!" % line)
+                                 "\n(%s)!" % line)
         logentries = [self.parse_logline(line) for line in lines]
         return logentries
 
@@ -123,7 +145,7 @@ class JobLog:
         """Open the log file and add 'entry', a LogEntry object.
         """
         logfile = open(self.logfn, 'a')
-        logfile.write(str(entry)+"\n")
+        logfile.write(str(entry) + "\n")
         logfile.close()
 
 
@@ -138,7 +160,7 @@ class LogEntry:
 
     def __str__(self):
         return "%s -- %s -- %s -- %s" % (self.date, self.status, self.host, \
-                                            self.info)
+                                         self.info)
 
 """
 Mapping of status to action:

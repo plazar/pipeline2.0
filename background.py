@@ -99,7 +99,7 @@ def submit_job(j):
     jobid = pipe.communicate()[0]
     pipe.close()
     j.log.addentry(job.LogEntry(status="Submitted to queue", host=socket.gethostname(), \
-                                    info="Job ID: %s" % jobid.strip())
+                                    info="Job ID: %s" % jobid.strip()))
 
 
 def upload_results(j):
@@ -113,14 +113,14 @@ def delete_job(j):
     """Delete datafiles for PulsarSearchJob j. Update j's log.
         Archive j's log.
     """
-        if config.delete_rawdata:
-            if not is_in_demand(j):
-                j.log.addentry(job.LogEntry(status="Deleted", host=socket.gethostname())
-                # Delete data files
-                for d in j.datafiles:
-                    os.remove(d)
-                # Archive log file
-                shutil.move(j.logfilenm, config.log_archive)
+    if config.delete_rawdata:
+        if not is_in_demand(j):
+            j.log.addentry(job.LogEntry(status="Deleted", host=socket.gethostname()))
+            # Delete data files
+            for d in j.datafiles:
+                os.remove(d)
+            # Archive log file
+            shutil.move(j.logfilenm, config.log_archive)
         
 
 def main():
@@ -157,4 +157,3 @@ def main():
             else:
                 raise ValueError("Unrecognized status: %s" % status)
         time.sleep(config.sleep_time)
-
