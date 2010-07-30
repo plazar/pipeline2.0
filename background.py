@@ -128,7 +128,8 @@ def main():
 
     while True:
         datafiles = get_datafiles()
-        searchjobs = job.jobs_from_datafiles(datafiles)
+        jobpool = JobPool()
+        searchjobs = JobPool.jobs_from_datafiles(datafiles)
         datafile_demand = get_demand(searchjobs)
        
         numrunning, numqueued = get_queue_status()
