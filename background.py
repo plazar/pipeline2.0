@@ -12,8 +12,8 @@ import time
 import socket
 import shutil
 
-import PBSQuery
-
+#import PBSQuery
+from job import *
 import job
 import config
 
@@ -126,35 +126,48 @@ def delete_job(j):
 def main():
     global datafile_demand
 
-    while True:
-        datafiles = get_datafiles()
-        jobpool = JobPool()
-        searchjobs = JobPool.jobs_from_datafiles(datafiles)
-        datafile_demand = get_demand(searchjobs)
-       
-        numrunning, numqueued = get_queue_status()
-        cansubmit = (numqueued == 0) # Can submit a job if none are queued
-        for j in searchjobs:
-            status = j.get_status.lower()
-            if (status == "submitted to queue") or \
-                    (status == "processing in progress"):
-                pass
-            elif (status == "processing failed"):
-                numfails = j.count_status("processing failed")
-                if numfails < max_attempts:
-                    if cansubmit:
-                        submit_job(j)
-                        cansubmit = False
-                else:
-                    delete_job(j)
-            elif (status == "processing successful"):
-                upload_results(j)
-            elif (status == "new job"):
-                if cansubmit:
-                    submit_job(j)
-                    cansubmit = False
-            elif (status == "upload successful"):
-                delete_job(j)
-            else:
-                raise ValueError("Unrecognized status: %s" % status)
-        time.sleep(config.sleep_time)
+    datafiles = get_datafiles()
+
+    jobpool = JobPool()
+    if jobpool.create_jobs_from_datafiles():
+        print "Distributed datafile to jobs"
+
+#    while True:
+#        datafiles = get_datafiles()
+#
+#        jobpool = JobPool()
+#        print jobpool
+#        jobpool.get_datafiles()
+#        if jobpool.create_jobs_from_datafiles():
+#            print "Distributed datafile to jobs"
+#        #datafile_demand = get_demand(searchjobs)
+#
+##        numrunning, numqueued = get_queue_status()
+#        cansubmit = (numqueued == 0) # Can submit a job if none are queued
+#        for j in searchjobs:
+#            status = j.get_status.lower()
+#            if (status == "submitted to queue") or \
+#                    (status == "processing in progress"):
+#                pass
+#            elif (status == "processing failed"):
+#                numfails = j.count_status("processing failed")
+#                if numfails < max_attempts:
+#                    if cansubmit:
+#                        submit_job(j)
+#                        cansubmit = False
+#                else:
+#                    delete_job(j)
+#            elif (status == "processing successful"):
+#                upload_results(j)
+#            elif (status == "new job"):
+#                if cansubmit:
+#                    submit_job(j)
+#                    cansubmit = False
+#            elif (status == "upload successful"):
+#                delete_job(j)
+#            else:
+#                raise ValueError("Unrecognized status: %s" % status)
+#        time.sleep(config.sleep_time)
+
+
+main()

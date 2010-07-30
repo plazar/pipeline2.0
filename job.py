@@ -5,29 +5,50 @@ A few objects for keeping track of pulsar search jobs.
 Patrick Lazarus, June 5th, 2010
 """
 import os.path
-
+import config
 import datetime
 import re
+
 import socket
 
 class JobPool:
     def __init__(self):
         self.jobs = [PulsarSearchJob]
-        
-    def create_jobs_from_datafiles(self, datafiles):
+        self.datafiles = []
+        print "Loading datafile(s)..."
+        self.get_datafiles()
+        print "Creating Jobs from datafile(s)..."
+        self.create_jobs_from_datafiles
+        print "Created "+str(len(self.jobs))+" job(s)"
+
+    def create_jobs_from_datafiles( self):
         """Given a list of datafiles, group them into jobs.
             For each job return a PulsarSearchJob object.
         """
         # For PALFA2.0 each observation is contained within a single file.
         
-        for datafile in datafiles:
+        for datafile in (self.datafiles):
             p_searchjob = PulsarSearchJob([datafile])
             if  isinstance(p_searchjob, PulsarSearchJob):
                 self.jobs.append(p_searchjob)
 
     def delete_job(self):
         return
-        
+
+    def get_datafiles(self):
+        """Return a list of data files found in:
+                config.rawdata_directory and its subdirectories
+            matching the regular expression pattern:
+                config.rawdata_re_pattern
+       """
+        for (dirpath, dirnames, filenames) in os.walk(config.rawdata_directory):
+            for fn in filenames:
+                if re.match(config.rawdata_re_pattern, fn) is not None:
+                    self.datafiles.append(os.path.join(dirpath, fn))
+        if len(self.datafiles) > 0:
+            return True
+        else:
+            return False
 
 
 class PulsarSearchJob:
@@ -39,6 +60,7 @@ class PulsarSearchJob:
         """
         self.datafiles = datafiles
         self.jobname = self.get_jobname()
+        self.jobid = None
         self.logfilenm = self.jobname + ".log"
         self.log = JobLog(self.logfilenm, self)
 
@@ -67,6 +89,19 @@ class PulsarSearchJob:
             raise ValueError("First data file is not a FITS file!" \
                              "\n(%s)" % datafile0)
         return jobname
+
+    def submit(self):
+        """Submit PulsarSearchJob j to the queue. Update j's log.
+        """
+        pipe = subprocess.Popen('qsub -V -v DATA_FILE="%s" -l %s -N %s' % \
+                            (','.join(self.datafiles), config.resource_list, \
+                                    config.job_basename), \
+                            shell=True, stdout=subprocess.PIPE)
+        jobid = pipe.communicate()[0]
+        self.jobid = jobid
+        pipe.close()
+        self.log.addentry(job.LogEntry(status="Submitted to queue", host=socket.gethostname(), \
+                                        info="Job ID: %s" % jobid.strip()))
 
 
 

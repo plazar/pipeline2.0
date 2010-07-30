@@ -19,7 +19,8 @@ resource_list = "nodes=borg94:ppn=1:JumboFrame" # resource list for PBS's qsub
 ################################################################
 # Configurations for raw data
 ################################################################
-rawdata_directory = "/data/alfa/FTP"
+#rawdata_directory = "/data/alfa/FTP"
+rawdata_directory = "C:/Reposotories/data/"
 rawdata_re_pattern = r"^p2030.*b[0-7]s[01]g?.*\.fits$"
 
 ################################################################
