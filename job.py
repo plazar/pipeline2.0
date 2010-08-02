@@ -82,7 +82,7 @@ class JobPool:
         numrunning, numqueued = self.get_queue_status()
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
         for job in self.jobs:
-            status = job.get_status.lower()
+            status = job.get_status().lower()
             if (status == "submitted to queue") or \
                     (status == "processing in progress"):
                 pass
@@ -155,8 +155,8 @@ class JobPool:
         numrunning = 0
         numqueued = 0
         for j in alljobs.keys():
-            pprint.pprint(alljobs[j]['Job_Name'])
-            if alljobs[j]['Job_Name'].startswith(config.job_basename):
+            #pprint.pprint(alljobs[j]['Job_Name'])
+            if alljobs[j]['Job_Name'][0].startswith(config.job_basename):
                 if 'Q' in alljobs[j]['job_state']:
                     numqueued += 1
                 elif 'R' in alljobs[j]['job_state']:
