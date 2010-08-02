@@ -30,3 +30,4 @@ print t.tasks
 print isinstance(t, MyTest)
 z = {'lol':'haha'}
 print z['lol']
+print 'lol' in z

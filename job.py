@@ -15,6 +15,7 @@ class JobPool:
     def __init__(self):
         self.jobs = []
         self.datafiles = []
+        self.demand_file_list = {}
         print "Loading datafile(s)..."
         self.get_datafiles()
         print "Creating Jobs from datafile(s)..."
@@ -75,7 +76,7 @@ class JobPool:
         raise NotImplementedError("upload_job() isn't implemented.")
 
     def rotate(self):
-        numrunning, numqueued = get_queue_status()
+        numrunning, numqueued = self.get_queue_status()
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
         for job in self.jobs:
             status = job.get_status.lower()
@@ -112,11 +113,11 @@ class JobPool:
         alljobs = batch.getjobs()
         numrunning = 0
         numqueued = 0
-        for j in alljobs.keys():
-            if alljobs[j]['Job_Name'].startswith(config.job_basename):
-                if 'Q' in alljobs[j]['job_state']:
+        for job in alljobs.keys():
+            if alljobs[job]['Job_Name'].startswith(config.job_basename):
+                if 'Q' in alljobs[job]['job_state']:
                     numqueued += 1
-                elif 'R' in alljobs[j]['job_state']:
+                elif 'R' in alljobs[job]['job_state']:
                     numrunning += 1
         return (numrunning, numqueued)
 
@@ -133,6 +134,61 @@ class JobPool:
         pipe.close()
         job.log.addentry(job.LogEntry(status="Submitted to queue", host=socket.gethostname(), \
                                         info="Job ID: %s" % jobid.strip()))
+
+    def update_demand_file_list(self):
+        """Return a dictionary where the keys are the datafile names
+            and the values are the number of jobs that require that
+            particular file.
+
+            This info will ensure we don't delete data files that are
+            being used by multiple jobs before _all_ the jobs are
+            finished.
+        """
+        self.demand_file_list = {}
+        for job in self.jobs:
+            status = job.get_status().lower()
+            if (status in ['submitted to queue', 'processing in progress', \
+                            'processing successful', 'new job']) or \
+                            ((status == 'processing failed') and \
+                            (job.count_status() < config.max_attempts)):
+                # Data files are still in demand
+                for d in job.datafiles:
+                    if d in self.demand_file_list.keys():
+                        self.demand_file_list[d] += 1
+                    else:
+                        self.demand_file_list[d] = 1
+         
+
+    def get_queue_status(self):
+        """Connect to the PBS queue and return the number of
+            survey jobs running and the number of jobs queued.
+
+            Returns a 2-tuple: (numrunning, numqueued).
+        """
+        batch = PBSQuery.PBSQuery()
+        alljobs = batch.getjobs()
+        numrunning = 0
+        numqueued = 0
+        for j in alljobs.keys():
+            if alljobs[j]['Job_Name'].startswith(config.job_basename):
+                if 'Q' in alljobs[j]['job_state']:
+                    numqueued += 1
+                elif 'R' in alljobs[j]['job_state']:
+                    numrunning += 1
+        return (numrunning, numqueued)
+
+    def is_in_demand(self,job):
+        """Check if the datafiles used for PulsarSearchJob j are
+            required for any other jobs. If so, return True,
+            otherwise return False.
+        """
+        self.update_demand_file_list() #update demanded file list
+        in_demand = False
+        for datafile in job.datafiles:
+            if self.demand_file_list[datafile] > 0:
+                in_demand = True
+                break
+        return in_demand
 
 
 
