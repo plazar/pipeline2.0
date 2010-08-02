@@ -8,7 +8,7 @@ import os.path
 import config
 import datetime
 import re
-
+import PBSQuery
 import socket
 
 class JobPool:
