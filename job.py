@@ -103,24 +103,6 @@ class JobPool:
                 raise ValueError("Unrecognized status: %s" % status)
 
 
-    def get_queue_status(self):
-        """Connect to the PBS queue and return the number of
-            survey jobs running and the number of jobs queued.
-
-            Returns a 2-tuple: (numrunning, numqueued).
-        """
-        batch = PBSQuery.PBSQuery()
-        alljobs = batch.getjobs()
-        numrunning = 0
-        numqueued = 0
-        for job in alljobs.keys():
-            if alljobs[job]['Job_Name'].startswith(config.job_basename):
-                if 'Q' in alljobs[job]['job_state']:
-                    numqueued += 1
-                elif 'R' in alljobs[job]['job_state']:
-                    numrunning += 1
-        return (numrunning, numqueued)
-
 
     def submit(self, job):
         """Submit PulsarSearchJob j to the queue. Update j's log.
