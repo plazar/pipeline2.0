@@ -11,6 +11,9 @@ import re
 import PBSQuery
 import socket
 
+import pprint
+
+
 class JobPool:
     def __init__(self):
         self.jobs = []
@@ -152,6 +155,7 @@ class JobPool:
         numrunning = 0
         numqueued = 0
         for j in alljobs.keys():
+            pprint.pprint(alljobs[j]['Job_Name'])
             if alljobs[j]['Job_Name'].startswith(config.job_basename):
                 if 'Q' in alljobs[j]['job_state']:
                     numqueued += 1
