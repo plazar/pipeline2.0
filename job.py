@@ -117,7 +117,7 @@ class JobPool:
         """
         print "Submitting a job"
         pprint.pprint(job.datafiles)
-        pipe = subprocess.Popen('qsub -V -v DATA_FILE="%s" -l %s -N %s' % \
+        pipe = subprocess.Popen('qsub -V -v DATA_FILE="%s" -l %s -N %s python search.py' % \
                             (','.join(job.datafiles), config.resource_list, \
                                     config.job_basename), \
                             shell=True, stdout=subprocess.PIPE)
