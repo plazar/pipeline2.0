@@ -4,12 +4,17 @@ A few objects for keeping track of pulsar search jobs.
 
 Patrick Lazarus, June 5th, 2010
 """
+import os
+import re
 import os.path
 import config
 import datetime
-import re
 import PBSQuery
 import socket
+import subprocess
+
+import socket
+import shutil
 
 import pprint
 
