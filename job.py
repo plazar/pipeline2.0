@@ -95,7 +95,7 @@ class JobPool:
                 numfails = job.count_status("processing failed")
                 if numfails < max_attempts:
                     if cansubmit:
-                        self.submit(job)
+                        self.submit_job(job)
                         cansubmit = False
                 else:
                     self.delete_job(job)
@@ -116,6 +116,7 @@ class JobPool:
         """Submit PulsarSearchJob j to the queue. Update j's log.
         """
         print "Submitting a job"
+        pprint.pprint(job.datafiles)
         pipe = subprocess.Popen('qsub -V -v DATA_FILE="%s" -l %s -N %s' % \
                             (','.join(job.datafiles), config.resource_list, \
                                     config.job_basename), \
