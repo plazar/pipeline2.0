@@ -126,11 +126,17 @@ def delete_job(j):
 def main():
     global datafile_demand
 
-    datafiles = get_datafiles()
+   # datafiles = get_datafiles()
 
     jobpool = JobPool()
-    if jobpool.create_jobs_from_datafiles():
-        print "Distributed datafile to jobs"
+
+    for job in jobpool.jobs:
+        print job.jobname
+        print job.get_status()
+        jobpool.status()
+
+        #job.submit()
+
 
 #    while True:
 #        datafiles = get_datafiles()

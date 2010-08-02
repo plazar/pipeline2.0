@@ -13,15 +13,15 @@ import socket
 
 class JobPool:
     def __init__(self):
-        self.jobs = [PulsarSearchJob]
+        self.jobs = []
         self.datafiles = []
         print "Loading datafile(s)..."
         self.get_datafiles()
         print "Creating Jobs from datafile(s)..."
-        self.create_jobs_from_datafiles
+        self.create_jobs_from_datafiles()
         print "Created "+str(len(self.jobs))+" job(s)"
 
-    def create_jobs_from_datafiles( self):
+    def create_jobs_from_datafiles(self):
         """Given a list of datafiles, group them into jobs.
             For each job return a PulsarSearchJob object.
         """
@@ -32,8 +32,20 @@ class JobPool:
             if  isinstance(p_searchjob, PulsarSearchJob):
                 self.jobs.append(p_searchjob)
 
-    def delete_job(self):
-        return
+    def delete_job(self, job):
+        """Delete datafiles for PulsarSearchJob j. Update j's log.
+            Archive j's log.
+        """
+        if config.delete_rawdata:
+            if not is_in_demand(j):
+                job.log.addentry(job.LogEntry(status="Deleted", host=socket.gethostname()))
+                # Delete data files
+                for d in job.datafiles:
+                    os.remove(d)
+                # Archive log file
+                shutil.move(job.logfilenm, config.log_archive)
+                self.jobs.delete(job)
+
 
     def get_datafiles(self):
         """Return a list of data files found in:
@@ -45,10 +57,84 @@ class JobPool:
             for fn in filenames:
                 if re.match(config.rawdata_re_pattern, fn) is not None:
                     self.datafiles.append(os.path.join(dirpath, fn))
-        if len(self.datafiles) > 0:
+        if self.datafiles:
             return True
         else:
             return False
+
+
+
+    def status(self):
+        print "Jobs in the Pool: "+ str(len(self.jobs))
+        #print "Jobs Running: "+
+
+    def upload_results(self,job):
+        """Upload results from PulsarSearchJob j to the database.
+            Update j's log.
+        """
+        raise NotImplementedError("upload_job() isn't implemented.")
+
+    def rotate(self):
+        numrunning, numqueued = get_queue_status()
+        cansubmit = (numqueued == 0) # Can submit a job if none are queued
+        for job in self.jobs:
+            status = job.get_status.lower()
+            if (status == "submitted to queue") or \
+                    (status == "processing in progress"):
+                pass
+            elif (status == "processing failed"):
+                numfails = job.count_status("processing failed")
+                if numfails < max_attempts:
+                    if cansubmit:
+                        self.submit(job)
+                        cansubmit = False
+                else:
+                    self.delete_job(job)
+            elif (status == "processing successful"):
+                self.upload_results(job)
+            elif (status == "new job"):
+                if cansubmit:
+                    self.submit_job(job)
+                    cansubmit = False
+            elif (status == "upload successful"):
+                self.delete_job(job)
+            else:
+                raise ValueError("Unrecognized status: %s" % status)
+
+
+    def get_queue_status(self):
+        """Connect to the PBS queue and return the number of
+            survey jobs running and the number of jobs queued.
+
+            Returns a 2-tuple: (numrunning, numqueued).
+        """
+        batch = PBSQuery.PBSQuery()
+        alljobs = batch.getjobs()
+        numrunning = 0
+        numqueued = 0
+        for j in alljobs.keys():
+            if alljobs[j]['Job_Name'].startswith(config.job_basename):
+                if 'Q' in alljobs[j]['job_state']:
+                    numqueued += 1
+                elif 'R' in alljobs[j]['job_state']:
+                    numrunning += 1
+        return (numrunning, numqueued)
+
+
+    def submit(self, job):
+        """Submit PulsarSearchJob j to the queue. Update j's log.
+        """
+        pipe = subprocess.Popen('qsub -V -v DATA_FILE="%s" -l %s -N %s' % \
+                            (','.join(job.datafiles), config.resource_list, \
+                                    config.job_basename), \
+                            shell=True, stdout=subprocess.PIPE)
+        jobid = pipe.communicate()[0]
+        job.jobid = jobid
+        pipe.close()
+        job.log.addentry(job.LogEntry(status="Submitted to queue", host=socket.gethostname(), \
+                                        info="Job ID: %s" % jobid.strip()))
+
+
 
 
 class PulsarSearchJob:
@@ -89,19 +175,6 @@ class PulsarSearchJob:
             raise ValueError("First data file is not a FITS file!" \
                              "\n(%s)" % datafile0)
         return jobname
-
-    def submit(self):
-        """Submit PulsarSearchJob j to the queue. Update j's log.
-        """
-        pipe = subprocess.Popen('qsub -V -v DATA_FILE="%s" -l %s -N %s' % \
-                            (','.join(self.datafiles), config.resource_list, \
-                                    config.job_basename), \
-                            shell=True, stdout=subprocess.PIPE)
-        jobid = pipe.communicate()[0]
-        self.jobid = jobid
-        pipe.close()
-        self.log.addentry(job.LogEntry(status="Submitted to queue", host=socket.gethostname(), \
-                                        info="Job ID: %s" % jobid.strip()))
 
 
 
