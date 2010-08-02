@@ -115,6 +115,7 @@ class JobPool:
     def submit_job(self, job):
         """Submit PulsarSearchJob j to the queue. Update j's log.
         """
+        print "Submitting a job"
         pipe = subprocess.Popen('qsub -V -v DATA_FILE="%s" -l %s -N %s' % \
                             (','.join(job.datafiles), config.resource_list, \
                                     config.job_basename), \
