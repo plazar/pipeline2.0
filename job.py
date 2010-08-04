@@ -90,8 +90,8 @@ class JobPool:
         print "Jobs Queued:"+ str(numqueued)
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
         for job in self.jobs:
-            print "Name: "+ job(job.jobname)
-            print "PBS Name: "+ job(job.jobid)
+            print "Name: "+ str(job.jobname)
+            print "PBS Name: "+ str(job.jobid)
             print "Status: "+ job.get_status().lower()
             self.submit_job(job)
 #            print "Looping through jobs to submit"
