@@ -119,6 +119,7 @@ class JobPool:
             else:
                 raise ValueError("Unrecognized status: %s" % status)
             print "Status: "+ job.get_status().lower()
+            break
 
 
     def submit_job(self, job):
