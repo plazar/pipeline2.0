@@ -96,6 +96,7 @@ class JobPool:
             
 
             print "Looping through jobs to submit"
+            print self.qsub_status(job)
             status = job.get_status().lower()
             if (status == "submitted to queue") or \
                     (status == "processing in progress"):
@@ -196,7 +197,8 @@ class JobPool:
                 break
         return in_demand
 
-        #def qsub_error_log
+        def qsub_status(self, job):
+            print os.path.getsize(os.path.join("qsublog",config.job_basename+"e"+job.jobid.split(".")[0]))
 
 
 
