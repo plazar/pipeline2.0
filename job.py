@@ -120,7 +120,7 @@ class JobPool:
             else:
                 raise ValueError("Unrecognized status: %s" % status)
             print "Status: "+ job.get_status().lower()
-            print self.qsub_status(job)
+            print str(self.qsub_status(job))
             break
 
 
@@ -199,8 +199,10 @@ class JobPool:
         return in_demand
 
     def qsub_status(self, job):
-        print os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
-
+        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0])):
+            return os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
+        else:
+            return 0
 
 
 class PulsarSearchJob:
