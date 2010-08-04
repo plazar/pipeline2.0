@@ -96,7 +96,7 @@ class JobPool:
             
 
             print "Looping through jobs to submit"
-            print self.qsub_status(job)
+            
             status = job.get_status().lower()
             if (status == "submitted to queue") or \
                     (status == "processing in progress"):
@@ -120,6 +120,7 @@ class JobPool:
             else:
                 raise ValueError("Unrecognized status: %s" % status)
             print "Status: "+ job.get_status().lower()
+            print self.qsub_status(job)
             break
 
 
