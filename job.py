@@ -195,7 +195,7 @@ class JobPool:
                 break
         return in_demand
 
-        def qsub_error_log
+        #def qsub_error_log
 
 
 
