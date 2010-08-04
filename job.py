@@ -199,7 +199,7 @@ class JobPool:
         return in_demand
 
     def qsub_status(self, job):
-        print os.path.getsize(os.path.join("qsublog",config.job_basename+"e"+job.jobid.split(".")[0]))
+        print os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
 
 
 
