@@ -85,6 +85,8 @@ class JobPool:
 
     def rotate(self):
         numrunning, numqueued = self.get_queue_status()
+        print "Jobs Running:"+ numrunning
+        print "Jobs Queued:"+ numqueued
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
         for job in self.jobs:
             status = job.get_status().lower()
