@@ -84,16 +84,18 @@ class JobPool:
         raise NotImplementedError("upload_job() isn't implemented.")
 
     def rotate(self):
-        print "Rotating through:"+ str(len(self.jobs)) +" jobs."
+        print "Rotating through: "+ str(len(self.jobs)) +" jobs."
         numrunning, numqueued = self.get_queue_status()
-        print "Jobs Running:"+ str(numrunning)
-        print "Jobs Queued:"+ str(numqueued)
+        print "Jobs Running: "+ str(numrunning)
+        print "Jobs Queued: "+ str(numqueued)
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
         for job in self.jobs:
             print "Name: "+ str(job.jobname)
             print "PBS Name: "+ str(job.jobid)
             print "Status: "+ job.get_status().lower()
             self.submit_job(job)
+            print "Status: "+ job.get_status().lower()
+            pass
 #            print "Looping through jobs to submit"
 #            status = job.get_status().lower()
 #            if (status == "submitted to queue") or \
@@ -194,6 +196,7 @@ class JobPool:
                 break
         return in_demand
 
+        def qsub_error_log
 
 
 
