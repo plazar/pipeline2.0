@@ -128,9 +128,9 @@ class JobPool:
         print 'qsub -V -v DATAFILES="%s" -l %s -N %s search.py' % \
                             (','.join(job.datafiles), config.resource_list, \
                                     config.job_basename)
-        pipe = subprocess.Popen('qsub -V -v DATAFILES="%s" -l %s -N %s search.py' % \
+        pipe = subprocess.Popen('qsub -V -v DATAFILES="%s" -l %s -N %s -e %s search.py' % \
                             (','.join(job.datafiles), config.resource_list, \
-                                    config.job_basename), \
+                                    config.job_basename,'qsublog'), \
                             shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
         jobid = pipe.communicate()[0]
         job.jobid = jobid
