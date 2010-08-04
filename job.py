@@ -93,33 +93,32 @@ class JobPool:
             print "Name: "+ str(job.jobname)
             print "PBS Name: "+ str(job.jobid)
             print "Status: "+ job.get_status().lower()
-            self.submit_job(job)
-            print "Status: "+ job.get_status().lower()
-            pass
-#            print "Looping through jobs to submit"
-#            status = job.get_status().lower()
-#            if (status == "submitted to queue") or \
-#                    (status == "processing in progress"):
-#                pass
-#            elif (status == "processing failed"):
-#                numfails = job.count_status("processing failed")
-#                if numfails < max_attempts:
-#                    if cansubmit:
-#                        self.submit_job(job)
-#                        cansubmit = False
-#                else:
-#                    self.delete_job(job)
-#            elif (status == "processing successful"):
-#                self.upload_results(job)
-#            elif (status == "new job"):
-#                if cansubmit:
-#                    self.submit_job(job)
-#                    cansubmit = False
-#            elif (status == "upload successful"):
-#                self.delete_job(job)
-#            else:
-#                raise ValueError("Unrecognized status: %s" % status)
+            
 
+            print "Looping through jobs to submit"
+            status = job.get_status().lower()
+            if (status == "submitted to queue") or \
+                    (status == "processing in progress"):
+                pass
+            elif (status == "processing failed"):
+                numfails = job.count_status("processing failed")
+                if numfails < max_attempts:
+                    if cansubmit:
+                        self.submit_job(job)
+                        cansubmit = False
+                else:
+                    self.delete_job(job)
+            elif (status == "processing successful"):
+                self.upload_results(job)
+            elif (status == "new job"):
+                if cansubmit:
+                    self.submit_job(job)
+                    cansubmit = False
+            elif (status == "upload successful"):
+                self.delete_job(job)
+            else:
+                raise ValueError("Unrecognized status: %s" % status)
+            print "Status: "+ job.get_status().lower()
 
 
     def submit_job(self, job):
