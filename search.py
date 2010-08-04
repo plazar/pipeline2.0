@@ -10,6 +10,9 @@ import os
 import tempfile
 import shutil
 
+print "================="
+print sys.path
+print "================="
 import config
 
 
@@ -47,6 +50,8 @@ def init_workspace():
         - Return 2-tuple (working directory, results directory).
     """
     # Generate temporary working directory
+    if not os.path.isdir(config.base_working_directory):
+	os.makedirs(config.base_working_directory)
     workdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_processing_", \
                         dir=config.base_working_directory)
     resultsdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_results_", \
