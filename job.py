@@ -84,6 +84,7 @@ class JobPool:
         raise NotImplementedError("upload_job() isn't implemented.")
 
     def rotate(self):
+        print "Rotating through:"+ str(len(self.jobs)) +" jobs."
         numrunning, numqueued = self.get_queue_status()
         print "Jobs Running:"+ str(numrunning)
         print "Jobs Queued:"+ str(numqueued)
