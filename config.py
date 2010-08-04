@@ -10,6 +10,7 @@ survey = "PALFA2.0"
 ################################################################
 base_working_directory = "/scratch/PALFA/"
 zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
+log_dir = "/homes/borgii/snipka/dev/pipeline2.0/log/"
 max_jobs_running = 10
 job_basename = "%s_batchjob" % survey
 sleep_time = 10*60 # time to sleep between submitting jobs (in seconds)

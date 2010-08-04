@@ -199,7 +199,8 @@ class PulsarSearchJob:
         self.datafiles = datafiles
         self.jobname = self.get_jobname()
         self.jobid = None
-        self.logfilenm = self.jobname + ".log"
+        #self.logfilenm = self.jobname + ".log"
+        self.logfilenm = os.path.join(config.log_dir,os.path.basename(self.jobname) + ".log")
         self.log = JobLog(self.logfilenm, self)
 
     def get_status(self):
