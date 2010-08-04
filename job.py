@@ -127,7 +127,7 @@ class JobPool:
         jobid = pipe.communicate()[0]
         job.jobid = jobid
         pipe.stdin.close()
-        job.log.addentry(job.LogEntry(status="Submitted to queue", host=socket.gethostname(), \
+        job.log.addentry(LogEntry(status="Submitted to queue", host=socket.gethostname(), \
                                         info="Job ID: %s" % jobid.strip()))
 
     def update_demand_file_list(self):
