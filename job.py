@@ -121,7 +121,7 @@ class JobPool:
                 self.delete_job(job)
             else:
                 raise ValueError("Unrecognized status: %s" % status)
-            print "Status: "+ job.get_status().lower()
+            print "Status: "+ status
             print str(self.qsub_status(job))
             break
 
