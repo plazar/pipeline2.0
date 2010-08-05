@@ -296,6 +296,7 @@ class PulsarSearchJob:
     def get_log_status(self):
         """Get and return the status of the most recent log entry.
         """
+        self.log = JobLog(self.logfilenm, self)
         print "=========LOG entry"
         print self.log.logentries[-1].status.lower() , self.log.logentries[-1].qsubid
         print "=========LOG entry"        
