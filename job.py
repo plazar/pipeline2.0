@@ -93,16 +93,22 @@ class JobPool:
 
         for job in self.jobs:
             jobname = str(job.jobname)
-            status, job.jobid = job.get_status()
+            status, job.jobid = job.get_log_status()
             print "Name: "+ jobname
             print "PBS Name: "+ str(job.jobid)
             print "Status: "+ status
             print "Q-Status: "+ str(job.status)
-            status, job.jobid = job.get_status()
+            status, job.jobid = job.get_log_status()
             self.qsub_update_status()
 
-            if job.status == PulsarSearchJob.NEW_JOB:
+            if  job.status == PulsarSearchJob.NEW_JOB:
                 self.submit_job(job)
+            elif job.status > PulsarSearchJob.NEW_JOB:
+                pass
+            elif job.status == PulsarSearchJob.TERMINATED:
+                if self.restart_job(job):
+                    print "Resubmitting a job: "+ job.jobid
+                    self.submit_job(job)
 
 #            if (status == "submitted to queue") or \
 #                    (status == "processing in progress"):
@@ -160,7 +166,7 @@ class JobPool:
         """
         self.demand_file_list = {}
         for job in self.jobs:
-            status = job.get_status().lower()
+            status, jobid = job.get_log_status()
             if (status in ['submitted to queue', 'processing in progress', \
                             'processing successful', 'new job']) or \
                             ((status == 'processing failed') and \
@@ -208,13 +214,21 @@ class JobPool:
     #def qsub_status(self, job):
     def qsub_job_error(self, job):
         if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0])):
-            return os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
+            if os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0])) > 0:
+                job.log.addentry(LogEntry(qsubid=job.jobid, status="Processing failed", host=socket.gethostname(), \
+                                        info="Job ID: %s" % job.jobid.strip()))
+                return True
         else:
-            return 0
+            return False
 
+
+
+    """
+    Updates JobPool Jobs using from qsub queue and qsub error logs.
+    
+    """
     def qsub_update_status(self):
-        """Updated JobPool Jobs using from qsub queue and qsub error logs.
-        """
+        
         batch = PBSQuery.PBSQuery()
         for job in self.jobs:
             if job.jobid in batch.getjobs():
@@ -225,12 +239,33 @@ class JobPool:
             else:
                 if job.status > PulsarSearchJob.NEW_JOB:
                     job.status = PulsarSearchJob.TERMINATED
-        
-        
-        
 
-    def qsub_check_job(self,job):
-        batch = PBSQuery.PBSQuery()
+    def restart_job(self, job):
+        log_status, job.jobid = job.get_log_status()
+        cansubmit = True
+        numfails = job.count_status("processing failed")
+        if (numfails < config.max_attempts):
+            cansubmit = False
+ 
+        if (self.qsub_job_error(job) and cansubmit):
+            return True
+        else:
+            return False
+        pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
