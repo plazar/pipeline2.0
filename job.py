@@ -90,9 +90,11 @@ class JobPool:
         print "Jobs Queued: "+ str(numqueued)
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
         for job in self.jobs:
-            print "Name: "+ str(job.jobname)
+            jobname = str(job.jobname)
+            status, job.jobid = job.get_status()
+            print "Name: "+ jobname
             print "PBS Name: "+ str(job.jobid)
-            print "Status: "+ job.get_status().lower()
+            print "Status: "+ status
             
 
             print "Looping through jobs to submit"
@@ -226,7 +228,7 @@ class PulsarSearchJob:
     def get_status(self):
         """Get and return the status of the most recent log entry.
         """
-        return self.log.logentries[-1].status , self.log.logentries[-1].qsubid
+        return self.log.logentries[-1].status.lower() , self.log.logentries[-1].qsubid
 
     def count_status(self, status):
         """Count and return the number of times the job has reported
