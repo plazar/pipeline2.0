@@ -89,40 +89,44 @@ class JobPool:
         print "Jobs Running: "+ str(numrunning)
         print "Jobs Queued: "+ str(numqueued)
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
+        self.qsub_update_status()
+
         for job in self.jobs:
             jobname = str(job.jobname)
             status, job.jobid = job.get_status()
             print "Name: "+ jobname
             print "PBS Name: "+ str(job.jobid)
             print "Status: "+ status
-            
-
-            print "Looping through jobs to submit"
-            
+            print "Q-Status: "+ str(job.status)
             status, job.jobid = job.get_status()
-            if (status == "submitted to queue") or \
-                    (status == "processing in progress"):
-                pass
-            elif (status == "processing failed"):
-                numfails = job.count_status("processing failed")
-                if numfails < max_attempts:
-                    if cansubmit:
-                        self.submit_job(job)
-                        cansubmit = False
-                else:
-                    self.delete_job(job)
-            elif (status == "processing successful"):
-                self.upload_results(job)
-            elif (status == "new job"):
-                if cansubmit:
-                    self.submit_job(job)
-                    cansubmit = False
-            elif (status == "upload successful"):
-                self.delete_job(job)
-            else:
-                raise ValueError("Unrecognized status: %s" % status)
-            print "Status: "+ status
-            print str(self.qsub_status(job))
+            self.qsub_update_status()
+
+            if job.status == PulsarSearchJob.NEW_JOB:
+                self.submit_job(job)
+
+#            if (status == "submitted to queue") or \
+#                    (status == "processing in progress"):
+#                pass
+#            elif (status == "processing failed"):
+#                numfails = job.count_status("processing failed")
+#                if numfails < max_attempts:
+#                    if cansubmit:
+#                        self.submit_job(job)
+#                        cansubmit = False
+#                else:
+#                    self.delete_job(job)
+#            elif (status == "processing successful"):
+#                self.upload_results(job)
+#            elif (status == "new job"):
+#                if cansubmit:
+#                    self.submit_job(job)
+#                    cansubmit = False
+#            elif (status == "upload successful"):
+#                self.delete_job(job)
+#            else:
+#                raise ValueError("Unrecognized status: %s" % status)
+#            print "Status: "+ status
+#            print str(self.qsub_status(job))
             break
 
 
@@ -141,6 +145,7 @@ class JobPool:
         jobid = pipe.communicate()[0]
         job.jobid = jobid.rstrip()
         pipe.stdin.close()
+        job.status = PulsarSearchJob.SUBMITED
         job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
                                         info="Job ID: %s" % jobid.strip()))
 
@@ -200,11 +205,29 @@ class JobPool:
                 break
         return in_demand
 
-    def qsub_status(self, job):
+    #def qsub_status(self, job):
+    def qsub_job_error(self, job):
         if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0])):
             return os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
         else:
             return 0
+
+    def qsub_update_status(self):
+        """Updated JobPool Jobs using from qsub queue and qsub error logs.
+        """
+        batch = PBSQuery.PBSQuery()
+        for job in self.jobs:
+            if job.jobid in batch.getjobs():
+                if 'R' in batch.getjobs()['job.jobid']['job_state']:
+                    job.status = PulsarSearchJob.SUBMITED_RUNNING
+                else:
+                    job.status = PulsarSearchJob.SUBMITED_QUEUED
+            else:
+                if job.status > PulsarSearchJob.NEW_JOB:
+                    job.status = PulsarSearchJob.TERMINATED
+        
+        
+        
 
     def qsub_check_job(self,job):
         batch = PBSQuery.PBSQuery()
@@ -214,6 +237,12 @@ class JobPool:
 class PulsarSearchJob:
     """A single pulsar search job object.
     """
+    TERMINATED = 0
+    NEW_JOB = 1
+    SUBMITED = 2
+    SUBMITED_QUEUED = 3
+    SUBMITED_RUNNING = 4
+    
     def __init__(self, datafiles):
         """PulsarSearchJob creator.
             'datafiles' is a list of data files required for the job.
@@ -224,6 +253,7 @@ class PulsarSearchJob:
         #self.logfilenm = self.jobname + ".log"
         self.logfilenm = os.path.join(config.log_dir,os.path.basename(self.jobname) + ".log")
         self.log = JobLog(self.logfilenm, self)
+        self.status = self.NEW_JOB
 
     def get_status(self):
         """Get and return the status of the most recent log entry.
