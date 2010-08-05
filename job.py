@@ -232,7 +232,7 @@ class JobPool:
         batch = PBSQuery.PBSQuery()
         for job in self.jobs:
             if job.jobid in batch.getjobs():
-                if 'R' in batch.getjobs()['job.jobid']['job_state']:
+                if 'R' in batch.getjobs()[job.jobid]['job_state']:
                     job.status = PulsarSearchJob.SUBMITED_RUNNING
                 else:
                     job.status = PulsarSearchJob.SUBMITED_QUEUED
