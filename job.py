@@ -151,6 +151,9 @@ class JobPool:
         jobid = pipe.communicate()[0]
         job.jobid = jobid.rstrip()
         pipe.stdin.close()
+        print "================="
+        print job.jobid
+        print "================="
         job.status = PulsarSearchJob.SUBMITED
         job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
                                         info="Job ID: %s" % jobid.strip()))
