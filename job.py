@@ -137,9 +137,9 @@ class JobPool:
                                     config.job_basename,'qsublog'), \
                             shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
         jobid = pipe.communicate()[0]
-        job.jobid = jobid
+        job.jobid = jobid.rstrip()
         pipe.stdin.close()
-        job.log.addentry(LogEntry(qsubid=jobid, status="Submitted to queue", host=socket.gethostname(), \
+        job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
                                         info="Job ID: %s" % jobid.strip()))
 
     def update_demand_file_list(self):
