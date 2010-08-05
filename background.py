@@ -27,7 +27,7 @@ def main():
 
     for job in jobpool.jobs:
         print job.jobname
-        print job.get_status()
+        print job.get_log_status()
         
     jobpool.status()
 
