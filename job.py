@@ -333,7 +333,7 @@ class JobLog:
 class LogEntry:
     """An object for describing entries in a JobLog object.
     """
-    def __init__(self, status, qsubid, host, info="", date=datetime.datetime.now().isoformat(' ')):
+    def __init__(self, qsubid, status, host, info="", date=datetime.datetime.now().isoformat(' ')):
         self.status = status
         self.qsubid = qsubid
         self.host = host
