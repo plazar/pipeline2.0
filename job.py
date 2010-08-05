@@ -97,7 +97,7 @@ class JobPool:
 
             print "Looping through jobs to submit"
             
-            status = job.get_status().lower()
+            status, job.jobid = job.get_status()
             if (status == "submitted to queue") or \
                     (status == "processing in progress"):
                 pass
@@ -226,7 +226,7 @@ class PulsarSearchJob:
     def get_status(self):
         """Get and return the status of the most recent log entry.
         """
-        return self.log.logentries[-1].status
+        return self.log.logentries[-1].status , self.log.logentries[-1].qsubid
 
     def count_status(self, status):
         """Count and return the number of times the job has reported
