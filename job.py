@@ -204,6 +204,10 @@ class JobPool:
         else:
             return 0
 
+    def qsub_check_job(self,job):
+        batch = PBSQuery.PBSQuery()
+
+
 
 class PulsarSearchJob:
     """A single pulsar search job object.
@@ -265,14 +269,14 @@ class JobLog:
     def __init__(self, logfn, job):
         self.logfn = logfn
         self.job = job # PulsarSearchJob object that this log belongs to
-        self.logfmt_re = re.compile("^(?P<date>.*) -- (?P<status>.*) -- " \
+        self.logfmt_re = re.compile("^(?P<date>.*) -- (?P<qsubid>.*) -- (?P<status>.*) -- " \
                                     "(?P<host>.*) -- (?P<info>.*)$")
         if os.path.exists(self.logfn):
             # Read the logfile
             self.logentries = self.read()
         else:
             # Create the log file
-            entry = LogEntry(status="New job", host=socket.gethostname(), \
+            entry = LogEntry(qsubid = job.jobid,status="New job", host=socket.gethostname(), \
                              info="Datafiles: %s" % self.job.datafiles)
             self.addentry(entry)
             self.logentries = [entry]
@@ -290,7 +294,7 @@ class JobLog:
             
             Notes: '#' defines a comment.
                    Each entry should have the following format:
-                   'datetime' -- 'status' -- 'hostname' -- 'additional info'
+                   'datetime' -- 'qsubid' -- 'status' -- 'hostname' -- 'additional info'
         """
         logfile = open(self.logfn)
         lines = [line.partition("#")[0] for line in logfile.readlines()]
@@ -329,14 +333,15 @@ class JobLog:
 class LogEntry:
     """An object for describing entries in a JobLog object.
     """
-    def __init__(self, status, host, info="", date=datetime.datetime.now().isoformat(' ')):
+    def __init__(self, status, qsubid, host, info="", date=datetime.datetime.now().isoformat(' ')):
         self.status = status
+        self.qsubid = qsubid
         self.host = host
         self.info = info
         self.date = date
 
     def __str__(self):
-        return "%s -- %s -- %s -- %s" % (self.date, self.status, self.host, \
+        return "%s -- %s -- %s -- %s -- %s" % (self.date, self.qsubid, self.status, self.host, \
                                          self.info)
 
 """
