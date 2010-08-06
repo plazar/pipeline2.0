@@ -22,10 +22,10 @@ import pprint
 class JobPool:
     def __init__(self):
         self.jobs = []
-        self.datafiles = []
+        self.datafiles = self.get_datafiles()
         self.demand_file_list = {}
         print "Loading datafile(s)..."
-        self.get_datafiles()
+       
         print "Creating Jobs from datafile(s)..."
         self.create_jobs_from_datafiles()
         print "Created "+str(len(self.jobs))+" job(s)"
@@ -40,6 +40,7 @@ class JobPool:
             p_searchjob = PulsarSearchJob([datafile])
             if  isinstance(p_searchjob, PulsarSearchJob):
                 self.jobs.append(p_searchjob)
+                break
 
     def delete_job(self, job):
         """Delete datafiles for PulsarSearchJob j. Update j's log.
@@ -63,14 +64,12 @@ class JobPool:
             matching the regular expression pattern:
                 config.rawdata_re_pattern
        """
+       tmp_datafiles = []
         for (dirpath, dirnames, filenames) in os.walk(config.rawdata_directory):
             for fn in filenames:
                 if re.match(config.rawdata_re_pattern, fn) is not None:
-                    self.datafiles.append(os.path.join(dirpath, fn))
-        if self.datafiles:
-            return True
-        else:
-            return False
+                    tmp_datafiles.append(os.path.join(dirpath, fn))
+        return tmp_datafiles
 
 
 
