@@ -54,7 +54,7 @@ class JobPool:
                 # Archive log file
                 shutil.move(job.logfilenm, config.log_archive)
         job.log.addentry(LogEntry(qsubid=job.jobid,status="Deleted", host=socket.gethostname(),info="Job was deleted"))
-        self.jobs.delete(job)
+        self.jobs.remove(job)
 
 
     def get_datafiles(self):
