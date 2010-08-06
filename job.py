@@ -266,7 +266,7 @@ class JobPool:
         pass
 
     def fetch_new_jobs(self):
-        files_to_x_check = self.get_data_files()
+        files_to_x_check = self.get_datafiles()
         for file in files_to_x_check:
             if file in self.datafiles:
                 files_to_x_check.remove(file)
