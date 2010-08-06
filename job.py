@@ -64,7 +64,7 @@ class JobPool:
             matching the regular expression pattern:
                 config.rawdata_re_pattern
        """
-       tmp_datafiles = []
+        tmp_datafiles = []
         for (dirpath, dirnames, filenames) in os.walk(config.rawdata_directory):
             for fn in filenames:
                 if re.match(config.rawdata_re_pattern, fn) is not None:
