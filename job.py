@@ -46,8 +46,7 @@ class JobPool:
             Archive j's log.
         """
         if config.delete_rawdata:
-            if not is_in_demand(j):
-                
+            if not self.is_in_demand(job):                
                 # Delete data files
                 for d in job.datafiles:
                     os.remove(d)
