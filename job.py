@@ -109,6 +109,9 @@ class JobPool:
                 if self.restart_job(job):
                     print "Resubmitting a job: "+ job.jobid
                     self.submit_job(job)
+                else:
+                    print "Removing the job: Multiple fails"
+                    self.delete_job(job)
 
 #            if (status == "submitted to queue") or \
 #                    (status == "processing in progress"):
@@ -247,7 +250,7 @@ class JobPool:
         log_status, job.jobid = job.get_log_status()
         cansubmit = True
         numfails = job.count_status("processing failed")
-        if (numfails < config.max_attempts):
+        if (numfails > config.max_attempts):
             cansubmit = False
  
         if (self.qsub_job_error(job) and cansubmit):
