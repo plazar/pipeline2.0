@@ -53,7 +53,7 @@ class JobPool:
                     os.remove(d)
                 # Archive log file
                 shutil.move(job.logfilenm, config.log_archive)
-        job.log.addentry(LogEntry(status="Deleted", host=socket.gethostname()))
+        job.log.addentry(LogEntry(qsubid=job.jobid,status="Deleted", host=socket.gethostname(),info="Job was deleted"))
         self.jobs.delete(job)
 
 
