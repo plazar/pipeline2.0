@@ -40,7 +40,6 @@ class JobPool:
             p_searchjob = PulsarSearchJob([datafile])
             if  isinstance(p_searchjob, PulsarSearchJob):
                 self.jobs.append(p_searchjob)
-                break
 
     def delete_job(self, job):
         """Delete datafiles for PulsarSearchJob j. Update j's log.
