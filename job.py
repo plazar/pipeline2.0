@@ -173,7 +173,7 @@ class JobPool:
             if (status in ['submitted to queue', 'processing in progress', \
                             'processing successful', 'new job']) or \
                             ((status == 'processing failed') and \
-                            (job.count_status() < config.max_attempts)):
+                            (job.count_status(status) < config.max_attempts)):
                 # Data files are still in demand
                 for d in job.datafiles:
                     if d in self.demand_file_list.keys():
