@@ -121,7 +121,10 @@ class JobPool:
             print "Q-Status: "+ str(job.status)
         if self.cycles > 3:
             self.fetch_new_jobs()
-        self.cycles += 1
+        if len(self.jobs) == 0:
+            self.cycles += 1
+        else:
+            self.cycles = 1
 #            if (status == "submitted to queue") or \
 #                    (status == "processing in progress"):
 #                pass
