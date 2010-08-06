@@ -249,13 +249,15 @@ class JobPool:
 
     def restart_job(self, job):
         log_status, job.jobid = job.get_log_status()
+        self.qsub_job_error(job)
+
         cansubmit = True
         numfails = job.count_status("processing failed")
         numfails += job.count_status("deleted")
         if (numfails > config.max_attempts):
             cansubmit = False
  
-        if (self.qsub_job_error(job) and cansubmit):
+        if (cansubmit):
             return True
         else:
             return False
