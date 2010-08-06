@@ -306,6 +306,7 @@ class PulsarSearchJob:
         """Count and return the number of times the job has reported
             'status' in its log.
         """
+        self.log = JobLog(self.logfilenm, self)
         count = 0
         for entry in self.log.logentries:
             if entry.status.lower() == status.lower():
