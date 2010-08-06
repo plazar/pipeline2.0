@@ -93,8 +93,6 @@ class JobPool:
         for job in self.jobs:
             jobname = str(job.jobname)
             status, job.jobid = job.get_log_status()
-            
-            status, job.jobid = job.get_log_status()
             self.qsub_update_status()
 
             if  job.status == PulsarSearchJob.NEW_JOB:
