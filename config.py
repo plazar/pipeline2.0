@@ -17,7 +17,7 @@ sleep_time = 10*60 # time to sleep between submitting jobs (in seconds)
 max_attempts = 2 # Maximum number of times a job is attempted due to errors
 #resource_list = "nodes=borg94:ppn=1:JumboFrame" # resource list for PBS's qsub
 resource_list = "nodes=borg92:ppn=1" # resource list for PBS's qsub
-
+delete_rawdata = False
 ################################################################
 # Configurations for raw data
 ################################################################
