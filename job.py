@@ -107,6 +107,7 @@ class JobPool:
                     print "Submitting a job"
                     self.submit_job(job)
                 else:
+                    print "Forbidden to restart this job - deleting"
                     self.delete_job(job)
             elif job.status > PulsarSearchJob.NEW_JOB:
                 pass
