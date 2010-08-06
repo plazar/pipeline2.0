@@ -95,10 +95,7 @@ class JobPool:
         for job in self.jobs:
             jobname = str(job.jobname)
             status, job.jobid = job.get_log_status()
-            print "Name: "+ jobname
-            print "PBS Name: "+ str(job.jobid)
-            print "Status: "+ status
-            print "Q-Status: "+ str(job.status)
+            
             status, job.jobid = job.get_log_status()
             self.qsub_update_status()
 
@@ -119,6 +116,10 @@ class JobPool:
                     print "Removing the job: Multiple fails"
                     self.delete_job(job)
 
+            print "Name: "+ jobname
+            print "PBS Name: "+ str(job.jobid)
+            print "Status: "+ status
+            print "Q-Status: "+ str(job.status)
 #            if (status == "submitted to queue") or \
 #                    (status == "processing in progress"):
 #                pass
@@ -142,7 +143,7 @@ class JobPool:
 #                raise ValueError("Unrecognized status: %s" % status)
 #            print "Status: "+ status
 #            print str(self.qsub_status(job))
-            break
+#           break
 
 
     def submit_job(self, job):
@@ -303,9 +304,9 @@ class PulsarSearchJob:
         """Get and return the status of the most recent log entry.
         """
         self.log = JobLog(self.logfilenm, self)
-        print "=========LOG entry"
-        print self.log.logentries[-1].status.lower() , self.log.logentries[-1].qsubid
-        print "=========LOG entry"        
+#        print "=========LOG entry"
+#        print self.log.logentries[-1].status.lower() , self.log.logentries[-1].qsubid
+#        print "=========LOG entry"        
         return self.log.logentries[-1].status.lower() , self.log.logentries[-1].qsubid
 
     def count_status(self, status):
