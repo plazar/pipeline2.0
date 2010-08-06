@@ -57,7 +57,8 @@ class JobPool:
                 shutil.move(job.logfilenm, config.log_archive)
         job.log.addentry(LogEntry(qsubid=job.jobid,status="Deleted", host=socket.gethostname(),info="Job was deleted"))
         self.jobs.remove(job)
-        self.datafiles.remove(job.jobname+".fits")
+        if job.jobname+".fits" in self.datafiles:
+            self.datafiles.remove(job.jobname+".fits")
 
 
     def get_datafiles(self):
