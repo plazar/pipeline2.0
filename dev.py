@@ -8,3 +8,9 @@ def generate_dummy_fits():
         f = open(incoming_file_dir+"/"+"p2030_"+str(i)+"_b0s0g_"+str(i)+".fits",'w')
         f.close
     return True
+
+def add_files():
+    for i in range(6,11):
+        f = open(incoming_file_dir+"/"+"p2030_"+str(i)+"_b0s0g_"+str(i)+".fits",'w')
+        f.close
+    return True

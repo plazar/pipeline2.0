@@ -24,22 +24,25 @@ class JobPool:
         self.jobs = []
         self.datafiles = self.get_datafiles()
         self.demand_file_list = {}
+        self.cycles = 0
         print "Loading datafile(s)..."
        
         print "Creating Jobs from datafile(s)..."
         self.create_jobs_from_datafiles()
         print "Created "+str(len(self.jobs))+" job(s)"
 
-    def create_jobs_from_datafiles(self):
+    def create_jobs_from_datafiles(self,files_in = None):
         """Given a list of datafiles, group them into jobs.
             For each job return a PulsarSearchJob object.
         """
         # For PALFA2.0 each observation is contained within a single file.
-        
-        for datafile in (self.datafiles):
+        if not files_in:
+            files_in = self.datafiles
+        for datafile in (files_in):
             p_searchjob = PulsarSearchJob([datafile])
             if  isinstance(p_searchjob, PulsarSearchJob):
                 self.jobs.append(p_searchjob)
+        
 
     def delete_job(self, job):
         """Delete datafiles for PulsarSearchJob j. Update j's log.
@@ -115,6 +118,9 @@ class JobPool:
             print "PBS Name: "+ str(job.jobid)
             print "Status: "+ status
             print "Q-Status: "+ str(job.status)
+        if self.cycles > 3:
+            self.fetch_new_jobs()
+        self.cycles += 1
 #            if (status == "submitted to queue") or \
 #                    (status == "processing in progress"):
 #                pass
@@ -259,6 +265,12 @@ class JobPool:
             return False
         pass
 
+    def fetch_new_jobs(self):
+        files_to_x_check = self.get_data_files()
+        for file in files_to_x_check:
+            if file in self.datafiles:
+                files_to_x_check.remove(file)
+        self.create_jobs_from_datafiles(files_to_x_check)
 
 
 
