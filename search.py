@@ -9,10 +9,6 @@ import sys
 import os
 import tempfile
 import shutil
-
-print "================="
-print sys.path
-print "================="
 import config
 
 

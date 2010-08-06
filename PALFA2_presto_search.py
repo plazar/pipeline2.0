@@ -348,7 +348,7 @@ def main(filenms, workdir, resultsdir):
     job = obs_info(filenms, resultsdir)
     if job.T < low_T_to_search:
         print "The observation is too short (%.2f s) to search."%job.T
-        sys.exit()
+        sys.exit("The observation is too short (%.2f s) to search."%job.T)
     job.total_time = time.time()
     
     # Use whatever .zaplist is found in the current directory

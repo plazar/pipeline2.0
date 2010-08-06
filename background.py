@@ -33,7 +33,7 @@ def main():
 
     while True:
         jobpool.rotate()
-        time.sleep(5)
+        time.sleep(1)
         
 
 
