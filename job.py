@@ -47,13 +47,14 @@ class JobPool:
         """
         if config.delete_rawdata:
             if not is_in_demand(j):
-                job.log.addentry(job.LogEntry(status="Deleted", host=socket.gethostname()))
+                
                 # Delete data files
                 for d in job.datafiles:
                     os.remove(d)
                 # Archive log file
                 shutil.move(job.logfilenm, config.log_archive)
-                self.jobs.delete(job)
+        job.log.addentry(job.LogEntry(status="Deleted", host=socket.gethostname()))
+        self.jobs.delete(job)
 
 
     def get_datafiles(self):
