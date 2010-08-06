@@ -209,9 +209,10 @@ class JobPool:
         self.update_demand_file_list() #update demanded file list
         in_demand = False
         for datafile in job.datafiles:
-            if self.demand_file_list[datafile] > 0:
-                in_demand = True
-                break
+            if datafile in self.demand_file_list:
+                if self.demand_file_list[datafile] > 0:
+                    in_demand = True
+                    break
         return in_demand
 
     #def qsub_status(self, job):
