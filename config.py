@@ -21,7 +21,8 @@ delete_rawdata = False
 ################################################################
 # Configurations for raw data
 ################################################################
-rawdata_directory = "/data/alfa/FTP"
+#rawdata_directory = "/data/alfa/FTP"
+rawdata_directory = "/homes/borgii/snipka/FTP"
 #rawdata_directory = "C:/Reposotories/data/"
 rawdata_re_pattern = r"^p2030.*b[0-7]s[01]g?.*\.fits$"
 
