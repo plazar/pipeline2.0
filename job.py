@@ -103,7 +103,8 @@ class JobPool:
             self.qsub_update_status()
 
             if  job.status == PulsarSearchJob.NEW_JOB:
-                self.submit_job(job)
+                if self.restart_job(job):
+                    self.submit_job(job)
             elif job.status > PulsarSearchJob.NEW_JOB:
                 pass
             elif job.status == PulsarSearchJob.TERMINATED:
@@ -251,6 +252,7 @@ class JobPool:
         log_status, job.jobid = job.get_log_status()
         cansubmit = True
         numfails = job.count_status("processing failed")
+        numfails += job.count_status("deleted")
         if (numfails > config.max_attempts):
             cansubmit = False
  
