@@ -235,10 +235,8 @@ class JobPool:
     
     """
     def qsub_update_status(self):
-        
-        batch = PBSQuery.PBSQuery()
         for job in self.jobs:
-            if job.jobid in batch.getjobs():
+            if job.jobid in PBSQuery.PBSQuery().getjobs():
                 if 'R' in batch.getjobs()[job.jobid]['job_state']:
                     job.status = PulsarSearchJob.SUBMITED_RUNNING
                 else:
