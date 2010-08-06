@@ -112,7 +112,7 @@ class JobPool:
                     print "Resubmitting a job: "+ job.jobid
                     self.submit_job(job)
                 else:
-                    print "Removing the job: Multiple fails"
+                    print "Removing the job: Multiple fails: "+job.jobname
                     self.delete_job(job)
 
             print "Name: "+ jobname
