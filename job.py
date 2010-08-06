@@ -120,6 +120,7 @@ class JobPool:
             print "Status: "+ status
             print "Q-Status: "+ str(job.status)
         if self.cycles > 3:
+            print "=====================================  Fetching new jobs"
             self.fetch_new_jobs()
         if len(self.jobs) == 0:
             self.cycles += 1
