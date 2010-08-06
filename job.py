@@ -104,7 +104,10 @@ class JobPool:
 
             if  job.status == PulsarSearchJob.NEW_JOB:
                 if self.restart_job(job):
+                    print "Submitting a job"
                     self.submit_job(job)
+                else:
+                    self.delete_job(job)
             elif job.status > PulsarSearchJob.NEW_JOB:
                 pass
             elif job.status == PulsarSearchJob.TERMINATED:
@@ -144,8 +147,6 @@ class JobPool:
     def submit_job(self, job):
         """Submit PulsarSearchJob j to the queue. Update j's log.
         """
-        print "Submitting a job"
-        pprint.pprint(job.datafiles)
         print 'qsub -V -v DATAFILES="%s" -l %s -N %s search.py' % \
                             (','.join(job.datafiles), config.resource_list, \
                                     config.job_basename)
@@ -156,9 +157,6 @@ class JobPool:
         jobid = pipe.communicate()[0]
         job.jobid = jobid.rstrip()
         pipe.stdin.close()
-        print "================="
-        print job.jobid
-        print "================="
         job.status = PulsarSearchJob.SUBMITED
         job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
                                         info="Job ID: %s" % jobid.strip()))
