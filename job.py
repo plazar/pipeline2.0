@@ -52,6 +52,7 @@ class JobPool:
             if not self.is_in_demand(job):                
                 # Delete data files
                 for d in job.datafiles:
+                    print "Deleting datafile: " + str(d)
                     os.remove(d)
                 # Archive log file
                 shutil.move(job.logfilenm, config.log_archive)
@@ -378,11 +379,9 @@ class JobLog:
                                     "(?P<host>.*) -- (?P<info>.*)$")
         if os.path.exists(self.logfn):
             # Read the logfile
-            print "Log exists"
             self.logentries = self.read()
         else:
             # Create the log file
-            print "Log doesn't exist -- creating"
             entry = LogEntry(qsubid = job.jobid,status="New job", host=socket.gethostname(), \
                              info="Datafiles: %s" % self.job.datafiles)
             self.addentry(entry)
