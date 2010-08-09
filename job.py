@@ -128,6 +128,10 @@ class JobPool:
             self.cycles += 1
         else:
             self.cycles = 1
+
+
+        print ""
+        print ""
 #            if (status == "submitted to queue") or \
 #                    (status == "processing in progress"):
 #                pass
@@ -370,9 +374,11 @@ class JobLog:
                                     "(?P<host>.*) -- (?P<info>.*)$")
         if os.path.exists(self.logfn):
             # Read the logfile
+            print "Log exists"
             self.logentries = self.read()
         else:
             # Create the log file
+            print "Log doesn't exist -- creating"
             entry = LogEntry(qsubid = job.jobid,status="New job", host=socket.gethostname(), \
                              info="Datafiles: %s" % self.job.datafiles)
             self.addentry(entry)
