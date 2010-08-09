@@ -280,6 +280,7 @@ class JobPool:
 
     def fetch_new_jobs(self):
         files_to_x_check = self.get_datafiles()
+        print "Files found: "+ str(len(files_to_x_check))
         for file in files_to_x_check:
             if file in self.datafiles:
                 files_to_x_check.remove(file)
