@@ -287,8 +287,9 @@ class JobPool:
         for file in files_to_x_check:
             tmp_job = PulsarSearchJob([file])
             if not self.restart_job(tmp_job):
+                print "Removing file"
                 files_to_x_check.remove(file)
-
+            print "Will not remove file because i can restart the job"
         self.create_jobs_from_datafiles(files_to_x_check)
 
 
