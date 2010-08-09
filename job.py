@@ -125,7 +125,7 @@ class JobPool:
             print "=====================================  Fetching new jobs"
             dev.add_files()
             self.fetch_new_jobs()
-
+        self.cycles += 1
 
 
         print ""
