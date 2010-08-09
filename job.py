@@ -266,11 +266,14 @@ class JobPool:
 
         cansubmit = True
         numfails = job.count_status("processing failed")
-        numfails += job.count_status("deleted")
+        deleted = job.count_status("deleted")
         if (numfails > config.max_attempts):
             cansubmit = False
- 
-        if (cansubmit):
+
+        if delete > 0:
+            deleted = True
+
+        if (cansubmit or deleted):
             return True
         else:
             return False
