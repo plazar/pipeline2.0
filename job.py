@@ -127,7 +127,7 @@ class JobPool:
             self.fetch_new_jobs()
         if len(self.jobs) == 0:
             self.cycles += 1
-        else:
+        elif self.cycles != 3:
             self.cycles = 1
 
 
