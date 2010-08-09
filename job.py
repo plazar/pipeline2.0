@@ -283,6 +283,12 @@ class JobPool:
         for file in files_to_x_check:
             if file in self.datafiles:
                 files_to_x_check.remove(file)
+
+        for file in files_to_x_check:
+            tmp_job = PulsarSearchJob([file])
+            if not self.restart_job(tmp_job):
+                files_to_x_check.remove(file)
+
         self.create_jobs_from_datafiles(files_to_x_check)
 
 
