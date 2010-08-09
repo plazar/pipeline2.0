@@ -274,7 +274,7 @@ class JobPool:
         if deleted > 0:
             deleted = True
 
-        if (cansubmit or deleted):
+        if (cansubmit and not deleted):
             return True
         else:
             return False
