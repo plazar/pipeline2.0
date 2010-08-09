@@ -289,7 +289,9 @@ class JobPool:
             if not self.restart_job(tmp_job):
                 print "Removing file"
                 files_to_x_check.remove(file)
-            print "Will not remove file because i can restart the job"
+            else:
+                print "Will not remove file because i can restart the job"
+        print "Files left to add to queue: "+ str(len(files_to_x_check))
         self.create_jobs_from_datafiles(files_to_x_check)
 
 
