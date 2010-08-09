@@ -132,9 +132,9 @@ class JobPool:
             print ""
 
         str_status = ['TERMINATED','NEW_JOB','SUBMITED','SUBMITED_QUEUED','SUBMITED_RUNNING']
+        print "\tName\t\tJob ID\t\tLog-Status\t\tQ-Status"
         for job in self.jobs:
-            print "\tName\t\tJob ID\t\tLog-Status\t\tQ-Status"
-            print ("%s\t%s\t%s\t%s",jobname,job.jobid,status,str_status[job.status])
+            print ("%s\t%s\t%s\t%s" % jobname,job.jobid,status,str_status[job.status])
 
         if self.cycles == 10:
             print "================================ Adding files"
