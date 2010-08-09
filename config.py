@@ -10,10 +10,10 @@ survey = "PALFA2.0"
 ################################################################
 base_working_directory = "/scratch/PALFA/"
 zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
-#log_dir = "/homes/borgii/snipka/dev/pipeline2.0/log/"
-#log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
-log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
-log_archive = "C:/Reposotories/PALFA/pipeline2.0/log_archive"
+log_dir = "/homes/borgii/snipka/dev/pipeline2.0/log/"
+log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
+#log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
+#log_archive = "C:/Reposotories/PALFA/pipeline2.0/log_archive"
 
 max_jobs_running = 10
 job_basename = "%s_batchjob" % survey
@@ -26,8 +26,8 @@ delete_rawdata = True
 # Configurations for raw data
 ################################################################
 #rawdata_directory = "/data/alfa/FTP"
-#rawdata_directory = "/homes/borgii/snipka/FTP"
-rawdata_directory = "C:/Reposotories/PALFA/FTP"
+rawdata_directory = "/homes/borgii/snipka/FTP"
+#rawdata_directory = "C:/Reposotories/PALFA/FTP"
 rawdata_re_pattern = r"^p2030.*b[0-7]s[01]g?.*\.fits$"
 
 ################################################################
