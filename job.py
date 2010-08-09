@@ -270,7 +270,7 @@ class JobPool:
         if (numfails > config.max_attempts):
             cansubmit = False
 
-        if delete > 0:
+        if deleted > 0:
             deleted = True
 
         if (cansubmit or deleted):
