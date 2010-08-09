@@ -22,13 +22,13 @@ import dev
 class JobPool:
     def __init__(self):
         self.jobs = []
-        self.datafiles = self.get_datafiles()
+        self.datafiles = []
         self.demand_file_list = {}
         self.cycles = 0
         print "Loading datafile(s)..."
        
         print "Creating Jobs from datafile(s)..."
-        self.create_jobs_from_datafiles()
+        self.fetch_new_jobs()
         print "Created "+str(len(self.jobs))+" job(s)"
 
     def create_jobs_from_datafiles(self,files_in = None):
@@ -37,10 +37,11 @@ class JobPool:
         """
         # For PALFA2.0 each observation is contained within a single file.
         if not files_in:
-            files_in = self.datafiles
+            return
         for datafile in (files_in):
             p_searchjob = PulsarSearchJob([datafile])
             if  isinstance(p_searchjob, PulsarSearchJob):
+                self.datafiles.append(datafile)
                 self.jobs.append(p_searchjob)
         
 
@@ -60,7 +61,7 @@ class JobPool:
 
         if job in self.jobs:
             self.jobs.remove(job)
-            
+
         if job.jobname+".fits" in self.datafiles:
             self.datafiles.remove(job.jobname+".fits")
 
