@@ -49,6 +49,7 @@ class JobPool:
         """Delete datafiles for PulsarSearchJob j. Update j's log.
             Archive j's log.
         """
+        job.log.addentry(LogEntry(qsubid=job.jobid,status="Deleted", host=socket.gethostname(),info="Job was deleted"))
         if config.delete_rawdata:
             if not self.is_in_demand(job):                
                 # Delete data files
@@ -56,8 +57,10 @@ class JobPool:
                     print "Deleting datafile: " + str(d)
                     os.remove(d)
                 # Archive log file
+                if os.path.exists(os.path.join(config.log_archive,os.path.basename(job.logfilenm))):
+                    os.remove(os.path.join(config.log_archive,os.path.basename(job.logfilenm)))
                 shutil.move(job.logfilenm, config.log_archive)
-        job.log.addentry(LogEntry(qsubid=job.jobid,status="Deleted", host=socket.gethostname(),info="Job was deleted"))
+        
 
         if job in self.jobs:
             self.jobs.remove(job)
@@ -99,7 +102,8 @@ class JobPool:
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
         self.qsub_update_status()
 
-        for job in self.jobs:
+        
+        for job in self.jobs[:]:
             jobname = str(job.jobname)
             status, job.jobid = job.get_log_status()
             self.qsub_update_status()
@@ -127,7 +131,7 @@ class JobPool:
             print "Q-Status: "+ str(job.status)
             print ""
 
-        if self.cycles == 20:
+        if self.cycles == 10:
             print "================================ Adding files"
             dev.add_files()
         self.cycles += 1
@@ -136,7 +140,10 @@ class JobPool:
         print ""
         print ""
 
-        print "=====================================  Fetching new jobs"
+        print "---------------- Listing Current Datafiles -----------"
+        for file in self.datafiles:
+            print file
+        print "END END -------- Listing Current Datafiles --- END END"
         self.fetch_new_jobs()
 #            if (status == "submitted to queue") or \
 #                    (status == "processing in progress"):
@@ -174,12 +181,18 @@ class JobPool:
                             (','.join(job.datafiles), config.resource_list, \
                                     config.job_basename,'qsublog'), \
                             shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
+
         jobid = pipe.communicate()[0]
         job.jobid = jobid.rstrip()
+       
         pipe.stdin.close()
+
+#        job.jobid = dev.get_fake_job_id()
+        dev.write_fake_qsub_error(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
+
         job.status = PulsarSearchJob.SUBMITED
         job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
-                                        info="Job ID: %s" % jobid.strip()))
+                                        info="Job ID: %s" % job.jobid.strip()))
 
     def update_demand_file_list(self):
         """Return a dictionary where the keys are the datafile names
@@ -211,6 +224,8 @@ class JobPool:
 
             Returns a 2-tuple: (numrunning, numqueued).
         """
+        return (0,0)
+    
         batch = PBSQuery.PBSQuery()
         alljobs = batch.getjobs()
         numrunning = 0
@@ -255,7 +270,9 @@ class JobPool:
     
     """
     def qsub_update_status(self):
+        
         for job in self.jobs:
+#            job.status = PulsarSearchJob.TERMINATED
             batch = PBSQuery.PBSQuery().getjobs()
             if job.jobid in batch:
                 if 'R' in batch[job.jobid]['job_state']:
@@ -287,22 +304,25 @@ class JobPool:
         pass
 
     def fetch_new_jobs(self):
+        print "=====================================  Fetching new jobs"
         files_to_x_check = self.get_datafiles()
         print "Files found: "+ str(len(files_to_x_check))
-        for file in files_to_x_check:
-            if file in self.datafiles:
+        for file in self.datafiles:
+            if file in files_to_x_check:
                 files_to_x_check.remove(file)
+        print "Files kept: "+str(len(files_to_x_check))
 
         for file in files_to_x_check:
             tmp_job = PulsarSearchJob([file])
             if not self.restart_job(tmp_job):
-                print "Removing file"
+                print "Removing file: "+ file
                 self.delete_job(tmp_job)
                 files_to_x_check.remove(file)
             else:
-                print "Will not remove file because i can restart the job"
+                print "Will not remove file because i can restart the job: "+ file
         print "Files left to add to queue: "+ str(len(files_to_x_check))
         self.create_jobs_from_datafiles(files_to_x_check)
+        print "===================================== END END END  Fetching new jobs"
 
 
 
