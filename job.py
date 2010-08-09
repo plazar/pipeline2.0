@@ -120,7 +120,7 @@ class JobPool:
             print "PBS Name: "+ str(job.jobid)
             print "Status: "+ status
             print "Q-Status: "+ str(job.status)
-        if self.cycles > 3:
+        if self.cycles == 3:
             print "=====================================  Fetching new jobs"
             dev.add_files()
             self.fetch_new_jobs()
