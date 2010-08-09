@@ -125,14 +125,14 @@ class JobPool:
                     print "Removing the job: Multiple fails: "+job.jobname
                     self.delete_job(job)
 
-            print "Name: "+ jobname
-            print "PBS Name: "+ str(job.jobid)
-            print "Status: "+ status
-            print "Q-Status: "+ str(job.status)
-            print ""
+#            print "Name: "+ jobname
+#            print "PBS Name: "+ str(job.jobid)
+#            print "Status: "+ status
+#            print "Q-Status: "+ str(job.status)
+#            print ""
 
         str_status = ['TERMINATED','NEW_JOB','SUBMITED','SUBMITED_QUEUED','SUBMITED_RUNNING']
-        print "\tName\t\tJob ID\t\tLog-Status\t\tQ-Status"
+        print "\t\t\tName\t\t\t\tJob ID\t\t\tLog-Status\t\t\tQ-Status"
         for job in self.jobs:
             print "%s\t%s\t%s\t%s" % (jobname,job.jobid,status,str_status[job.status])
 
@@ -145,10 +145,10 @@ class JobPool:
         print ""
         print ""
 
-        print "---------------- Listing Current Datafiles -----------"
-        for file in self.datafiles:
-            print file
-        print "END END -------- Listing Current Datafiles --- END END"
+#        print "---------------- Listing Current Datafiles -----------"
+#        for file in self.datafiles:
+#            print file
+#        print "END END -------- Listing Current Datafiles --- END END"
         self.fetch_new_jobs()
 #            if (status == "submitted to queue") or \
 #                    (status == "processing in progress"):
@@ -179,9 +179,9 @@ class JobPool:
     def submit_job(self, job):
         """Submit PulsarSearchJob j to the queue. Update j's log.
         """
-        print 'qsub -V -v DATAFILES="%s" -l %s -N %s search.py' % \
-                            (','.join(job.datafiles), config.resource_list, \
-                                    config.job_basename)
+#        print 'qsub -V -v DATAFILES="%s" -l %s -N %s search.py' % \
+#                            (','.join(job.datafiles), config.resource_list, \
+#                                    config.job_basename)
         pipe = subprocess.Popen('qsub -V -v DATAFILES="%s" -l %s -N %s -e %s search.py' % \
                             (','.join(job.datafiles), config.resource_list, \
                                     config.job_basename,'qsublog'), \
@@ -309,25 +309,25 @@ class JobPool:
         pass
 
     def fetch_new_jobs(self):
-        print "=====================================  Fetching new jobs"
+#        print "=====================================  Fetching new jobs"
         files_to_x_check = self.get_datafiles()
-        print "Files found: "+ str(len(files_to_x_check))
+#        print "Files found: "+ str(len(files_to_x_check))
         for file in self.datafiles:
             if file in files_to_x_check:
                 files_to_x_check.remove(file)
-        print "Files kept: "+str(len(files_to_x_check))
+#        print "Files kept: "+str(len(files_to_x_check))
 
         for file in files_to_x_check:
             tmp_job = PulsarSearchJob([file])
             if not self.restart_job(tmp_job):
-                print "Removing file: "+ file
+#                print "Removing file: "+ file
                 self.delete_job(tmp_job)
                 files_to_x_check.remove(file)
-            else:
-                print "Will not remove file because i can restart the job: "+ file
-        print "Files left to add to queue: "+ str(len(files_to_x_check))
+#            else:
+#                print "Will not remove file because i can restart the job: "+ file
+#        print "Files left to add to queue: "+ str(len(files_to_x_check))
         self.create_jobs_from_datafiles(files_to_x_check)
-        print "===================================== END END END  Fetching new jobs"
+#        print "===================================== END END END  Fetching new jobs"
 
 
 
