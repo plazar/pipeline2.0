@@ -128,14 +128,16 @@ class JobPool:
             print ""
 
         if self.cycles == 20:
-            print "=====================================  Fetching new jobs"
+            print "================================ Adding files"
             dev.add_files()
-            self.fetch_new_jobs()
         self.cycles += 1
 
 
         print ""
         print ""
+
+        print "=====================================  Fetching new jobs"
+        self.fetch_new_jobs()
 #            if (status == "submitted to queue") or \
 #                    (status == "processing in progress"):
 #                pass
