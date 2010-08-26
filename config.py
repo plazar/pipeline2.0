@@ -72,3 +72,13 @@ def init_presto_search():
     presto_search.sifting.harm_pow_cutoff = 8.0    # Power required in at least one harmonic
 
     return presto_search
+
+
+################################################################
+# Downloader Configuration
+#
+# Downlaoder uses 'rawdata_directory' to move downlaoded files to
+################################################################
+
+downloader_temp = "/tmp" # When set to empty string will download to directory of the script
+
