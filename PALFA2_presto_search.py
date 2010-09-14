@@ -244,6 +244,7 @@ class obs_info:
         # Check that filenames have correct format
         for filenm in self.filenms:
             m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]\..*\.fits", \
+            # m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]_4b\..*\.fits", \
                             filenm)
             if m is None:
                 raise ValueError("Data files don't appear to be ALFA MockSpec data " \
@@ -375,8 +376,7 @@ def main(filenms, workdir, resultsdir):
     # Get information on the observation and the job
     job = obs_info(filenms, resultsdir)
     if job.T < low_T_to_search:
-        print "The observation is too short (%.2f s) to search."%job.T
-        sys.exit()
+        sys.exit("The observation is too short (%.2f s) to search."%job.T)
     job.total_time = time.time()
     
     # Use whatever .zaplist is found in the current directory

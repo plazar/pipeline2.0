@@ -10,16 +10,24 @@ survey = "PALFA2.0"
 ################################################################
 base_working_directory = "/scratch/PALFA/"
 zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
+log_dir = "/homes/borgii/snipka/dev/pipeline2.0/log/"
+log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
+#log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
+#log_archive = "C:/Reposotories/PALFA/pipeline2.0/log_archive"
+
 max_jobs_running = 10
 job_basename = "%s_batchjob" % survey
 sleep_time = 10*60 # time to sleep between submitting jobs (in seconds)
 max_attempts = 2 # Maximum number of times a job is attempted due to errors
-resource_list = "nodes=borg94:ppn=1:JumboFrame" # resource list for PBS's qsub
-
+#resource_list = "nodes=borg94:ppn=1:JumboFrame" # resource list for PBS's qsub
+resource_list = "nodes=borg92:ppn=1" # resource list for PBS's qsub
+delete_rawdata = True
 ################################################################
 # Configurations for raw data
 ################################################################
-rawdata_directory = "/data/alfa/FTP"
+#rawdata_directory = "/data/alfa/FTP"
+rawdata_directory = "/homes/borgii/snipka/FTP"
+#rawdata_directory = "C:/Reposotories/PALFA/FTP"
 rawdata_re_pattern = r"^p2030.*b[0-7]s[01]g?.*\.fits$"
 
 ################################################################
@@ -64,3 +72,18 @@ def init_presto_search():
     presto_search.sifting.harm_pow_cutoff = 8.0    # Power required in at least one harmonic
 
     return presto_search
+
+
+################################################################
+# Downloader Configuration
+#
+# Downlaoder uses 'rawdata_directory' to move downlaoded files to
+################################################################
+
+downloader_api_service_url = "http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL"
+downloader_api_password = "myTestPassword"
+downloader_temp = "/tmp" # When set to empty string will download to directory of the script
+downloader_space_to_use = 23489856 #Size to use in bytes; Use 'None' to use all available space
+downloader_numofdownloads = 1
+downloader_numofrestores = 1
+
