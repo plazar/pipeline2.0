@@ -1,26 +1,22 @@
-import glob
-import os
-import os.path
-import shutil
-import socket
-import struct
-import sys
-import time
-import subprocess
-import re
-import types
+#!/usr/bin/env python
+import glob, os, os.path, shutil, socket, struct, sys, time, tarfile
+import numpy, psr_utils, presto, sifting, sigproc
 
-import numpy as np
-import psr_utils
-import presto
-import sifting
-import psrfits
+# Calling convention:
+#
+# PALFA_presto_search.py fil_file working_dir
+#
+#   fil_file is the filterbank file name
+#   working_dir is the scratch directory where the work should be done
+#       In general, there should be ~30GB of scratch disk per beam.
+#       If you do not have that much scratch space, you will likely
+#       need to to use set the use_subbands flag below.
 
 # Basic parameters
 # institution is one of: 'UBC', 'NRAOCV', 'McGill', 'Columbia', 'Cornell', 'UTB'
-# institution           = "NRAOCV" 
-# base_output_directory = "/home/fcardoso/results/PALFA"
-# db_pointing_file      = "/home/fcardoso/results/PALFA/PALFA_coords_table.txt"
+institution           = "NRAOCV" 
+base_output_directory = "/home/fcardoso/results/PALFA"
+db_pointing_file      = "/home/fcardoso/results/PALFA/PALFA_coords_table.txt"
 
 # The following determines if we'll dedisperse and fold using subbands.
 # In general, it is a very good idea to use them if there is enough scratch
@@ -29,24 +25,23 @@ use_subbands          = True
 
 # Tunable parameters for searching and folding
 # (you probably don't need to tune any of them)
-datatype_flag           = "-psrfits" # PRESTO flag to determine data type
-rfifind_chunk_time      = 2**15 * 0.000064  # ~2.1 sec for dt = 64us
-singlepulse_threshold   = 5.0  # threshold SNR for candidate determination
-singlepulse_plot_SNR    = 6.0  # threshold SNR for singlepulse plot
-singlepulse_maxwidth    = 0.1  # max pulse width in seconds
-to_prepfold_sigma       = 6.0  # incoherent sum significance to fold candidates
-max_cands_to_fold       = 150   # Never fold more than this many candidates
-numhits_to_fold         = 2    # Number of DMs with a detection needed to fold
-low_DM_cutoff           = 2.0  # Lowest DM to consider as a "real" pulsar
-lo_accel_numharm        = 16   # max harmonics
-lo_accel_sigma          = 2.0  # threshold gaussian significance
-lo_accel_zmax           = 0    # bins
-lo_accel_flo            = 2.0  # Hz
-hi_accel_numharm        = 8    # max harmonics
-hi_accel_sigma          = 3.0  # threshold gaussian significance
-hi_accel_zmax           = 50   # bins
-hi_accel_flo            = 1.0  # Hz
-low_T_to_search         = 20.0 # sec
+rfifind_chunk_time    = 2**15 * 0.000064  # ~2.1 sec for dt = 64us 
+singlepulse_threshold = 5.0  # threshold SNR for candidate determination
+singlepulse_plot_SNR  = 6.0  # threshold SNR for singlepulse plot
+singlepulse_maxwidth  = 0.1  # max pulse width in seconds
+to_prepfold_sigma     = 6.0  # incoherent sum significance to fold candidates
+max_cands_to_fold     = 150   # Never fold more than this many candidates
+numhits_to_fold       = 2    # Number of DMs with a detection needed to fold
+low_DM_cutoff         = 2.0  # Lowest DM to consider as a "real" pulsar
+lo_accel_numharm      = 16   # max harmonics
+lo_accel_sigma        = 2.0  # threshold gaussian significance
+lo_accel_zmax         = 0    # bins
+lo_accel_flo          = 2.0  # Hz
+hi_accel_numharm      = 8    # max harmonics
+hi_accel_sigma        = 3.0  # threshold gaussian significance
+hi_accel_zmax         = 50   # bins
+hi_accel_flo          = 1.0  # Hz
+low_T_to_search       = 20.0 # sec
 
 # Sifting specific parameters (don't touch without good reason!)
 sifting.sigma_threshold = to_prepfold_sigma-1.0  # incoherent power threshold (sigma)
@@ -56,66 +51,58 @@ sifting.short_period    = 0.0005 # Shortest period candidates to consider (s)
 sifting.long_period     = 15.0   # Longest period candidates to consider (s)
 sifting.harm_pow_cutoff = 8.0    # Power required in at least one harmonic
 
-debug = 0
-
-# A list of numbers that are highly factorable
-#goodfactors = [int(x) for x in open("ALFA_goodfacts.txt")]
-goodfactors = [1008, 1024, 1056, 1120, 1152, 1200, 1232, 1280, 1296,
-1344, 1408, 1440, 1536, 1568, 1584, 1600, 1680, 1728, 1760, 1792,
-1920, 1936, 2000, 2016, 2048, 2112, 2160, 2240, 2304, 2352, 2400,
-2464, 2560, 2592, 2640, 2688, 2800, 2816, 2880, 3024, 3072, 3136,
-3168, 3200, 3360, 3456, 3520, 3584, 3600, 3696, 3840, 3872, 3888,
-3920, 4000, 4032, 4096, 4224, 4320, 4400, 4480, 4608, 4704, 4752,
-4800, 4928, 5040, 5120, 5184, 5280, 5376, 5488, 5600, 5632, 5760,
-5808, 6000, 6048, 6144, 6160, 6272, 6336, 6400, 6480, 6720, 6912,
-7040, 7056, 7168, 7200, 7392, 7680, 7744, 7776, 7840, 7920, 8000,
-8064, 8192, 8400, 8448, 8624, 8640, 8800, 8960, 9072, 9216, 9408,
-9504, 9600, 9680, 9856]
-
-def choose_N(orig_N):
-    """
-    choose_N(orig_N):
-        Choose a time series length that is larger than
-            the input value but that is highly factorable.
-            Note that the returned value must be divisible
-            by at least the maximum downsample factor * 2.
-            Currently, this is 8 * 2 = 16.
-    """
-    if orig_N < 10000:
-        return 0
-    # Get the number represented by the first 4 digits of orig_N
-    first4 = int(str(orig_N)[:4])
-    # Now get the number that is just bigger than orig_N
-    # that has its first 4 digits equal to "factor"
-    for factor in goodfactors:
-        if factor > first4: break
-    new_N = factor
-    while new_N < orig_N:
-        new_N *= 10
-    # Finally, compare new_N to the closest power_of_two
-    # greater than orig_N.  Take the closest.
-    two_N = 2
-    while two_N < orig_N:
-        two_N *= 2
-    if two_N < new_N: return two_N
-    else: return new_N
-
-
 def get_baryv(ra, dec, mjd, T, obs="AO"):
+    """
+    get_baryv(ra, dec, mjd, T):
+         Determine the average barycentric velocity towards 'ra', 'dec'
+             during an observation from 'obs'.  The RA and DEC are in the
+             standard string format (i.e. 'hh:mm:ss.ssss' and
+             'dd:mm:ss.ssss').  'T' is in sec and 'mjd' is (of course) in MJD.
    """
-   get_baryv(ra, dec, mjd, T):
-     Determine the average barycentric velocity towards 'ra', 'dec'
-       during an observation from 'obs'.  The RA and DEC are in the
-       standard string format (i.e. 'hh:mm:ss.ssss' and 
-       'dd:mm:ss.ssss'). 'T' is in sec and 'mjd' is (of course) in MJD.
-   """
-   tts = psr_utils.span(mjd, mjd+T/86400.0, 100)
-   nn = len(tts)
-   bts = np.zeros(nn, dtype=np.float64)
-   vel = np.zeros(nn, dtype=np.float64)
-   presto.barycenter(tts, bts, vel, nn, ra, dec, obs, "DE200")
-   avgvel = np.add.reduce(vel)/nn
-   return avgvel
+    tts = psr_utils.span(mjd, mjd+T/86400.0, 100)
+    nn = len(tts)
+    bts = numpy.zeros(nn, dtype=numpy.float64)
+    vel = numpy.zeros(nn, dtype=numpy.float64)
+    presto.barycenter(tts, bts, vel, nn, ra, dec, obs, "DE200")
+    avgvel = numpy.add.reduce(vel)/nn
+    return avgvel
+
+def fix_fil_posn(fil_filenm, hdrlen, ra, dec):
+    """
+    fix_fil_posn(fil_filenm, hdrlen, ra, dec):
+        Modify the filterbank header and update the RA and DEC
+            fields using the values given as input.  ra and dec
+            should be in 'HH:MM:SS.SSSS' and 'DD:MM:SS.SSSS' format.
+            hdrlen is the length of the filterbank header as
+            reported by PRESTO's 'readfile' or SIGPROC's 'header'.
+    """
+    newra = float(ra.replace(":", ""))
+    newdec = float(dec.replace(":", ""))
+    header = open(fil_filenm).read(hdrlen)
+    ra_ptr = header.find("src_raj")+len("src_raj")
+    dec_ptr = header.find("src_dej")+len("src_dej")
+    filfile = open(fil_filenm, 'rb+')
+    filfile.seek(ra_ptr)
+    filfile.write(struct.pack('d', newra))
+    filfile.seek(dec_ptr)
+    filfile.write(struct.pack('d', newdec))
+    filfile.close()
+
+def read_db_posn(orig_filenm, beam):
+    """
+    read_db_posn(orig_filenm, beam):
+        Find the original WAPP filename in the db_pointing_file
+           and return the sexagesimal position strings for
+           the choen beam in that file.  Return None if not found.
+    """
+    offset = beam % 2
+    for line in open(db_pointing_file):
+        sline = line.split()
+        if sline[0].strip() == orig_filenm:
+            ra_str = sline[2*offset+1].strip()
+            dec_str = sline[2*offset+2].strip()
+            return ra_str, dec_str
+    return None
 
 def find_masked_fraction(obs):
     """
@@ -139,9 +126,8 @@ def get_all_subdms(ddplans):
     for ddplan in ddplans:
         subdmlist += [float(x) for x in ddplan.subdmlist]
     subdmlist.sort()
-    subdmlist = np.asarray(subdmlist)
+    subdmlist = numpy.asarray(subdmlist)
     return subdmlist
-
 
 def find_closest_subbands(obs, subdms, DM):
     """
@@ -149,56 +135,22 @@ def find_closest_subbands(obs, subdms, DM):
         Return the basename of the closest set of subbands to DM
         given an obs_info class and a sorted array of the subdms.
     """
-    subdm = subdms[np.fabs(subdms - DM).argmin()]
+    subdm = subdms[numpy.fabs(subdms - DM).argmin()]
     return "subbands/%s_DM%.2f.sub[0-6]*"%(obs.basefilenm, subdm)
 
-
-def timed_execute(cmd, stdout=None, stderr=subprocess.STDOUT): 
+def timed_execute(cmd): 
     """
-    timed_execute(cmd, stdout=None, stderr=subprocess.STDOUT):
+    timed_execute(cmd):
         Execute the command 'cmd' after logging the command
             to STDOUT.  Return the wall-clock amount of time
             the command took to execute.
-
-            Output standard output to 'stdout' and standard
-            error to 'stderr'. Both are strings containing filenames.
-            If values are None, the out/err streams are not recorded.
-            By default stdout is None and stderr is combined with stdout.
     """
-    # Log command to stdout
     sys.stdout.write("\n'"+cmd+"'\n")
     sys.stdout.flush()
-
-    stdoutfile = False
-    stderrfile = False
-    if type(stdout) == types.StringType:
-        stdout = open(stdout, 'w')
-        stdoutfile = True
-    if type(stderr) == types.StringType:
-        stderr = open(stderr, 'w')
-        stderrfile = True
-    
-    # Run (and time) the command. Check for errors.
     start = time.time()
-    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=stderr)
-    if retcode < 0:
-        raise PrestoError("Execution of command (%s) terminated by signal (%s)!" % \
-                                (cmd, -retcode))
-    elif retcode > 0:
-        raise PrestoError("Execution of command (%s) failed with status (%s)!" % \
-                                (cmd, retcode))
-    else:
-        # Exit code is 0, which is "Success". Do nothing.
-        pass
+    os.system(cmd)
     end = time.time()
-    
-    # Close file objects, if any
-    if stdoutfile:
-        stdout.close()
-    if stderrfile:
-        stderr.close()
     return end - start
-
 
 def get_folding_command(cand, obs, ddplans):
     """
@@ -227,7 +179,7 @@ def get_folding_command(cand, obs, ddplans):
         subdms = get_all_subdms(ddplans)
         subfiles = find_closest_subbands(obs, subdms, cand.DM)
         foldfiles = subfiles
-    else:  # Folding the downsampled PSRFITS files instead
+    else:  # Folding the downsampled filterbank files instead
         hidms = [x.lodm for x in ddplans[1:]] + [2000]
         dfacts = [x.downsamp for x in ddplans]
         for hidm, dfact in zip(hidms, dfacts):
@@ -235,13 +187,10 @@ def get_folding_command(cand, obs, ddplans):
                 downsamp = dfact
                 break
         if downsamp==1:
-            foldfiles = obs.filenmstr
+            filfile = obs.fil_filenm
         else:
-            dsfiles = [] 
-            for f in obs.filenames:
-                fbase = f.rstrip(".fits")
-                dsfiles.append(fbase+"_DS%d.fits"%downsamp)
-            foldfiles = ' '.join(dsfiles)
+            filfile = obs.basefilenm+"_DS%d.fil"%downsamp
+        foldfiles = filfile
     p = 1.0 / cand.f
     if p < 0.002:
         Mp, Mdm, N = 2, 2, 24
@@ -259,52 +208,50 @@ def get_folding_command(cand, obs, ddplans):
            (cand.candnum, cand.filename, cand.DM, outfilenm,
             otheropts, N, Mp, Mdm, foldfiles)
 
-
 class obs_info:
     """
-    class obs_info(filenms, resultsdir)
+    class obs_info(fil_filenm)
         A class describing the observation and the analysis.
     """
-    def __init__(self, filenms, resultsdir):
-        # Where to dump all the results
-        self.outputdir = resultsdir
-        
-        self.filenms = filenms
-        self.filenmstr = ' '.join(self.filenms)
-        self.basefilenm = os.path.split(filenms[0])[1].rstrip(".fits")
-        # Check that filenames have correct format
-        for filenm in self.filenms:
-            m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]\..*\.fits", \
-            # m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]_4b\..*\.fits", \
-                            filenm)
-            if m is None:
-                raise ValueError("Data files don't appear to be ALFA MockSpec data " \
-                                    "(based on filename)!")
-        # m should be the re.match object from last filename 
-        # (Is this consistent with all files?)
-        self.alfabeam = int(m.group('beam'))
-        self.mocksubband = int(m.group('subband'))
-        
-        # Read info from PSRFITS file
-        spec_info = psrfits.SpectraInfo(filenms)
-        self.MJD = spec_info.start_MJD[0]
-        self.ra_string = spec_info.ra_str
-        self.dec_string = spec_info.dec_str
-        self.orig_N = spec_info.N
-        self.dt = spec_info.dt # in sec
-        self.BW = spec_info.BW
-        self.orig_T = spec_info.T
-        self.N = choose_N(self.orig_N)
+    def __init__(self, fil_filenm):
+        self.fil_filenm = fil_filenm
+        self.basefilenm = fil_filenm.rstrip(".fil")
+        self.beam = int(self.basefilenm[-1])
+        filhdr, self.hdrlen = sigproc.read_header(fil_filenm)
+        self.orig_filenm = filhdr['rawdatafile']
+        self.MJD = filhdr['tstart']
+        self.nchans = filhdr['nchans']
+        self.ra_rad = sigproc.ra2radians(filhdr['src_raj'])
+        self.ra_string = psr_utils.coord_to_string(\
+            *psr_utils.rad_to_hms(self.ra_rad))
+        self.dec_rad = sigproc.dec2radians(filhdr['src_dej'])
+        self.dec_string = psr_utils.coord_to_string(\
+            *psr_utils.rad_to_dms(self.dec_rad))
+        self.az = filhdr['az_start']
+        self.el = 90.0-filhdr['za_start']
+        self.BW = abs(filhdr['foff']) * filhdr['nchans']
+        self.dt = filhdr['tsamp']
+        self.orig_N = sigproc.samples_per_file(fil_filenm, filhdr, self.hdrlen)
+        self.orig_T = self.orig_N * self.dt
+        self.N = psr_utils.choose_N(self.orig_N)
         self.T = self.N * self.dt
-        #
-        ###################################################
-        # Should we worry about correcting faulty positions
-        # in the file header?
-        ###################################################
-        #
+        # Update the RA and DEC from the database file if required
+        newposn = read_db_posn(self.orig_filenm, self.beam)
+        if newposn is not None:
+            self.ra_string, self.dec_string = newposn
+            # ... and use them to update the filterbank file
+            fix_fil_posn(fil_filenm, self.hdrlen,
+                         self.ra_string, self.dec_string)
         # Determine the average barycentric velocity of the observation
         self.baryv = get_baryv(self.ra_string, self.dec_string,
                                self.MJD, self.T, obs="AO")
+        # Where to dump all the results
+        # Directory structure is under the base_output_directory
+        # according to base/MJD/filenmbase/beam
+        self.outputdir = os.path.join(base_output_directory,
+                                      str(int(self.MJD)),
+                                      self.basefilenm[:-2],
+                                      str(self.beam))
         # Figure out which host we are processing on
         self.hostname = socket.gethostname()
         # The fraction of the data recommended to be masked by rfifind
@@ -329,8 +276,7 @@ class obs_info:
     def write_report(self, filenm):
         report_file = open(filenm, "w")
         report_file.write("---------------------------------------------------------\n")
-        report_file.write("Data (%s) were processed on %s\n" % \
-                                (', '.join(self.filenms), self.hostname))
+        report_file.write("%s was processed on %s\n"%(self.fil_filenm, self.hostname))
         report_file.write("Ending UTC time:  %s\n"%(time.asctime(time.gmtime())))
         report_file.write("Total wall time:  %.1f s (%.2f hrs)\n"%\
                           (self.total_time, self.total_time/3600.0))
@@ -375,7 +321,7 @@ class dedisp_plan:
         self.numsub = int(numsub)
         self.downsamp = int(downsamp)
         # Downsample less for the subbands so that folding
-        # candidates is more acurate
+        # candidates is more accurate
         self.sub_downsamp = self.downsamp / 2
         if self.sub_downsamp==0: self.sub_downsamp = 1
         # The total downsampling is:
@@ -389,7 +335,7 @@ class dedisp_plan:
             self.subdmlist.append("%.2f"%(self.lodm + (ii+0.5)*self.sub_dmstep))
             lodm = self.lodm + ii * self.sub_dmstep
             dmlist = ["%.2f"%dm for dm in \
-                      np.arange(self.dmsperpass)*self.dmstep + lodm]
+                      numpy.arange(self.dmsperpass)*self.dmstep + lodm]
             self.dmlist.append(dmlist)
 
 # Create our de-dispersion plans (for 100MHz WAPPs)
@@ -410,15 +356,16 @@ else: # faster option that sacrifices a small amount of time resolution at the l
     ddplans.append(dedisp_plan( 303.0,   1.0,      24,    11,       32,       4))
     ddplans.append(dedisp_plan( 567.0,   3.0,      24,     7,       32,       8))
     
-def main(filenms, workdir, resultsdir):
+def main(fil_filenm, workdir):
 
     # Change to the specified working directory
     os.chdir(workdir)
 
-    # Get information on the observation and the job
-    job = obs_info(filenms, resultsdir)
+    # Get information on the observation and the jbo
+    job = obs_info(fil_filenm)
     if job.T < low_T_to_search:
-        sys.exit("The observation is too short (%.2f s) to search."%job.T)
+        print "The observation is too short (%.2f s) to search."%job.T
+        sys.exit()
     job.total_time = time.time()
     
     # Use whatever .zaplist is found in the current directory
@@ -435,14 +382,14 @@ def main(filenms, workdir, resultsdir):
             os.makedirs("subbands")
         except: pass
     
-    print "\nBeginning PALFA search of %s" % (', '.join(job.filenms))
+    print "\nBeginning PALFA search of '%s'"%job.fil_filenm
     print "UTC time is:  %s"%(time.asctime(time.gmtime()))
 
-    # rfifind the data file
-    cmd = "rfifind %s -time %.17g -o %s %s" % \
-          (datatype_flag, rfifind_chunk_time, job.basefilenm,
-           job.filenmstr)
-    job.rfifind_time += timed_execute(cmd, stdout="%s_rfifind.out" % job.basefilenm)
+    # rfifind the filterbank file
+    cmd = "rfifind -time %.17g -o %s %s > %s_rfifind.out"%\
+          (rfifind_chunk_time, job.basefilenm,
+           job.fil_filenm, job.basefilenm)
+    job.rfifind_time += timed_execute(cmd)
     maskfilenm = job.basefilenm + "_rfifind.mask"
     # Find the fraction that was suggested to be masked
     # Note:  Should we stop processing if the fraction is
@@ -456,43 +403,37 @@ def main(filenms, workdir, resultsdir):
         # Make a downsampled filterbank file if we are not using subbands
         if not use_subbands:
             if ddplan.downsamp > 1:
-                cmd = "downsample_psrfits.py %d %s"%(ddplan.downsamp, job.filenmstr)
+                cmd = "downsample_filterbank.py %d %s"%(ddplan.downsamp, job.fil_filenm)
                 job.downsample_time += timed_execute(cmd)
-                dsfiles = []
-                for f in job.filenames:
-                    fbase = f.rstrip(".fits")
-                    dsfiles.append(fbase+"_DS%d.fits"%ddplan.downsamp)
-                filenmstr = ' '.join(dsfiles)
+                fil_filenm = job.fil_filenm[:job.fil_filenm.find(".fil")] + \
+                             "_DS%d.fil"%ddplan.downsamp
             else:
-                filenmstr = job.filenmstr 
+                fil_filenm = job.fil_filenm
 
-        # Iterate over the individual passes through the data file
+        # Iterate over the individual passes through the .fil file
         for passnum in range(ddplan.numpasses):
             subbasenm = "%s_DM%s"%(job.basefilenm, ddplan.subdmlist[passnum])
 
             if use_subbands:
                 # Create a set of subbands
-                cmd = "prepsubband %s -sub -subdm %s -downsamp %d -nsub %d -mask %s " \
-                        "-o subbands/%s %s" % \
-                        (datatype_flag, ddplan.subdmlist[passnum], ddplan.sub_downsamp,
-                        ddplan.numsub, maskfilenm, job.basefilenm,
-                        job.filenmstr)
-                job.subbanding_time += timed_execute(cmd, stdout="%s.subout" % subbasenm)
+                cmd = "prepsubband -sub -subdm %s -downsamp %d -nsub %d -mask %s -o subbands/%s %s > %s.subout"%\
+                      (ddplan.subdmlist[passnum], ddplan.sub_downsamp,
+                       ddplan.numsub, maskfilenm, job.basefilenm,
+                       job.fil_filenm, subbasenm)
+                job.subbanding_time += timed_execute(cmd)
             
                 # Now de-disperse using the subbands
-                cmd = "prepsubband -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
-                        "-numout %d -o %s subbands/%s.sub[0-9]*" % \
-                        (ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
-                        ddplan.dmsperpass, ddplan.dd_downsamp, job.N/ddplan.downsamp,
-                        job.basefilenm, subbasenm)
-                job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
-            
+                cmd = "prepsubband -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d -numout %d -o %s subbands/%s.sub[0-9]* > %s.prepout"%\
+                      (ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
+                       ddplan.dmsperpass, ddplan.dd_downsamp, job.N/ddplan.downsamp,
+                       job.basefilenm, subbasenm, subbasenm)
+                job.dedispersing_time += timed_execute(cmd)
+
             else:  # Not using subbands
-                cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d " \
-                        "-numout %d -o %s %s"%\
-                        (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
-                        ddplan.dmsperpass, job.N/ddplan.downsamp,
-                        job.basefilenm, filenmstr)
+                cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d -numout %d -o %s %s"%\
+                      (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
+                       ddplan.dmsperpass, job.N/ddplan.downsamp,
+                       job.basefilenm, fil_filenm)
                 job.dedispersing_time += timed_execute(cmd)
             
             # Iterate over all the new DMs
@@ -521,20 +462,16 @@ def main(filenms, workdir, resultsdir):
                 except: pass
                 
                 # Do the low-acceleration search
-                cmd = "accelsearch -locpow -harmpolish -numharm %d -sigma %f " \
-                        "-zmax %d -flo %f %s"%\
-                        (lo_accel_numharm, lo_accel_sigma, lo_accel_zmax, \
-                        lo_accel_flo, fftnm)
+                cmd = "accelsearch -locpow -harmpolish -numharm %d -sigma %f -zmax %d -flo %f %s"%\
+                      (lo_accel_numharm, lo_accel_sigma, lo_accel_zmax, lo_accel_flo, fftnm)
                 job.lo_accelsearch_time += timed_execute(cmd)
                 try:
                     os.remove(basenm+"_ACCEL_%d.txtcand"%lo_accel_zmax)
                 except: pass
         
                 # Do the high-acceleration search
-                cmd = "accelsearch -locpow -harmpolish -numharm %d -sigma %f " \
-                        "-zmax %d -flo %f %s"%\
-                        (hi_accel_numharm, hi_accel_sigma, hi_accel_zmax, \
-                        hi_accel_flo, fftnm)
+                cmd = "accelsearch -locpow -harmpolish -numharm %d -sigma %f -zmax %d -flo %f %s"%\
+                      (hi_accel_numharm, hi_accel_sigma, hi_accel_zmax, hi_accel_flo, fftnm)
                 job.hi_accelsearch_time += timed_execute(cmd)
                 try:
                     os.remove(basenm+"_ACCEL_%d.txtcand"%hi_accel_zmax)
@@ -568,6 +505,7 @@ def main(filenms, workdir, resultsdir):
             os.rename(psname,
                       job.basefilenm+"_DMs%s_singlepulse.ps"%dmrangestr)
         except: pass
+
     # Sift through the candidates to choose the best to fold
     
     job.sifting_time = time.time()
@@ -652,7 +590,8 @@ def main(filenms, workdir, resultsdir):
             tf.add(infile)
             os.remove(infile)
     tf.close()
-    
+           
+
     # And finish up
 
     job.total_time = time.time() - job.total_time
@@ -669,21 +608,11 @@ def main(filenms, workdir, resultsdir):
         cmd = "cp *rfifind.[bimors]* *.ps.gz *.tgz *.png "+job.outputdir
         os.system(cmd)
     except: pass
-   
-
-class PrestoError(Exception):
-    """Error to throw when a PRESTO program returns with 
-        a non-zero error code.
-    """
-    pass
-
-
+    
 if __name__ == "__main__":
     # Arguments to the search program are
-    # sys.argv[3:] = data file names
-    # sys.argv[1] = working directory name
-    # sys.argv[2] = results directory name
-    workdir = sys.argv[1]
-    resultsdir = sys.argv[2]
-    filenms = sys.argv[3:]
-    main(filenms, workdir, resultsdir)
+    # sys.argv[1] = filterbank file name
+    # sys.argv[2] = working directory name
+    fil_filenm = sys.argv[1]
+    workdir = sys.argv[2]
+    main(fil_filenm, workdir)
