@@ -28,7 +28,7 @@ delete_rawdata = True
 #rawdata_directory = "/data/alfa/FTP"
 rawdata_directory = "/homes/borgii/snipka/FTP"
 #rawdata_directory = "C:/Reposotories/PALFA/FTP"
-rawdata_re_pattern = r"^p2030.*b[0-7]s[01]g?.*\.fits$"
+rawdata_re_pattern = r"^p2030.*b[0-7]s[0-1]g?.*\.fits$"
 
 ################################################################
 # Import presto_search module and set parameters

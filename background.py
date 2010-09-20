@@ -21,7 +21,7 @@ import dev
 def main():
     global datafile_demand
 
-    dev.generate_dummy_fits()
+   #dev.generate_dummy_fits()
    # datafiles = get_datafiles()
 
     jobpool = JobPool()

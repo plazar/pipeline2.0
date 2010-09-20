@@ -80,6 +80,7 @@ class JobPool:
             for fn in filenames:
                 if re.match(config.rawdata_re_pattern, fn) is not None:
                     tmp_datafiles.append(os.path.join(dirpath, fn))
+		    print "Adding file:" + os.path.join(dirpath, fn)
         return tmp_datafiles
 
 
@@ -134,11 +135,11 @@ class JobPool:
         str_status = ['TERMINATED','NEW_JOB','SUBMITED','SUBMITED_QUEUED','SUBMITED_RUNNING']
         print "\t\t\tName\t\t\t\tJob ID\t\t\tLog-Status\t\t\tQ-Status"
         for job in self.jobs:
-            print "%s\t%s\t%s\t%s" % (jobname,job.jobid,status,str_status[job.status])
+            print "%s\t%s\t%s\t%s" % (job.jobname,job.jobid,status,str_status[job.status])
 
         if self.cycles == 10:
             print "================================ Adding files"
-            dev.add_files()
+            #dev.add_files()
         self.cycles += 1
 
 
@@ -193,7 +194,7 @@ class JobPool:
         pipe.stdin.close()
 
 #        job.jobid = dev.get_fake_job_id()
-        dev.write_fake_qsub_error(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
+#        dev.write_fake_qsub_error(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
 
         job.status = PulsarSearchJob.SUBMITED
         job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \

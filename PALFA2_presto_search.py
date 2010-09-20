@@ -274,8 +274,8 @@ class obs_info:
         self.basefilenm = os.path.split(filenms[0])[1].rstrip(".fits")
         # Check that filenames have correct format
         for filenm in self.filenms:
-            m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]\..*\.fits", \
-            # m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]_4b\..*\.fits", \
+            #m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]\..*\.fits", \
+            m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]_4b\..*\.fits", \
                             filenm)
             if m is None:
                 raise ValueError("Data files don't appear to be ALFA MockSpec data " \
