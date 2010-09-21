@@ -111,9 +111,9 @@ def find_closest_subbands(obs, subdms, DM):
     return "subbands/%s_DM%.2f.sub[0-6]*"%(obs.basefilenm, subdm)
 
 
-def timed_execute(cmd, stdout=None, stderr=subprocess.STDOUT): 
+def timed_execute(cmd, stdout=None, stderr=sys.stderr): 
     """
-    timed_execute(cmd, stdout=None, stderr=subprocess.STDOUT):
+    timed_execute(cmd, stdout=None, stderr=sys.stderr):
         Execute the command 'cmd' after logging the command
             to STDOUT.  Return the wall-clock amount of time
             the command took to execute.
@@ -135,22 +135,10 @@ def timed_execute(cmd, stdout=None, stderr=subprocess.STDOUT):
     if type(stderr) == types.StringType:
         stderr = open(stderr, 'w')
         stderrfile = True
-    elif stderr is subprocess.STDOUT:
-        stderr = stdout
-
-    if stderr is None:
-        # Don't want to log error only send to sys.stderr
-        errtee = sys.stderr
-    elif stderr != sys.stderr:
-        # Log errors and send to sys.stderr
-        errtee = Tee(stderr, sys.stderr)
-    else:
-        # User asked for errors to be logged to sys.stderr
-        errtee = stderr
     
     # Run (and time) the command. Check for errors.
     start = time.time()
-    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=errtee)
+    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=stderr)
     if retcode < 0:
         raise PrestoError("Execution of command (%s) terminated by signal (%s)!" % \
                                 (cmd, -retcode))
@@ -381,12 +369,39 @@ else: # faster option that sacrifices a small amount of time resolution at the l
     ddplans.append(dedisp_plan( 231.0,   0.5,      24,     6,       32,       2))
     ddplans.append(dedisp_plan( 303.0,   1.0,      24,    11,       32,       4))
     ddplans.append(dedisp_plan( 567.0,   3.0,      24,     7,       32,       8))
-    
+
+
 def main(filenms, workdir, resultsdir):
+    print "\nBeginning PALFA search of %s" % (', '.join(job.filenms))
+    print "UTC time is:  %s"%(time.asctime(time.gmtime()))
 
     # Change to the specified working directory
     os.chdir(workdir)
 
+    job = setup_job(filenms, resultsdir)
+    try:
+        search_job(job)
+    except:
+        print "Search has been aborted due to errors encountered."
+        print "See error output for more information."
+        sys.excepthook(*sys.exc_info())
+    finally:
+        clean_up(job)
+
+        # And finish up
+        job.total_time = time.time() - job.total_time
+        print "\nFinished"
+        print "UTC time is:  %s"%(time.asctime(time.gmtime()))
+
+        # Write the job report
+        # job.write_report(job.basefilenm+".report")
+        job.write_report(os.path.join(job.outputdir, job.basefilenm+".report"))
+
+    
+def set_up_job(filenms, workdir, resultsdir):
+    """Change to the working directory and set it up.
+        Create a obs_info instance, set it up and return it.
+    """
     # Get information on the observation and the job
     job = obs_info(filenms, resultsdir)
     if job.T < low_T_to_search:
@@ -407,9 +422,13 @@ def main(filenms, workdir, resultsdir):
             os.makedirs("subbands")
         except: pass
     
-    print "\nBeginning PALFA search of %s" % (', '.join(job.filenms))
-    print "UTC time is:  %s"%(time.asctime(time.gmtime()))
+    return job
 
+
+def search_job(job):
+    """Search the observation defined in the obs_info
+        instance 'job'.
+    """
     # rfifind the data file
     cmd = "rfifind %s -time %.17g -o %s %s" % \
           (datatype_flag, rfifind_chunk_time, job.basefilenm,
@@ -598,10 +617,14 @@ def main(filenms, workdir, resultsdir):
             os.system("pstoimg -density 100 -flip cw "+psfile)
         os.system("gzip "+psfile)
     
+
+def clean_up(job):
+    """Clean up.
+        Tar results, copy them to the results director.
+    """
     # NOTE:  need to add database commands
 
     # Tar up the results files 
-
     tar_suffixes = ["_ACCEL_%d.tgz"%lo_accel_zmax,
                     "_ACCEL_%d.tgz"%hi_accel_zmax,
                     "_ACCEL_%d.cand.tgz"%lo_accel_zmax,
@@ -625,17 +648,6 @@ def main(filenms, workdir, resultsdir):
             os.remove(infile)
     tf.close()
     
-    # And finish up
-
-    job.total_time = time.time() - job.total_time
-    print "\nFinished"
-    print "UTC time is:  %s"%(time.asctime(time.gmtime()))
-
-    # Write the job report
-
-    job.write_report(job.basefilenm+".report")
-    job.write_report(os.path.join(job.outputdir, job.basefilenm+".report"))
-
     # Copy all the important stuff to the output directory
     try:
         cmd = "cp *rfifind.[bimors]* *.ps.gz *.tgz *.png "+job.outputdir
@@ -648,39 +660,6 @@ class PrestoError(Exception):
         a non-zero error code.
     """
     pass
-
-
-class Tee:
-    """A write-only file-like class that writes to multiple
-        files.
-    """
-    def __init__(self, *fds):
-        """Constructor for the Tee class.
-            Inputs: file descriptors to be written to.
-        """
-        self.fds = fds
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        """Close file descriptors of Tee object.
-        """
-        for fd in self.fds:
-            if fd != sys.stdout and fd != sys.stderr:
-                fd.close()
-
-    def write(self, text):
-        """Write 'text' to all file descriptors.
-        """
-        for fd in self.fds:
-            fd.write(text)
-
-    def flush(self):
-        """Flush buffers for all file descriptors.
-        """
-        for fd in self.fds:
-            fd.flush()
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ Patrick Lazarus, May 20, 2010
 
 import sys
 import os
+import socket
 import tempfile
 import shutil
 import config
@@ -60,7 +61,11 @@ def init_workspace():
 def main():
     fns = get_datafns()
     workdir, resultsdir = init_workspace()
-    
+   
+    "Running on ", socket.gethostname()
+    "Local working directory: ", workdir
+    "Local results directory: ", resultsdir
+
     # Update job's log 
     # Copy data file locally?
 
