@@ -9,6 +9,7 @@ import time
 import subprocess
 import re
 import types
+import tarfile
 
 import numpy as np
 import psr_utils
@@ -372,13 +373,15 @@ else: # faster option that sacrifices a small amount of time resolution at the l
 
 
 def main(filenms, workdir, resultsdir):
-    print "\nBeginning PALFA search of %s" % (', '.join(job.filenms))
-    print "UTC time is:  %s"%(time.asctime(time.gmtime()))
 
     # Change to the specified working directory
     os.chdir(workdir)
 
-    job = setup_job(filenms, resultsdir)
+    job = set_up_job(filenms, workdir, resultsdir)
+    
+    print "\nBeginning PALFA search of %s" % (', '.join(job.filenms))
+
+    print "UTC time is:  %s"%(time.asctime(time.gmtime()))
     try:
         search_job(job)
     except:
