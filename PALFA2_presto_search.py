@@ -58,48 +58,6 @@ sifting.harm_pow_cutoff = 8.0    # Power required in at least one harmonic
 
 debug = 0
 
-# A list of numbers that are highly factorable
-#goodfactors = [int(x) for x in open("ALFA_goodfacts.txt")]
-goodfactors = [1008, 1024, 1056, 1120, 1152, 1200, 1232, 1280, 1296,
-1344, 1408, 1440, 1536, 1568, 1584, 1600, 1680, 1728, 1760, 1792,
-1920, 1936, 2000, 2016, 2048, 2112, 2160, 2240, 2304, 2352, 2400,
-2464, 2560, 2592, 2640, 2688, 2800, 2816, 2880, 3024, 3072, 3136,
-3168, 3200, 3360, 3456, 3520, 3584, 3600, 3696, 3840, 3872, 3888,
-3920, 4000, 4032, 4096, 4224, 4320, 4400, 4480, 4608, 4704, 4752,
-4800, 4928, 5040, 5120, 5184, 5280, 5376, 5488, 5600, 5632, 5760,
-5808, 6000, 6048, 6144, 6160, 6272, 6336, 6400, 6480, 6720, 6912,
-7040, 7056, 7168, 7200, 7392, 7680, 7744, 7776, 7840, 7920, 8000,
-8064, 8192, 8400, 8448, 8624, 8640, 8800, 8960, 9072, 9216, 9408,
-9504, 9600, 9680, 9856]
-
-def choose_N(orig_N):
-    """
-    choose_N(orig_N):
-        Choose a time series length that is larger than
-            the input value but that is highly factorable.
-            Note that the returned value must be divisible
-            by at least the maximum downsample factor * 2.
-            Currently, this is 8 * 2 = 16.
-    """
-    if orig_N < 10000:
-        return 0
-    # Get the number represented by the first 4 digits of orig_N
-    first4 = int(str(orig_N)[:4])
-    # Now get the number that is just bigger than orig_N
-    # that has its first 4 digits equal to "factor"
-    for factor in goodfactors:
-        if factor > first4: break
-    new_N = factor
-    while new_N < orig_N:
-        new_N *= 10
-    # Finally, compare new_N to the closest power_of_two
-    # greater than orig_N.  Take the closest.
-    two_N = 2
-    while two_N < orig_N:
-        two_N *= 2
-    if two_N < new_N: return two_N
-    else: return new_N
-
 
 def get_baryv(ra, dec, mjd, T, obs="AO"):
    """
@@ -177,10 +135,22 @@ def timed_execute(cmd, stdout=None, stderr=subprocess.STDOUT):
     if type(stderr) == types.StringType:
         stderr = open(stderr, 'w')
         stderrfile = True
+    elif stderr is subprocess.STDOUT:
+        stderr = stdout
+
+    if stderr is None:
+        # Don't want to log error only send to sys.stderr
+        errtee = sys.stderr
+    elif stderr != sys.stderr:
+        # Log errors and send to sys.stderr
+        errtee = Tee(stderr, sys.stderr)
+    else:
+        # User asked for errors to be logged to sys.stderr
+        errtee = stderr
     
     # Run (and time) the command. Check for errors.
     start = time.time()
-    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=stderr)
+    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=errtee)
     if retcode < 0:
         raise PrestoError("Execution of command (%s) terminated by signal (%s)!" % \
                                 (cmd, -retcode))
@@ -294,12 +264,14 @@ class obs_info:
         self.dt = spec_info.dt # in sec
         self.BW = spec_info.BW
         self.orig_T = spec_info.T
-        self.N = choose_N(self.orig_N)
+        self.N = psr_utils.choose_N(self.orig_N)
         self.T = self.N * self.dt
         #
         ###################################################
         # Should we worry about correcting faulty positions
         # in the file header?
+        # Say, for wapp2psrfits files?
+        # -PL
         ###################################################
         #
         # Determine the average barycentric velocity of the observation
@@ -676,6 +648,39 @@ class PrestoError(Exception):
         a non-zero error code.
     """
     pass
+
+
+class Tee:
+    """A write-only file-like class that writes to multiple
+        files.
+    """
+    def __init__(self, *fds):
+        """Constructor for the Tee class.
+            Inputs: file descriptors to be written to.
+        """
+        self.fds = fds
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        """Close file descriptors of Tee object.
+        """
+        for fd in self.fds:
+            if fd != sys.stdout and fd != sys.stderr:
+                fd.close()
+
+    def write(self, text):
+        """Write 'text' to all file descriptors.
+        """
+        for fd in self.fds:
+            fd.write(text)
+
+    def flush(self):
+        """Flush buffers for all file descriptors.
+        """
+        for fd in self.fds:
+            fd.flush()
 
 
 if __name__ == "__main__":
