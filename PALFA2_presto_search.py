@@ -550,15 +550,18 @@ def search_job(job):
     dmrangestrs = ["0-110", "100-310", "300-1000+"]
     psname = job.basefilenm+"_singlepulse.ps"
     for dmglob, dmrangestr in zip(dmglobs, dmrangestrs):
-        cmd = 'single_pulse_search.py -t %f -g "%s"' % \
-              (singlepulse_plot_SNR, dmglob)
-        job.singlepulse_time += timed_execute(cmd)
-        try:
-            os.rename(psname,
-                      job.basefilenm+"_DMs%s_singlepulse.ps"%dmrangestr)
-        except: pass
+        dmfiles = glob.glob(dmglob)
+        # Check that there are matching files and they are not all empty
+        if dmfiles and ([os.path.getsize(f) for f in dmfiles]):
+            cmd = 'single_pulse_search.py -t %f -g "%s"' % \
+                (singlepulse_plot_SNR, dmglob)
+            job.singlepulse_time += timed_execute(cmd)
+            try:
+                os.rename(psname,
+                        job.basefilenm+"_DMs%s_singlepulse.ps"%dmrangestr)
+            except: pass
+
     # Sift through the candidates to choose the best to fold
-    
     job.sifting_time = time.time()
 
     lo_accel_cands = sifting.read_candidates(glob.glob("*ACCEL_%d"%lo_accel_zmax))
@@ -647,10 +650,11 @@ def clean_up(job):
     tf.close()
     
     # Copy all the important stuff to the output directory
-    try:
-        cmd = "cp *rfifind.[bimors]* *.ps.gz *.tgz *.png "+job.outputdir
-        timed_execute(cmd)
-    except: pass
+    resultglobs = ["*rfifind.[bimors]*", 
+                    "*.ps.gz", "*.tgz", "*.png"]
+    for resultglob in resultglobs:
+            for file in glob.glob(resultglob):
+                shutil.copy(file, job.outputdir)
    
 
 class PrestoError(Exception):
