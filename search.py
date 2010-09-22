@@ -62,9 +62,9 @@ def main():
     fns = get_datafns()
     workdir, resultsdir = init_workspace()
    
-    "Running on ", socket.gethostname()
-    "Local working directory: ", workdir
-    "Local results directory: ", resultsdir
+    print "Running on ", socket.gethostname()
+    print "Local working directory: ", workdir
+    print "Local results directory: ", resultsdir
 
     # Update job's log 
     # Copy data file locally?
@@ -77,6 +77,7 @@ def main():
     # Remove working directory and output directory
 #    shutil.rmtree(workdir)
 #    shutil.rmtree(resultsdir)
+
 
 if __name__=='__main__':
     main()

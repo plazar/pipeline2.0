@@ -353,23 +353,18 @@ class dedisp_plan:
                       np.arange(self.dmsperpass)*self.dmstep + lodm]
             self.dmlist.append(dmlist)
 
-# Create our de-dispersion plans (for 100MHz WAPPs)
-# The following are the "optimal" values for the 100MHz
-# survey.  It keeps the total dispersive smearing (i.e.
-# not counting scattering <1 ms up to a DM of ~600 pc cm^-3
 ddplans = []
 if (1):
+    #
+    # Using a small DDplan for debugging
+    # Generated using:
+    #   DDplan.py -l 0 -d 400 -f 1450.168 -b 172.0625 
+    #               -n 256 -t 6.5476190476190506e-05 -r 2 -s 32
+    # I set downsamp equal to 1, though.
+    # -PL
+    #
     # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
-    ddplans.append(dedisp_plan(   0.0,   0.3,      24,    26,       32,       1))
-    ddplans.append(dedisp_plan( 187.2,   0.5,      24,    10,       32,       2))
-    ddplans.append(dedisp_plan( 307.2,   1.0,      24,    11,       32,       4))
-    ddplans.append(dedisp_plan( 571.2,   3.0,      24,     6,       32,       8))
-else: # faster option that sacrifices a small amount of time resolution at the lowest DMs
-    # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
-    ddplans.append(dedisp_plan(   0.0,   0.5,      22,    21,       32,       1))
-    ddplans.append(dedisp_plan( 231.0,   0.5,      24,     6,       32,       2))
-    ddplans.append(dedisp_plan( 303.0,   1.0,      24,    11,       32,       4))
-    ddplans.append(dedisp_plan( 567.0,   3.0,      24,     7,       32,       8))
+    ddplans.append(dedisp_plan(   0.0,   3,      24,     6,       32,       1))
 
 
 def main(filenms, workdir, resultsdir):
@@ -380,8 +375,8 @@ def main(filenms, workdir, resultsdir):
     job = set_up_job(filenms, workdir, resultsdir)
     
     print "\nBeginning PALFA search of %s" % (', '.join(job.filenms))
-
     print "UTC time is:  %s"%(time.asctime(time.gmtime()))
+    
     try:
         search_job(job)
     except:
@@ -411,9 +406,6 @@ def set_up_job(filenms, workdir, resultsdir):
         sys.exit("The observation is too short (%.2f s) to search."%job.T)
     job.total_time = time.time()
     
-    # Use whatever .zaplist is found in the current directory
-    default_zaplist = glob.glob("*.zaplist")[0]
-
     # Make sure the output directory (and parent directories) exist
     try:
         os.makedirs(job.outputdir)
@@ -432,6 +424,9 @@ def search_job(job):
     """Search the observation defined in the obs_info
         instance 'job'.
     """
+    # Use whatever .zaplist is found in the current directory
+    default_zaplist = glob.glob("*.zaplist")[0]
+
     # rfifind the data file
     cmd = "rfifind %s -time %.17g -o %s %s" % \
           (datatype_flag, rfifind_chunk_time, job.basefilenm,
@@ -589,7 +584,7 @@ def search_job(job):
 
     try:
         cmd = "cp *.accelcands "+job.outputdir
-        os.system(cmd)
+        timed_execute(cmd)
     except: pass
 
     job.sifting_time = time.time() - job.sifting_time
@@ -611,14 +606,14 @@ def search_job(job):
         if "singlepulse" in psfile:
             # For some reason the singlepulse files don't transform nicely...
             epsfile = psfile.replace(".ps", ".eps")
-            os.system("eps2eps "+psfile+" "+epsfile)
-            os.system("pstoimg -density 100 -crop a "+epsfile)
+            timed_execute("eps2eps "+psfile+" "+epsfile)
+            timed_execute("pstoimg -density 100 -crop a "+epsfile)
             try:
                 os.remove(epsfile)
             except: pass
         else:
-            os.system("pstoimg -density 100 -flip cw "+psfile)
-        os.system("gzip "+psfile)
+            timed_execute("pstoimg -density 100 -flip cw "+psfile)
+        timed_execute("gzip "+psfile)
     
 
 def clean_up(job):
@@ -654,7 +649,7 @@ def clean_up(job):
     # Copy all the important stuff to the output directory
     try:
         cmd = "cp *rfifind.[bimors]* *.ps.gz *.tgz *.png "+job.outputdir
-        os.system(cmd)
+        timed_execute(cmd)
     except: pass
    
 
