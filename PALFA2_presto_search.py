@@ -540,26 +540,26 @@ def search_job(job):
     basedme = ".singlepulse "
     # The following will make plots for DM ranges:
     #    0-110, 100-310, 300-1000+
-    dmglobs = [basedmb+"[0-9].[0-9][0-9]"+basedme +
-               basedmb+"[0-9][0-9].[0-9][0-9]"+basedme +
-               basedmb+"10[0-9].[0-9][0-9]"+basedme,
-               basedmb+"[12][0-9][0-9].[0-9][0-9]"+basedme +
-               basedmb+"30[0-9].[0-9][0-9]"+basedme,
-               basedmb+"[3-9][0-9][0-9].[0-9][0-9]"+basedme +
-               basedmb+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme]
+    dmglobs = [[basedmb+"[0-9].[0-9][0-9]"+basedme,
+               basedmb+"[0-9][0-9].[0-9][0-9]"+basedme,
+               basedmb+"10[0-9].[0-9][0-9]"+basedme],
+               [basedmb+"[12][0-9][0-9].[0-9][0-9]"+basedme,
+               basedmb+"30[0-9].[0-9][0-9]"+basedme],
+               [basedmb+"[3-9][0-9][0-9].[0-9][0-9]"+basedme,
+               basedmb+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme]]
     dmrangestrs = ["0-110", "100-310", "300-1000+"]
     psname = job.basefilenm+"_singlepulse.ps"
     for dmglob, dmrangestr in zip(dmglobs, dmrangestrs):
-        dmfiles = glob.glob(dmglob)
+        dmfiles = []
+        for dmg in dmglob:
+            dmfiles += glob.glob(dmg.strip())
         # Check that there are matching files and they are not all empty
         if dmfiles and ([os.path.getsize(f) for f in dmfiles]):
-            cmd = 'single_pulse_search.py -t %f -g "%s"' % \
-                (singlepulse_plot_SNR, dmglob)
+            cmd = 'single_pulse_search.py -t %f %s' % \
+                (singlepulse_plot_SNR, " ".join(dmfiles))
             job.singlepulse_time += timed_execute(cmd)
-            try:
-                os.rename(psname,
+            os.rename(psname,
                         job.basefilenm+"_DMs%s_singlepulse.ps"%dmrangestr)
-            except: pass
 
     # Sift through the candidates to choose the best to fold
     job.sifting_time = time.time()
@@ -610,12 +610,12 @@ def search_job(job):
             # For some reason the singlepulse files don't transform nicely...
             epsfile = psfile.replace(".ps", ".eps")
             timed_execute("eps2eps "+psfile+" "+epsfile)
-            timed_execute("pstoimg -density 100 -crop a "+epsfile)
+            timed_execute("pstoimg -quiet -density 100 -crop a "+epsfile)
             try:
                 os.remove(epsfile)
             except: pass
         else:
-            timed_execute("pstoimg -density 100 -flip cw "+psfile)
+            timed_execute("pstoimg -quiet -density 100 -flip cw "+psfile)
         timed_execute("gzip "+psfile)
     
 
