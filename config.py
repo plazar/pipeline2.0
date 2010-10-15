@@ -87,3 +87,18 @@ downloader_space_to_use = 23489856 #Size to use in bytes; Use 'None' to use all 
 downloader_numofdownloads = 1
 downloader_numofrestores = 1
 
+################################################################
+# Mailer Configuration
+#
+# Mailer uses following configurations to send notification email
+# in case of an error.
+################################################################
+
+mailer_enabled = True
+mailer_smtp_host = 'smtp.gmail.com' # None - For use of the local smtp server
+mailer_smtp_username = 'snipka@gmail.com'
+mailer_smtp_password = 'dod235328'
+mailer_to = 'snipka@gmail.com' # Notifications will be sent to the set email
+mailer_from = None  #To show the mailing from address
+
+
