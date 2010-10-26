@@ -13,10 +13,10 @@ import socket
 import shutil
 
 #import PBSQuery
-from job import *
-import job
+
 import config
 import dev
+from mailer import ErrorMailer 
 
 def main():
     global datafile_demand
@@ -24,17 +24,26 @@ def main():
    #dev.generate_dummy_fits()
    # datafiles = get_datafiles()
 
-    jobpool = JobPool()
-
-    for job in jobpool.jobs:
-        print job.jobname
-        print job.get_log_status()
+    
+    try:
+        from job import *
+        import job
+        jobpool = JobPool()
+        for job in jobpool.jobs:
+            print job.jobname
+            print job.get_log_status()
         
-    jobpool.status()
-
-    while True:
-        jobpool.rotate()
-        time.sleep(1)
+        jobpool.status()
+    
+        while True:
+            jobpool.rotate()
+            time.sleep(1)
+            
+    except Exception as e:
+        mailer = ErrorMailer("The following error has occured:\n"+str(e))
+        mailer.send()
+        
+    
         
 
 

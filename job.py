@@ -126,11 +126,6 @@ class JobPool:
                     print "Removing the job: Multiple fails: "+job.jobname
                     self.delete_job(job)
 
-#            print "Name: "+ jobname
-#            print "PBS Name: "+ str(job.jobid)
-#            print "Status: "+ status
-#            print "Q-Status: "+ str(job.status)
-#            print ""
 
         str_status = ['TERMINATED','NEW_JOB','SUBMITED','SUBMITED_QUEUED','SUBMITED_RUNNING']
         print "\t\t\tName\t\t\t\tJob ID\t\t\tLog-Status\t\t\tQ-Status"
@@ -142,40 +137,7 @@ class JobPool:
             #dev.add_files()
         self.cycles += 1
 
-
-        print ""
-        print ""
-
-#        print "---------------- Listing Current Datafiles -----------"
-#        for file in self.datafiles:
-#            print file
-#        print "END END -------- Listing Current Datafiles --- END END"
         self.fetch_new_jobs()
-#            if (status == "submitted to queue") or \
-#                    (status == "processing in progress"):
-#                pass
-#            elif (status == "processing failed"):
-#                numfails = job.count_status("processing failed")
-#                if numfails < max_attempts:
-#                    if cansubmit:
-#                        self.submit_job(job)
-#                        cansubmit = False
-#                else:
-#                    self.delete_job(job)
-#            elif (status == "processing successful"):
-#                self.upload_results(job)
-#            elif (status == "new job"):
-#                if cansubmit:
-#                    self.submit_job(job)
-#                    cansubmit = False
-#            elif (status == "upload successful"):
-#                self.delete_job(job)
-#            else:
-#                raise ValueError("Unrecognized status: %s" % status)
-#            print "Status: "+ status
-#            print str(self.qsub_status(job))
-#           break
-
 
     def submit_job(self, job):
         """Submit PulsarSearchJob j to the queue. Update j's log.
@@ -329,20 +291,6 @@ class JobPool:
 #        print "Files left to add to queue: "+ str(len(files_to_x_check))
         self.create_jobs_from_datafiles(files_to_x_check)
 #        print "===================================== END END END  Fetching new jobs"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 class PulsarSearchJob:
