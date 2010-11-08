@@ -55,11 +55,19 @@ class SpectraInfo:
             
             # Open the PSRFITS file
             hdus = pyfits.open(fn, mode='readonly')
-            
+            self.hdus = hdus
+
             if ii==0:
                 self.hdu_names = [hdu.name for hdu in hdus]
 
             primary = hdus['PRIMARY'].header
+
+            if primary.has_key('IBEAM'):
+                self.beam_id = primary['IBEAM']
+            elif hdus[1].header.has_key('BEAM'):
+                self.beam_id = hdus[1].header['BEAM']
+            else:
+                self.beam_id = None
 
             if primary.has_key('TELESCOP'):
                 telescope = primary['TELESCOP']
@@ -289,6 +297,9 @@ class SpectraInfo:
             self.need_flipband = True
         # Compute the bandwidth
         self.BW = self.num_channels * self.df
+
+        # A few extras
+        self.start_lst = primary['STT_LST']
 
     def __str__(self):
         """Format spectra_info's information into a easy to

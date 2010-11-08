@@ -15,7 +15,7 @@ import numpy as np
 import psr_utils
 import presto
 import sifting
-import psrfits
+from formats import psrfits
 
 # Basic parameters
 # institution is one of: 'UBC', 'NRAOCV', 'McGill', 'Columbia', 'Cornell', 'UTB'
