@@ -19,7 +19,7 @@ import warnings
 import types
 
 import numpy as np
-import database
+#import database
 from astro_utils import sextant
 from astro_utils import protractor
 from astro_utils import calendar
@@ -153,6 +153,25 @@ class Header(object):
                 result = False
                 break
         return result
+
+    @classmethod
+    def autogen_header(cls, fns, beamnum):
+        """Automatically generate a Header object.
+            More specifically: Given a list of filenames
+            find out which subclass of Header is appropriate
+            and instantiate and return the object.
+        """
+
+        for objname in globals():
+            obj = eval(objname)
+            if type(obj)==types.TypeType and issubclass(obj, Header):
+                if obj.is_correct_filetype(fns):
+                    print "Using %s" % objname
+                    header = obj(fns, beamnum)
+                    break
+        if 'header' not in dir():
+            raise ValueError("Cannot determine datafile's type.")
+        return header
 
 
 class WappHeader(Header):
@@ -377,31 +396,13 @@ def print_usage():
     print "header_uploader.py beam_num file1 [file2 ...]"
 
 
-def autogen_header(fns, beamnum):
-    """Automatically generate a Header object.
-        More specifically: Given a list of filenames
-        find out which subclass of Header is appropriate
-        and instantiate and return the object.
-    """
-    for objname in globals():
-        obj = eval(objname)
-        if type(obj)==types.TypeType and issubclass(obj, Header):
-            if obj.is_correct_filetype(fns):
-                print "Using %s" % objname
-                header = obj(fns, beamnum)
-                break
-    if 'header' not in dir():
-        raise ValueError("Cannot determine datafile's type.")
-    return header
-
-
 if __name__=='__main__':
     if len(sys.argv) < 3:
         print_usage()
         sys.exit(1)
     beamnum = int(sys.argv[1])
     fns = sys.argv[2:]
-    header = autogen_header(fns, beamnum)
+    header = Header.autogen_header(fns, beamnum)
 
     # Get query to upload
     query = header.get_upload_sproc_call()
