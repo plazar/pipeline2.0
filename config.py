@@ -8,7 +8,6 @@ survey = "PALFA2.0"
 ################################################################
 # Configurations for processing
 ################################################################
-base_working_directory = "/scratch/PALFA/"
 zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
 log_dir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/log/"
 log_archive = "/homes/borgii/plazar/research/PALFA/pipeline2.0/log_archive/"
@@ -39,7 +38,16 @@ def init_presto_search():
         The main function should have the following signature:
             main(filename, working_directory)
     """
+    import socket
+    hostname = socket.gethostname() 
+    base_working_directory = "/scratch/%s/PALFA/" % hostname
+    
     import PALFA2_presto_search as presto_search
+    
+    # The following determines if we'll dedisperse and fold using subbands.
+    # In general, it is a very good idea to use them if there is enough scratch
+    # space on the machines that are processing (~30GB/beam processed)
+    presto_search.use_subbands          = True
     
     # Tunable parameters for searching and folding
     # (you probably don't need to tune any of them)
@@ -61,7 +69,16 @@ def init_presto_search():
     presto_search.hi_accel_zmax           = 50   # bins
     presto_search.hi_accel_flo            = 1.0  # Hz
     presto_search.low_T_to_search         = 20.0 # sec
-    
+
+    # DDplan configurations
+    presto_search.lodm        = 0      # pc cm-3
+    presto_search.hidm        = 1000   # pc cm-3
+    presto_search.resolution  = 0.1    # ms
+    if use_subbands:
+        presto_search.numsub  = 32     # subbands
+    else:
+        presto_search.numsub  = 0      # Defaults to number of channels
+
     # Sifting specific parameters (don't touch without good reason!)
     presto_search.sifting.sigma_threshold = presto_search.to_prepfold_sigma-1.0  
                                                    # incoherent power threshold (sigma)

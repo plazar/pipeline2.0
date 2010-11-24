@@ -49,6 +49,15 @@ hi_accel_zmax           = 50   # bins
 hi_accel_flo            = 1.0  # Hz
 low_T_to_search         = 20.0 # sec
 
+# DDplan configurations
+lodm = 0            # pc cm-3
+hidm = 1000         # pc cm-3
+resolution = 0.1    # ms
+if use_subbands:
+    numsub = 32     # subbands
+else:
+    numsub = 0      # Defaults to number of channels
+
 # Sifting specific parameters (don't touch without good reason!)
 sifting.sigma_threshold = to_prepfold_sigma-1.0  # incoherent power threshold (sigma)
 sifting.c_pow_threshold = 100.0                  # coherent power threshold
@@ -255,6 +264,9 @@ class obs_info:
         self.orig_T = spec_info.T
         self.N = psr_utils.choose_N(self.orig_N)
         self.T = self.N * self.dt
+        self.nchan = spec_info.num_channels
+        self.samp_per_row = spec_info.spectra_per_subint
+        self.fctr = spec_info.fctr
         #
         ###################################################
         # Should we worry about correcting faulty positions
@@ -438,6 +450,14 @@ def search_job(job):
     #        above some large value?  Maybe 30%?
     job.masked_fraction = find_masked_fraction(job)
     
+    # Generate dedispersion plan
+    ddplans = []
+    obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
+                                job.samp_per_row)
+    for ddstep in obs.gen_DDplan(lodm, hidm, numsub, resolution).DDsteps:
+        ddplans.append([ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
+                        ddstep.numprepsub, ddstep.numsub, ddstep.downsamp])
+
     # Iterate over the stages of the overall de-dispersion plan
     dmstrs = []
     for ddplan in ddplans:
@@ -608,14 +628,16 @@ def search_job(job):
     for psfile in psfiles:
         if "singlepulse" in psfile:
             # For some reason the singlepulse files don't transform nicely...
-            epsfile = psfile.replace(".ps", ".eps")
-            timed_execute("eps2eps "+psfile+" "+epsfile)
-            timed_execute("pstoimg -quiet -density 100 -crop a "+epsfile)
-            try:
-                os.remove(epsfile)
-            except: pass
+            # epsfile = psfile.replace(".ps", ".eps")
+            # timed_execute("eps2eps "+psfile+" "+epsfile)
+            # timed_execute("pstoimg -quiet -density 100 -crop a "+epsfile)
+            timed_execute("convert -quality 90 %s -background white -flatten -rotate 90 +matte %s" % (psfile, psfile[:-3]+".png"))
+            # try:
+            #     os.remove(epsfile)
+            # except: pass
         else:
-            timed_execute("pstoimg -quiet -density 100 -flip cw "+psfile)
+            # timed_execute("pstoimg -quiet -density 100 -flip cw "+psfile)
+            timed_execute("convert -quality 90 %s -background white -flatten -rotate 90 +matte %s" % (psfile, psfile[:-3]+".png"))
         timed_execute("gzip "+psfile)
     
 
