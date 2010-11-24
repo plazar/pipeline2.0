@@ -1,3 +1,4 @@
+import socket
 ################################################################
 # Basic parameters
 ################################################################
@@ -8,6 +9,8 @@ survey = "PALFA2.0"
 ################################################################
 # Configurations for processing
 ################################################################
+hostname = socket.gethostname() 
+base_working_directory = "/scratch/%s/PALFA/" % hostname    
 zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
 log_dir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/log/"
 log_archive = "/homes/borgii/plazar/research/PALFA/pipeline2.0/log_archive/"
@@ -38,10 +41,6 @@ def init_presto_search():
         The main function should have the following signature:
             main(filename, working_directory)
     """
-    import socket
-    hostname = socket.gethostname() 
-    base_working_directory = "/scratch/%s/PALFA/" % hostname
-    
     import PALFA2_presto_search as presto_search
     
     # The following determines if we'll dedisperse and fold using subbands.
