@@ -29,6 +29,7 @@ def main():
         from job import *
         import job
         jobpool = JobPool()
+        jobpool.start()
         for job in jobpool.jobs:
             print job.jobname
             print job.get_log_status()
