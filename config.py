@@ -86,7 +86,7 @@ downloader_api_password = "palfa@Mc61!!"
 downloader_temp = "/home/snip3/dev/pythonapps/pipeline2.0/DL_DIR" # When set to empty string will download to directory of the script
 downloader_space_to_use = 23489856 #Size to use in bytes; Use 'None' to use all available space
 downloader_numofdownloads = 1
-downloader_numofrestores = 1
+downloader_numofrestores = 10
 downloader_numofretries = 3
 
 ################################################################

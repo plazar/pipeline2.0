@@ -35,103 +35,61 @@ class DownloadModule:
         self.db_conn = sqlite3.connect("sqlite3db");
         self.db_conn.row_factory = sqlite3.Row
         self.db_cur = self.db_conn.cursor();
-        self.downloaders = []
         self.restores = []
 
-#    def run(self):
-#        while True:
-#            if self.have_space():
-#                if self.can_request_more():
-#                    response = self.getRestore()
-#                    print "Requested Restore:"+ response
-#                    self.my_logger.info("Requested Restore")
-#                    if response != "fail":
-#                        #self.downloaders.append(downloader())
-#                        print "Restore Response: "+ response
-#                        #self.my_logger.info("Restore Response: "+ response)
-#                        self.create_restore(response)
-#                        self.restores.append(response)
-#                    else:
-#                        self.my_logger.warning("Restore Response: "+ response)
-#
-#                for restore in self.restores:
-#                    self.getLocation(restore)
-#
-#                if self.can_download_more():
-#                    for download in self.downloaders:
-#                        if download.status == 'New':
-#                            download.start()
-#                            self.my_logger.info("Starting Download: "+download.file_name)
-#            else:
-#                if not self.have_space():
-#                    self.my_logger.warning\
-#                    ("Not enough space specified in config file to store the file.")
-#
-#            for download in self.downloaders[:]:
-#                print download.status
-#                if download.status.split(':')[0] == "Downloaded" or \
-#                download.status.split(':')[0] == 'Failed':
-#                    self.my_logger.info(download.status)
-#                    self.downloaders.remove(download)
-#            sleep(1)
-#            print ""
-#
-#
-#
-#    def getLocation(self,restore):
-#        self.my_logger.info("Requesting Location for: "+ restore)
-#        response = self.WebService.LocationTest(username=self.username,pw=self.password, guid=restore)
-#        if response != "incomplete" and response  != "Error":
-##           if not self.downloading(response):
-##               self.downloaders.append(downloader(response))
-##               self.restores.remove(restore)
-#
-#          if not self.downloading(restore):
-#            print "Creating Downloader: "+ restore
-#            self.downloaders.append(downloader(restore,self.db_name))
-#            self.restores.remove(restore)
-#          else:
-#            self.restores.remove(restore)
-#
-#
-#
-#
-#
-#    def restore(self):
-#        return "5f1e39d373d24db49ead9602e6754c68";
-#        return self.WebService.RestoreTest(username=self.username,pw=self.password,number=1)
-#
-#    def have_space(self):
-#        return True
-#
-#    def can_download_more(self):
-#        downloading_count = 0
-#        for download in self.downloaders[:]:
-#                if download.status.split(':')[0] == "Downloading":
-#                    downloading_count += 1
-#        if downloading_count >= downloader_numofdownloads:
-#            print "Cannot download more than: "+ str(downloader_numofdownloads) +" at a time."
-#            return False
-#        else:
-#            print "Will download."
-#            return True
-#
-#    def can_request_more(self):
-#        if len(self.restores) >= downloader_numofrestores:
-#            print "Cannot have more than "+ str(downloader_numofrestores) +" at a time."
-#            return False
-#        else:
-#            print "Will request more files"
-#            return True
-#
-#    def get_by_restore_guid(self, guid):
-#        sel_query = "SELECT * FROM restores WHERE guid = '%s' LIMIT 1" % (guid)
-#        self.db_cur.execute(sel_query)
-#        return self.db_cur.fetchone()
+    def run(self):
+        self.recover()
+        for res in self.restores:
+            print res
+
+        #if can create more restores then request new ones and add them to restores array
+        while True:
+            while self.can_request_more():
+                self.restores.append(restore(db_name=self.db_name,num_beams=1))
+            for res in self.restores[:]:
+                if not res.run():
+                    print "Could not run the restore...deleting"
+                    self.restores.remove(res)
+                print "Number of restores: "+ str(len(self.restores))
+                sleep(2)
+            
+    def recover(self):
+        rec_query = "SELECT * FROM restores WHERE dl_status NOT LIKE 'Finished:%' AND dl_tries < "+ str(downloader_numofretries);
+        self.db_cur.execute(rec_query)
+        for res_row in self.db_cur:
+            self.restores.append(restore(db_name=self.db_name,num_beams=1,guid=res_row['guid']))
+
+        
+    def have_space(self):
+        return True
+
+
+    def can_request_more(self):
+        if len(self.restores) >= downloader_numofrestores:
+            print "Cannot have more than "+ str(downloader_numofrestores) +" at a time."
+            return False
+        else:
+            print "Will request more files"
+            return True
+
+    def get_by_restore_guid(self, guid):
+        sel_query = "SELECT * FROM restores WHERE guid = '%s' LIMIT 1" % (guid)
+        self.db_cur.execute(sel_query)
+        return self.db_cur.fetchone()
+
+    def dump_db(self):
+        query = "SELECT * FROM restores"
+        self.db_cur.execute(query);
+        for row in self.db_cur:
+            print row
+        print ""
+        print ""
 
 class restore:
 
-    def __init__(self,db_name, num_beams):
+    def __init__(self,db_name, num_beams,guid=False):
+        self.values = None
+        self.num_beams = num_beams
         self.db_name = db_name
         self.db_conn = sqlite3.connect("sqlite3db");
         self.db_conn.row_factory = sqlite3.Row
@@ -140,7 +98,15 @@ class restore:
         self.WebService =  Client(downloader_api_service_url).service
         self.username = downloader_api_username
         self.password = downloader_api_password
-        self.name = "5f1e39d373d24db49ead9602e6754c68"
+        self.remove_me = True
+        if guid:
+            tmp_restore = self.get_by_restore_guid(guid)
+            if tmp_restore:
+                self.name = guid
+        else:
+            tmp_guid = self.create_restore()
+            if tmp_guid:
+                self.name = tmp_guid
 #        return "5f1e39d373d24db49ead9602e6754c68";
 #        response = self.WebService.RestoreTest(username=self.username,pw=self.password,number=num_beams)
 #        if response != "fail":
@@ -151,27 +117,70 @@ class restore:
 #        else:
 #            return False
 
-    def create_restore(self, guid):
-        if self.get_by_restore_guid(guid) != None:
-            print "The record with GUID = '%s' allready exists" % (guid)
-        else:
-            insert_query = "INSERT INTO restores (guid, dl_status, dl_tries, created_at) VALUES ('%s','%s', %u, '%s')" % \
-                            (guid, 'waiting_path', 0, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            print insert_query
-            self.db_cur.execute(insert_query)
-            self.db_conn.commit()
+    def run(self):
+        if self.name == False:
+            print "Will not start a restore: have no name"
+            return self.name
+        print "Will run the restore."
+        self.update()
+        print self.values
 
+
+        if not self.downloader:
+            if self.values['dl_tries'] < downloader_numofretries:
+                self.getLocation()
+            else:
+                return False
+        else:
+            self.update_status({'dl_status':self.downloader.status})
+
+            if self.downloader.status.split(":")[0] == "Finished":
+                return False
+            elif self.values['dl_tries'] < downloader_numofretries and\
+            self.downloader.status.split(":") == "Failed":
+                self.start_downloader()
+            elif self.downloader.status.split(":")[0] != "Downloading":
+                return False
+
+        return self.name
+
+    def create_restore(self):
+        response = self.WebService.RestoreTest(username=self.username,pw=self.password,number=self.num_beams)
+        if response != "fail":
+            self.name = response
+            if self.get_by_restore_guid(self.name) != None:
+                print "The record with GUID = '%s' allready exists" % (self.name)
+            else:
+                insert_query = "INSERT INTO restores (guid, dl_status, dl_tries, created_at) VALUES ('%s','%s', %u, '%s')" % \
+                                    (self.name, 'waiting_path', 0, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                print insert_query
+                db_conn = sqlite3.connect(self.db_name);
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                db_cur.execute(insert_query)
+                db_conn.commit()
+                db_conn.close()
+                self.update()
+                return response
+        else:
+            return False
+        
     def getLocation(self):
         #self.my_logger.info("Requesting Location for: "+ self.name)
         response = self.WebService.LocationTest(username=self.username,pw=self.password, guid=self.name)
         if response == "done":
           if not self.downloader:
             print "Creating Downloader for restore: "+ self.name
-            self.downloader=downloader(self.name,self.db_name)
-            self.downloader.start()
+            self.start_downloader()
         else:
             print "File not ready for: "+ self.name;
             #self.my_logger.info("File not ready for: "+ self.name)
+    
+    def start_downloader(self):
+        self.downloader=downloader(self.name,self.db_name)
+        self.update_status({'dl_status':self.downloader.status})
+        self.inc_tries()
+        self.downloader.start()
 
     def downloading(self,file_name):
         if self.downloader:
@@ -183,21 +192,73 @@ class restore:
         update_values = []
         for column, value in named_list.items():
             if type(value) == str:
-                update_values.append(column+"='"+value+"'")
+                update_values.append(column+"='"+value.replace("'","").replace('"',"")+"'")
             elif value == None:
                 update_values.append(column+"= NULL")
             else:
                 update_values.append(column+"="+str(value))
              
         query = "UPDATE restores SET %s WHERE guid = '%s' " % (", ".join(update_values),self.name)
-        self.db_cur.execute(query)
-        self.db_conn.commit()
+        done = False
+        while not done:
+            try:
+                db_conn = sqlite3.connect(self.db_name);
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                db_cur.execute(query)
+                db_conn.commit()
+                db_conn.close()
+                done = True
+            except Exception as e:
+                print "DB error: "+ str(e)
+                done = False
+
+    def inc_tries(self):
+        done = False
+        while not done:
+            try:
+                db_conn = sqlite3.connect(self.db_name);
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                sel_query = "UPDATE restores SET dl_tries = dl_tries + 1 WHERE guid = '%s'" % (self.name)
+                db_cur.execute(sel_query)
+                db_conn.commit()
+                db_conn.close()
+                done = True
+            except Exception as e:
+                done = False
+
+    def update(self):
+        self.values = self.get_by_restore_guid(self.name)
+
+    def get_by_restore_guid(self, guid):
+        done = False
+
+        while not done:
+            try:
+                sel_query = "SELECT * FROM restores WHERE guid = '%s' LIMIT 1" % (guid)
+                db_conn = sqlite3.connect(self.db_name);
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                db_cur.execute(sel_query)
+                row = db_cur.fetchone()
+                db_conn.close()
+                done= True
+                return row
+            except Exception as e:
+                print "DB error: "+str(e)
+                done = False
 
     def dump_db(self):
+        db_conn = sqlite3.connect(self.db_name);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+
         query = "SELECT * FROM restores"
-        self.db_cur.execute(query);
+        db_cur.execute(query);
         for row in self.db_cur:
             print row
+        db_conn.close()
         print ""
         print ""
 
@@ -223,9 +284,9 @@ class downloader(Thread):
         self.start_time = 0
         self.end_time = 0
         self.db_name =db_name
-        self.db_conn = sqlite3.connect(db_name);
-        self.db_conn.row_factory = sqlite3.Row
-        self.db_cur = self.db_conn.cursor();
+#        self.db_conn = sqlite3.connect(db_name,timeout=1);
+#        self.db_conn.row_factory = sqlite3.Row
+#        self.db_cur = self.db_conn.cursor();
         
         
         try:
@@ -234,7 +295,7 @@ class downloader(Thread):
             self.ftp.auth_tls()
             self.ftp.set_pasv(1)
         except Exception as e:
-            self.update_status({'dl_status':"Failed: '"+ self.file_name +"' -- "+ str(e)})
+            #self.update_status({'dl_status':"Failed: '"+ self.file_name +"' -- "+ str(e)})
             self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
         
 #        if not os.path.exists(os.path.join(rawdata_directory,self.file_name)):
@@ -248,13 +309,13 @@ class downloader(Thread):
                 print "Filename: "+ self.file_name
                 self.file = open(os.path.join(downloader_temp,self.file_name),'wb')
                 self.status = 'New'
-                self.update_status({'dl_status':'New'})
+                #self.update_status({'dl_status':'New','filename':self.file_name})
             except Exception as e:
                 if not self.status:
                     self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
         except Exception as e:
             if not self.status:
-                self.status = "Failed: Login failed '"+ self.file_name +"' -- "+ str(e)
+                self.status = "Failed: Login failed '"+ str(self.file_name) +"' -- "+ str(e)
 #        else:
 #            if not self.status:
 #                self.status = "Failed: File '"+ self.file_name +"' already exists."
@@ -271,14 +332,17 @@ class downloader(Thread):
                         raise Exception("File size 0")
                     self.ftp.sendcmd("TYPE I")
                     retr_response = str(self.ftp.retrbinary("RETR "+self.file_name, self.write))
-                    shutil.move(os.path.join(downloader_temp,self.file_name),rawdata_directory)
                     self.end_time = time.time()
                     time_took = self.end_time - self.start_time
+                    
+                    print "Finished: '"+ self.file_name +"' "\
+                    +str(self.total_size_got)+" bytes -- Completed in: "+\
+                    self.prntime(time_took)
+
                     self.finished("Finished: '"+ self.file_name +"' "\
                     +str(self.total_size_got)+" bytes -- Completed in: "+\
                     self.prntime(time_took))
                 except Exception as e:
-                    self.update_status({'dl_status':'Failed: '+str(e)})
                     self.finished('Failed: '+str(e))
             else:
                 self.finished('Failed: Not Enough Space to save the remote file.')
@@ -287,22 +351,45 @@ class downloader(Thread):
         self.file_size = self.ftp.size(self.file_name)
         return self.file_size
 
+    def inc_tries(self):
+        done = False
+        while not done:
+            try:
+                db_conn = sqlite3.connect(self.db_name);
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                sel_query = "UPDATE restores SET dl_tries = dl_tries + 1 WHERE guid = '%s'" % (self.name)
+                db_cur.execute(sel_query)
+                db_conn.commit()
+                db_conn.close()
+                done = True
+            except Exception as e:
+                done = False
+
     def update_status(self, named_list):
-        db_conn = sqlite3.connect(self.db_name);
-        db_conn.row_factory = sqlite3.Row
-        db_cur = db_conn.cursor();
-        update_values = []
-        import re
-        for column, value in named_list.items():
-            if type(value) == str:
-                update_values.append(column+"='"+value.replace("'","").replace('"',"")+"'")
-            elif value == None:
-                update_values.append(column+"= NULL")
-            else:
-                update_values.append(column+"="+str(value))
-        query = "UPDATE restores SET %s WHERE guid = '%s' " % (", ".join(update_values),self.restore_dir)
-        db_cur.execute(query)
-        db_conn.commit()
+        done = False
+        while not done:
+            try:
+                db_conn = sqlite3.connect(self.db_name);
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                update_values = []
+                import re
+                for column, value in named_list.items():
+                    if type(value) == str:
+                        update_values.append(column+"='"+value.replace("'","").replace('"',"")+"'")
+                    elif value == None:
+                        update_values.append(column+"= NULL")
+                    else:
+                        update_values.append(column+"="+str(value))
+                query = "UPDATE restores SET %s WHERE guid = '%s' " % (", ".join(update_values),self.restore_dir)
+                db_cur.execute(query)
+                db_conn.commit()
+                db_conn.close()
+                done = True
+            except Exception as e:
+                done = False
+
 
     def write(self, block):
         self.total_size_got += len(block)
@@ -310,9 +397,9 @@ class downloader(Thread):
         ])) / float( time.time() -self.block['time'] ))/1024)
         self.block['time'] = time.time()
         self.block['size'] = self.total_size_got
-        self.update_status({'dl_status': 'Downloading: '+str(self.total_size_got)+" -- "\
-        + str(int( float(self.total_size_got) / float(self.file_size) * 100 )) +"% -- "\
-        +str(self.speed)+" Kb/s"})
+        #self.update_status({'dl_status': 'Downloading: '+str(self.total_size_got)+" -- "\
+        #+ str(int( float(self.total_size_got) / float(self.file_size) * 100 )) +"% -- "\
+        #+str(self.speed)+" Kb/s"})
         self.status = 'Downloading: '+str(self.total_size_got)+" -- "\
         + str(int( float(self.total_size_got) / float(self.file_size) * 100 )) +"% -- "\
         +str(self.speed)+" Kb/s"
@@ -379,12 +466,13 @@ class downloader(Thread):
 #controller = DownloadModule()
 #controller.run()
 
-res = restore("sqlite3db",1)
-res.update_status({'dl_status':None,'dl_tries':6})
-res.dump_db()
-res.getLocation()
-res.dump_db()
+print "Init restore"
+res = restore("sqlite3db",1,"61f48867a7404047877284d27af39ff6")
+print "restore initialized"
+dl = True
+while dl:
+    dl = res.run()
+    print "Run: "+ str(dl)
+    print res.downloader
+    sleep(1)
 
-while True:
-    res.dump_db()
-    sleep(1);
