@@ -209,7 +209,7 @@ class restore:
                 db_conn.commit()
                 db_conn.close()
                 done = True
-            except Exception as e:
+            except Exception, e:
                 print "DB error: "+ str(e)
                 done = False
 
@@ -225,7 +225,7 @@ class restore:
                 db_conn.commit()
                 db_conn.close()
                 done = True
-            except Exception as e:
+            except Exception , e:
                 done = False
 
     def update(self):
@@ -245,7 +245,7 @@ class restore:
                 db_conn.close()
                 done= True
                 return row
-            except Exception as e:
+            except Exception , e:
                 print "DB error: "+str(e)
                 done = False
 
@@ -310,10 +310,10 @@ class downloader(Thread):
                 self.file = open(os.path.join(downloader_temp,self.file_name),'wb')
                 self.status = 'New'
                 #self.update_status({'dl_status':'New','filename':self.file_name})
-            except Exception as e:
+            except Exception , e:
                 if not self.status:
                     self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
-        except Exception as e:
+        except Exception , e:
             if not self.status:
                 self.status = "Failed: Login failed '"+ str(self.file_name) +"' -- "+ str(e)
 #        else:
@@ -342,7 +342,7 @@ class downloader(Thread):
                     self.finished("Finished: '"+ self.file_name +"' "\
                     +str(self.total_size_got)+" bytes -- Completed in: "+\
                     self.prntime(time_took))
-                except Exception as e:
+                except Exception , e:
                     self.finished('Failed: '+str(e))
             else:
                 self.finished('Failed: Not Enough Space to save the remote file.')
@@ -363,7 +363,7 @@ class downloader(Thread):
                 db_conn.commit()
                 db_conn.close()
                 done = True
-            except Exception as e:
+            except Exception , e:
                 done = False
 
     def update_status(self, named_list):
@@ -387,7 +387,7 @@ class downloader(Thread):
                 db_conn.commit()
                 db_conn.close()
                 done = True
-            except Exception as e:
+            except Exception , e:
                 done = False
 
 
