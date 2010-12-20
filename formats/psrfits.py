@@ -14,7 +14,7 @@ import slalib
 import pyfits
 import numpy as np
 import psr_utils
-from pypulsar.utils.astro import protractor
+from astro_utils import protractor
 
 # Regular expression for parsing DATE-OBS card's format.
 date_obs_re = re.compile(r"^(?P<year>[0-9]{4})-(?P<month>[0-9]{2})-" \

@@ -414,7 +414,7 @@ if __name__=='__main__':
     ###############
 
     # Connect to DB
-    db = database.Database('common')
+    db = database.Database('palfa-common-copy')
     db.cursor.execute(query)
     db.cursor.commit()
     

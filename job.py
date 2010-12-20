@@ -9,7 +9,7 @@ import re
 import os.path
 import config
 import datetime
-import PBSQuery
+#import PBSQuery
 import socket
 import subprocess
 
@@ -18,6 +18,11 @@ import shutil
 
 import pprint
 import dev
+from formats import psrfits
+
+
+
+from mailer import ErrorMailer
 
 class JobPool:
     def __init__(self):
@@ -25,16 +30,26 @@ class JobPool:
         self.datafiles = []
         self.demand_file_list = {}
         self.cycles = 0
+        self.merged_dict = {}
+        
+
+    def start(self):
         print "Loading datafile(s)..."
        
         print "Creating Jobs from datafile(s)..."
         self.fetch_new_jobs()
         print "Created "+str(len(self.jobs))+" job(s)"
-
+        
     def create_jobs_from_datafiles(self,files_in = None):
         """Given a list of datafiles, group them into jobs.
             For each job return a PulsarSearchJob object.
         """
+
+        #group files for preproccessing (merging)
+        files_in = self.group_files(files_in)
+        #merge files before submitting a job
+        files_in = self.merge_files(files_in)
+
         # For PALFA2.0 each observation is contained within a single file.
         if not files_in:
             return
@@ -44,6 +59,70 @@ class JobPool:
                 self.datafiles.append(datafile)
                 self.jobs.append(p_searchjob)
         
+    def group_files(self, files_in):
+        """Given a list of datafiles, group files that need to be merged before
+            submitting to QSUB.
+            Return a list of datafiles, files that are grouped
+            are list of a list.
+        """
+        files_out = []
+        processed = []
+        for file in files_in[:]:
+            if not file in processed:
+            #4bit-p2030.20100810.B2020+28.b0s0g0.00100.fits
+                match = re.match("4bit-.*\.b0s\dg0\.\d{5}\.fits", file)
+                if match: #if it is a 4bit files start looking for associated files
+                    processed.append(file)
+                    new_group = [file]
+                    for next_file in files_in[:]:
+                        if not next_file in processed:
+                            new_match = re.match(file[0:len(file)-17]\
+                            .replace("+", "\+") + 'b0s\dg0' + \
+                            file[len(file)-11:len(file)], next_file)
+                            if new_match:
+                                processed.append(next_file)
+                                new_group.append(next_file)
+                    files_out.append(new_group)
+                else:
+                    files_out.append(file)
+        return files_out
+
+    def merge_files(self, files_in):
+        """Given a list of datafiles run a mergin command on datafiles that
+            are grouped into list of a list.
+            Return list of datafiles replacing the grouped file with a
+            single merged file.
+        """
+        files_out = []
+        for item in files_in:
+            if isinstance(item, list):
+                merge_pipe = subprocess.Popen('merger %s' % (" ".join(item)), \
+                            shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
+                merger_response = merge_pipe.communicate()
+
+                #get response if merging was successfull
+                if not merger_response[1]:
+                    #merging was successfull - add merged file to files list for return
+                    #assume merger_response[0] is the produced file name of merged
+                    self.merged_dict[merger_response[0]] = item
+                    files_out.append(merger_response[0])
+                    
+                else:
+                    #mailer can send an error to supervisor
+                    mailing_message = "<h1>Merger Error.</h1> \n <p>The following error occured:</p>\n %s" % \
+                    (merger_response)
+                    mailing_message += "<br>\nFiles that could not be merged:"
+                    for fn in item:
+                        mailing_message += "<br>\n"+ fn
+                    mailer = ErrorMailer(mailing_message)
+                    mailer.send()
+                    
+                #add pre-merged files to datafiles, so they will not get picked up again on rotation
+                self.datafiles += item
+            else:
+                #single file - do not need to merge it
+                files_out.append(item)
+        return files_out
 
     def delete_job(self, job):
         """Delete datafiles for PulsarSearchJob j. Update j's log.
@@ -93,7 +172,7 @@ class JobPool:
         """Upload results from PulsarSearchJob j to the database.
             Update j's log.
         """
-        raise NotImplementedError("upload_job() isn't implemented.")
+        raise NotImplementedError("upload_results() isn't implemented.")
 
     def rotate(self):
         print "Rotating through: "+ str(len(self.jobs)) +" jobs."
@@ -119,12 +198,16 @@ class JobPool:
             elif job.status > PulsarSearchJob.NEW_JOB:
                 pass
             elif job.status == PulsarSearchJob.TERMINATED:
-                if self.restart_job(job):
-                    print "Resubmitting a job: "+ job.jobid
-                    self.submit_job(job)
+                if self.qsub_job_error(job):
+                    if self.restart_job(job):
+                        print "Resubmitting a job: "+ job.jobid
+                        self.submit_job(job)
+                    else:
+                        print "Removing the job: Multiple fails: "+job.jobname
+                        self.delete_job(job)
                 else:
-                    print "Removing the job: Multiple fails: "+job.jobname
-                    self.delete_job(job)
+                    #if job terminated with no errors - upload the results
+                    self.upload_results(job)
 
 
         str_status = ['TERMINATED','NEW_JOB','SUBMITED','SUBMITED_QUEUED','SUBMITED_RUNNING']
@@ -223,6 +306,9 @@ class JobPool:
 
     #def qsub_status(self, job):
     def qsub_job_error(self, job):
+        """Check if qsub job terminated with an error.
+            Return True if the job terminated with the error, False otherwise.
+        """
         if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0])):
             if os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0])) > 0:
                 job.log.addentry(LogEntry(qsubid=job.jobid, status="Processing failed", host=socket.gethostname(), \
@@ -230,15 +316,10 @@ class JobPool:
                 return True
         else:
             return False
-
-
-
-    """
-    Updates JobPool Jobs using from qsub queue and qsub error logs.
     
-    """
     def qsub_update_status(self):
-        
+        """Updates JobPool Jobs using from qsub queue and qsub error logs.
+        """
         for job in self.jobs:
 #            job.status = PulsarSearchJob.TERMINATED
             batch = PBSQuery.PBSQuery().getjobs()
@@ -301,6 +382,10 @@ class PulsarSearchJob:
     SUBMITED = 2
     SUBMITED_QUEUED = 3
     SUBMITED_RUNNING = 4
+    UPLOAD_STARTED = 5
+    UPLOAD_FAILED = 6
+    UPLOAD_COMPLETED = 7
+    FINISHED = 8
     
     def __init__(self, datafiles):
         """PulsarSearchJob creator.
@@ -312,8 +397,56 @@ class PulsarSearchJob:
         #self.logfilenm = self.jobname + ".log"
         self.logfilenm = os.path.join(config.log_dir,os.path.basename(self.jobname) + ".log")
         self.log = JobLog(self.logfilenm, self)
+        self.presto_output_dir = self.prep_out_dir()
         self.status = self.NEW_JOB
 
+    def prep_out_dir(self,in_datafiles=None):
+        if not in_datafiles:
+            in_datafiles = self.datafiles
+        if isinstance(in_datafiles, list):
+            filename=in_datafiles[0]
+        elif isinstance(in_datafiles, string):
+            filename=in_datafiles
+        else:
+            raise Exception('Could not get input filename(s)')
+
+        if not os.path.isfile(filename):
+            raise Exception('File with the given path doesn\'t exists.')
+        elif filename[len(filename)-5:] != ".fits":
+            raise Exception('Unrecognized input file extension.')
+
+
+        """for the file: p2030.20100810.B2020+28.b0s0g0.00100.fits
+            rawdata basename: p2030.20100810.B2020+28.b0s0g0.00100
+            beam number: 0 (from b0)
+            processing date: (not from file name)
+            mjd: (Read from the file header using the psrfits module.)
+        """
+        parsed=psrfits.SpectraInfo(filename)
+        imjd, fmjd=DATEOBS_to_MJD(parsed.date_obs)
+        mjdtmp="%.14f" % fmjd
+        MJD="%5d.%14s" % (imjd, mjdtmp[2:])
+        basename=os.path.basename(filename)
+        rawdata_basename=basename[len(basename)-5:]
+        
+        try:
+            beam_num = int(basename[len(basename)-16:len(basename)-15])
+        except ValueError:
+            raise Exception('Could not determine raw file\'s beam number.')
+        
+        proc_date=datetime.datetime.now().strftime('%y%m%d')
+        
+        presto_out_dir = config.base_working_directory +"/"+ MJD +"/"+ rawdata_basename +"/"+ str(beam_num)
+        
+        try:
+            os.makedirs(presto_out_dir)
+        except OSError:
+            if not os.path.exists(presto_out_dir):
+                raise "Could not create directory: %s" % presto_out_dir
+        
+        return presto_out_dir
+
+        
     def get_log_status(self):
         """Get and return the status of the most recent log entry.
         """
