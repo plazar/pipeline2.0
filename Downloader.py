@@ -294,7 +294,7 @@ class downloader(Thread):
             self.ftp.connect('arecibo.tc.cornell.edu',31001)
             self.ftp.auth_tls()
             self.ftp.set_pasv(1)
-        except Exception as e:
+        except Exception , e:
             #self.update_status({'dl_status':"Failed: '"+ self.file_name +"' -- "+ str(e)})
             self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
         
