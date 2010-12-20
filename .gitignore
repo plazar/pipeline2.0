@@ -5,3 +5,4 @@ log_archive/
 qsublog/
 nbproject/
 DL_DIR
+sqlite3db-journal
