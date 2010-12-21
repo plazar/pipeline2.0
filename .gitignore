@@ -4,5 +4,6 @@
 log_archive/
 qsublog/
 nbproject/
+test.py
 DL_DIR
 sqlite3db-journal
