@@ -1,5 +1,4 @@
 import os.path
-from ftplib import FTP
 from time import sleep
 import logging
 import sys
@@ -44,8 +43,10 @@ class DownloadModule:
 
         #if can create more restores then request new ones and add them to restores array
         while True:
-            while self.can_request_more():
+            while self.can_request_more() and self.have_space():
+                #self.restores.append(time.time())
                 self.restores.append(restore(db_name=self.db_name,num_beams=1))
+                sleep(2)
             for res in self.restores[:]:
                 if not res.run():
                     print "Could not run the restore...deleting"
@@ -61,7 +62,17 @@ class DownloadModule:
 
         
     def have_space(self):
-        return True
+        folder_size = 0
+        for (path, dirs, files) in os.walk(downloader_temp):
+          for file in files:
+            filename = os.path.join(path, file)
+            folder_size += os.path.getsize(filename)
+        if folder_size < downloader_space_to_use:
+            print "Enough Space"
+            return True
+        else:
+            print "Not Enough Space"
+            return False
 
 
     def can_request_more(self):
@@ -133,7 +144,9 @@ class restore:
                 return False
         else:
             self.update_status({'dl_status':self.downloader.status})
-
+            
+            if self.downloader.file_name:
+                self.update_status({'filename':self.downloader.file_name})
             if self.downloader.status.split(":")[0] == "Finished":
                 return False
             elif self.values['dl_tries'] < downloader_numofretries and\
@@ -145,7 +158,7 @@ class restore:
         return self.name
 
     def create_restore(self):
-        response = self.WebService.RestoreTest(username=self.username,pw=self.password,number=self.num_beams)
+        response = self.WebService.Restore(username=self.username,pw=self.password,number=self.num_beams,bits=4,fileType="wapp")
         if response != "fail":
             self.name = response
             if self.get_by_restore_guid(self.name) != None:
@@ -167,7 +180,7 @@ class restore:
         
     def getLocation(self):
         #self.my_logger.info("Requesting Location for: "+ self.name)
-        response = self.WebService.LocationTest(username=self.username,pw=self.password, guid=self.name)
+        response = self.WebService.Location(username=self.username,pw=self.password, guid=self.name)
         if response == "done":
           if not self.downloader:
             print "Creating Downloader for restore: "+ self.name
@@ -179,6 +192,8 @@ class restore:
     def start_downloader(self):
         self.downloader=downloader(self.name,self.db_name)
         self.update_status({'dl_status':self.downloader.status})
+        if self.downloader.file_name:
+            self.update_status({'filename':self.downloader.file_name})
         self.inc_tries()
         self.downloader.start()
 
@@ -299,23 +314,23 @@ class downloader(Thread):
             self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
         
 #        if not os.path.exists(os.path.join(rawdata_directory,self.file_name)):
-        try:
-            print self.ftp.login('palfadata','NAIC305m')
-            try:
-                self.download = True
-                print self.restore_dir
-                print self.ftp.cwd(self.restore_dir)
-                self.file_name = self.ftp.nlst()[0]
-                print "Filename: "+ self.file_name
-                self.file = open(os.path.join(downloader_temp,self.file_name),'wb')
-                self.status = 'New'
+#        try:
+        print self.ftp.login('palfadata','NAIC305m')
+#            try:
+        self.download = True
+        print self.restore_dir
+        print self.ftp.cwd(self.restore_dir)
+        self.file_name = self.ftp.nlst()[0]
+        print "Filename: "+ self.file_name
+        self.file = open(os.path.join(downloader_temp,self.file_name),'wb')
+        self.status = 'New'
                 #self.update_status({'dl_status':'New','filename':self.file_name})
-            except Exception , e:
-                if not self.status:
-                    self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
-        except Exception , e:
-            if not self.status:
-                self.status = "Failed: Login failed '"+ str(self.file_name) +"' -- "+ str(e)
+#            except Exception , e:
+        if not self.status:
+            self.status = "Failed: '"+ self.file_name +"' -- "#+ str(e)
+#        except Exception , e:
+        if not self.status:
+            self.status = "Failed: Login failed '"+ str(self.file_name) +"' -- "#+ str(e)
 #        else:
 #            if not self.status:
 #                self.status = "Failed: File '"+ self.file_name +"' already exists."
@@ -463,16 +478,16 @@ class downloader(Thread):
 
         return return_string
 
-#controller = DownloadModule()
-#controller.run()
+controller = DownloadModule()
+controller.run()
 
-print "Init restore"
-res = restore("sqlite3db",1,"61f48867a7404047877284d27af39ff6")
-print "restore initialized"
-dl = True
-while dl:
-    dl = res.run()
-    print "Run: "+ str(dl)
-    print res.downloader
-    sleep(1)
+#print "Init restore"
+#res = restore("sqlite3db",1,"61f48867a7404047877284d27af39ff6")
+#print "restore initialized"
+#dl = True
+#while dl:
+#    dl = res.run()
+#    print "Run: "+ str(dl)
+#   print res.downloader
+#    sleep(1)
 
