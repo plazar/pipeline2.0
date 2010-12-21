@@ -51,11 +51,16 @@ class DownloadModule:
                 if not res.run():
                     print "Could not run the restore...deleting"
                     self.restores.remove(res)
+                else:
+                    print res.files
+
                 print "Number of restores: "+ str(len(self.restores))
+
+
                 sleep(2)
             
     def recover(self):
-        rec_query = "SELECT * FROM restores WHERE dl_status NOT LIKE 'Finished:%' AND dl_tries < "+ str(downloader_numofretries);
+        rec_query = "SELECT * FROM restores WHERE dl_status NOT LIKE 'Finished:%'";
         self.db_cur.execute(rec_query)
         for res_row in self.db_cur:
             self.restores.append(restore(db_name=self.db_name,num_beams=1,guid=res_row['guid']))
@@ -105,12 +110,16 @@ class restore:
         self.db_conn = sqlite3.connect("sqlite3db");
         self.db_conn.row_factory = sqlite3.Row
         self.db_cur = self.db_conn.cursor();
-        self.downloader = False
+        self.downloaders = dict()
         self.WebService =  Client(downloader_api_service_url).service
         self.username = downloader_api_username
         self.password = downloader_api_password
         self.remove_me = True
+
+        self.files = dict()
+        self.size = 0
         if guid:
+            self.name = guid
             tmp_restore = self.get_by_restore_guid(guid)
             if tmp_restore:
                 self.name = guid
@@ -135,27 +144,26 @@ class restore:
         print "Will run the restore."
         self.update()
         print self.values
-
-
-        if not self.downloader:
-            if self.values['dl_tries'] < downloader_numofretries:
-                self.getLocation()
+        
+        if self.values['dl_status'].split(":")[0] == "Finished":
+            return False
+        elif self.values['dl_status'].split(":")[0] == "waiting_path":
+            if self.getLocation():
+                self.get_files()
+                self.create_dl_entries()
+                self.update_status({'dl_status': "Download Ready:_"})
+        elif self.values['dl_status'].split(":")[0] == "Download Ready":
+            if self.is_finished():
+                return False
             else:
-                return False
-        else:
-            self.update_status({'dl_status':self.downloader.status})
-            
-            if self.downloader.file_name:
-                self.update_status({'filename':self.downloader.file_name})
-            if self.downloader.status.split(":")[0] == "Finished":
-                return False
-            elif self.values['dl_tries'] < downloader_numofretries and\
-            self.downloader.status.split(":") == "Failed":
+                print "Starting Downloaders for: "+self.name
+                self.get_files()
+                self.create_dl_entries()
                 self.start_downloader()
-            elif self.downloader.status.split(":")[0] != "Downloading":
-                return False
+                return True
 
-        return self.name
+        self.update()
+        return True
 
     def create_restore(self):
         response = self.WebService.Restore(username=self.username,pw=self.password,number=self.num_beams,bits=4,fileType="wapp")
@@ -182,20 +190,119 @@ class restore:
         #self.my_logger.info("Requesting Location for: "+ self.name)
         response = self.WebService.Location(username=self.username,pw=self.password, guid=self.name)
         if response == "done":
-          if not self.downloader:
-            print "Creating Downloader for restore: "+ self.name
-            self.start_downloader()
+            return True
         else:
             print "File not ready for: "+ self.name;
-            #self.my_logger.info("File not ready for: "+ self.name)
+            return False
+            
+    
+    def get_files(self):
+        ftp = ftpslib.FTP_TLS()
+        ftp.connect('arecibo.tc.cornell.edu',31001)
+        ftp.auth_tls()
+        ftp.set_pasv(1)
+        print ftp.login('palfadata','NAIC305m')
+        print ftp.cwd(self.name)
+        for file in ftp.nlst():
+            file_size = ftp.size(file)
+            self.size += file_size
+            self.files[file] = file_size
+        ftp.close()
+    
+    def create_dl_entries(self):
+        db_conn = sqlite3.connect(self.db_name);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+        
+        for filename,filesize in self.files.items():
+            sel_query = "SELECT * FROM restore_downloads WHERE guid = '%s' AND filename = '%s'" % (self.name,filename)
+            print sel_query
+            db_cur.execute(sel_query)
+            if len(db_cur.fetchall()) <= 0:
+                query = "INSERT INTO restore_downloads (guid,filename,num_tries,status) VALUES ('%s','%s',%u,'%s')" % (self.name,filename,0,'New')
+                print query
+                db_cur.execute(query)
+                db_conn.commit()
     
     def start_downloader(self):
-        self.downloader=downloader(self.name,self.db_name)
-        self.update_status({'dl_status':self.downloader.status})
-        if self.downloader.file_name:
-            self.update_status({'filename':self.downloader.file_name})
-        self.inc_tries()
-        self.downloader.start()
+        for filename,filesize in self.files.items():
+            if not filename in self.downloaders:
+                if downloader_numofretries > int(self.get_tries(filename)) and not self.have_finished(filename):
+                    self.downloaders[filename] = downloader(self.name,filename)
+                    self.inc_tries(filename)
+                    self.downloaders[filename].start()
+                
+    def have_finished(self,filename):
+        db_conn = sqlite3.connect(self.db_name);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+        query = "SELECT * FROM restore_downloads WHERE guid = '%s' AND filename = '%s' LIMIT 1" % (self.name,filename)
+        db_cur.execute(query)
+        row = db_cur.fetchone()
+        db_conn.close()
+        if row['status'].split(":")[0] == 'Finished':
+            print "Finished: "+ str(filename)
+            return True
+        else:
+            print "Not Finished: "+ str(filename)
+            return False
+
+    def is_finished(self):
+        db_conn = sqlite3.connect(self.db_name);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+        all_query = "SELECT * FROM restore_downloads WHERE guid = '%s'" % (self.name)
+        db_cur.execute(all_query)
+        all_count = len(db_cur.fetchall())
+        
+        fin_query = "SELECT * FROM restore_downloads WHERE guid = '"+self.name+"' AND status LIKE 'Finished:%'"
+        db_cur.execute(fin_query)
+        fin_count = len(db_cur.fetchall())
+        db_conn.close()
+        return (fin_count == all_count)
+
+    def get_tries(self,filename):
+        db_conn = sqlite3.connect(self.db_name);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+        query = "SELECT * FROM restore_downloads WHERE guid = '%s' AND filename = '%s' LIMIT 1" % (self.name,filename)
+        db_cur.execute(query)
+        row = db_cur.fetchone()
+        db_conn.close()
+        return row['num_tries']
+
+    def inc_tries(self,filename):
+        db_conn = sqlite3.connect(self.db_name);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+        query = "UPDATE restore_downloads SET num_tries = num_tries + 1 WHERE guid = '%s' AND filename = '%s'" % (self.name,filename)
+        db_cur.execute(query)
+        db_conn.commit()
+        db_conn.close()
+        
+    def update_or_insert_dl(self,filename):
+        db_conn = sqlite3.connect(self.db_name);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+        
+        query = "SELECT * FROM restore_downloads WHERE guid = '%s' AND filename = '%s'" % (self.name,filename)
+        print query
+        db_cur.execute(query)
+        db_conn.commit()
+        if len(db_cur.fetchall()) > 0:
+            query = "UPDATE restore_downloads SET num_tries = num_tries + 1, status = 'New' WHERE guid = '%s' AND filename = '%s'" % (self.name,filename)
+        else:
+            query = "INSERT INTO restore_downloads (guid,filename,num_tries,status) VALUES ('%s','%s',%u,'%s')" % (self.name,filename,1,'New')
+        print query
+        db_cur.execute(query)
+        db_conn.commit()
+        db_conn.close()
+#        self.downloader=downloader(self.name,self.db_name)
+#        self.update_status({'dl_status':self.downloader.status})
+#        if self.downloader.file_name:
+#            self.update_status({'filename':self.downloader.file_name})
+#        self.inc_tries()
+#        self.downloader.start()
 
     def downloading(self,file_name):
         if self.downloader:
@@ -227,21 +334,17 @@ class restore:
             except Exception, e:
                 print "DB error: "+ str(e)
                 done = False
+    
+    def update_dl_status(self):
+        db_conn = sqlite3.connect(self.db_name);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
 
-    def inc_tries(self):
-        done = False
-        while not done:
-            try:
-                db_conn = sqlite3.connect(self.db_name);
-                db_conn.row_factory = sqlite3.Row
-                db_cur = db_conn.cursor();
-                sel_query = "UPDATE restores SET dl_tries = dl_tries + 1 WHERE guid = '%s'" % (self.name)
-                db_cur.execute(sel_query)
-                db_conn.commit()
-                db_conn.close()
-                done = True
-            except Exception , e:
-                done = False
+        for filename,dl_instance in self.downloaders.items():
+            query = "UPDATE restore_downloads SET status = '%s' WHERE guid = '%s' and filename = '%s'" % (instance.status.replace("'","").replace('"',''),self.name,filename)
+            db_cur.execute(query)
+            db_conn.commit()
+        db_conn.close()
 
     def update(self):
         self.values = self.get_by_restore_guid(self.name)
@@ -281,7 +384,7 @@ class restore:
 
 class downloader(Thread):
 
-    def __init__(self,restore_dir ,db_name):
+    def __init__(self,restore_dir ,filename):
 #        self.local_drive_avail()
 #        exit("end")
         print "DL INIT: "+ restore_dir
@@ -290,7 +393,7 @@ class downloader(Thread):
         self.block['size'] = 0
         self.block['time'] = 0
         self.restore_dir = restore_dir
-        self.file_name = None # os.path.basename(file_path)
+        self.file_name = filename # os.path.basename(file_path)
         self.file_size = 0
         self.download = False
         self.ftp = None
@@ -298,7 +401,6 @@ class downloader(Thread):
         self.file_dir = None
         self.start_time = 0
         self.end_time = 0
-        self.db_name =db_name
 #        self.db_conn = sqlite3.connect(db_name,timeout=1);
 #        self.db_conn.row_factory = sqlite3.Row
 #        self.db_cur = self.db_conn.cursor();
@@ -320,7 +422,6 @@ class downloader(Thread):
         self.download = True
         print self.restore_dir
         print self.ftp.cwd(self.restore_dir)
-        self.file_name = self.ftp.nlst()[0]
         print "Filename: "+ self.file_name
         self.file = open(os.path.join(downloader_temp,self.file_name),'wb')
         self.status = 'New'
@@ -338,73 +439,29 @@ class downloader(Thread):
         self.file_size = 0
         
     def run(self):
-        if self.download:
-            if self.enough_space():
-                try:
-                    self.start_time = time.time()
-                    self.file_size = self.ftp.size(self.file_name)
-                    if self.file_size == 0:
-                        raise Exception("File size 0")
-                    self.ftp.sendcmd("TYPE I")
-                    retr_response = str(self.ftp.retrbinary("RETR "+self.file_name, self.write))
-                    self.end_time = time.time()
-                    time_took = self.end_time - self.start_time
-                    
-                    print "Finished: '"+ self.file_name +"' "\
-                    +str(self.total_size_got)+" bytes -- Completed in: "+\
-                    self.prntime(time_took)
+        try:
+            self.start_time = time.time()
+            self.file_size = self.ftp.size(self.file_name)
+            if self.file_size == 0:
+                raise Exception("File size 0")
+            self.ftp.sendcmd("TYPE I")
+            retr_response = str(self.ftp.retrbinary("RETR "+self.file_name, self.write))
+            self.end_time = time.time()
+            time_took = self.end_time - self.start_time
 
-                    self.finished("Finished: '"+ self.file_name +"' "\
-                    +str(self.total_size_got)+" bytes -- Completed in: "+\
-                    self.prntime(time_took))
-                except Exception , e:
-                    self.finished('Failed: '+str(e))
-            else:
-                self.finished('Failed: Not Enough Space to save the remote file.')
+            print "Finished: '"+ self.file_name +"' "\
+            +str(self.total_size_got)+" bytes -- Completed in: "+\
+            self.prntime(time_took)
+
+            self.finished("Finished: '"+ self.file_name +"' "\
+            +str(self.total_size_got)+" bytes -- Completed in: "+\
+            self.prntime(time_took))
+        except Exception , e:
+            self.finished('Failed: '+str(e))
         
     def get_file_size(self):
         self.file_size = self.ftp.size(self.file_name)
         return self.file_size
-
-    def inc_tries(self):
-        done = False
-        while not done:
-            try:
-                db_conn = sqlite3.connect(self.db_name);
-                db_conn.row_factory = sqlite3.Row
-                db_cur = db_conn.cursor();
-                sel_query = "UPDATE restores SET dl_tries = dl_tries + 1 WHERE guid = '%s'" % (self.name)
-                db_cur.execute(sel_query)
-                db_conn.commit()
-                db_conn.close()
-                done = True
-            except Exception , e:
-                done = False
-
-    def update_status(self, named_list):
-        done = False
-        while not done:
-            try:
-                db_conn = sqlite3.connect(self.db_name);
-                db_conn.row_factory = sqlite3.Row
-                db_cur = db_conn.cursor();
-                update_values = []
-                import re
-                for column, value in named_list.items():
-                    if type(value) == str:
-                        update_values.append(column+"='"+value.replace("'","").replace('"',"")+"'")
-                    elif value == None:
-                        update_values.append(column+"= NULL")
-                    else:
-                        update_values.append(column+"="+str(value))
-                query = "UPDATE restores SET %s WHERE guid = '%s' " % (", ".join(update_values),self.restore_dir)
-                db_cur.execute(query)
-                db_conn.commit()
-                db_conn.close()
-                done = True
-            except Exception , e:
-                done = False
-
 
     def write(self, block):
         self.total_size_got += len(block)
@@ -432,33 +489,6 @@ class downloader(Thread):
         print "Downloaded: "+ str(self.total_size_got)
         print ""
 
-    def get_working_dir_size(self):
-        output = os.popen('du -bs '+rawdata_directory,"r")
-        size = output.readline().split('	')[0]
-        return int(size)
-
-    def enough_space(self):
-        return True
-        working_size = self.get_working_dir_size()
-        remote_file_size = self.get_file_size()
-        if downloader_space_to_use:
-            if downloader_space_to_use > (working_size + remote_file_size):
-                return True
-            else:
-                return False
-        else:
-            return True
-
-    def local_drive_avail(self):
-        pipe = os.popen('df --block-size=1')
-        print pipe.readline()
-        search = re.search(' (\d+) (\d+) (\d+)',pipe.readline())
-        print search.group(0)
-        total_bytes = int(search.group(1))
-        used_bytes = int( search.group(2))
-        avail_bytes = int(search.group(3))
-        print str(total_bytes - used_bytes)
-
     def prntime(self,s):
         m,s=divmod(s,60)
         h,m=divmod(m,60)
@@ -482,8 +512,29 @@ controller = DownloadModule()
 controller.run()
 
 #print "Init restore"
-#res = restore("sqlite3db",1,"61f48867a7404047877284d27af39ff6")
+#res = restore("sqlite3db",1)
 #print "restore initialized"
+#
+#while res.run():
+#    res.start_downloader()
+#    for dl,instance in res.downloaders.items():
+#        print instance.status
+#    print "\n\n"
+#    sleep(2)
+
+#print res.get_tries("p2030_54638_26229_0067_G67.46-03.13_4.w4bit.fits")
+#res.inc_tries("p2030_54638_26229_0067_G67.46-03.13_4.w4bit.fits")
+#print res.get_tries("p2030_54638_26229_0067_G67.46-03.13_4.w4bit.fits")
+#res.is_finished("p2030_54638_26229_0067_G67.46-03.13_4.w4bit.fits")
+#while True:
+#    res.start_downloader()
+#    for dl,instance in res.downloaders.items():
+#        print instance.status
+#    print "\n\n"
+#    res.update_dl_status()
+#    sleep(2)
+
+    
 #dl = True
 #while dl:
 #    dl = res.run()

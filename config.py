@@ -83,7 +83,7 @@ def init_presto_search():
 downloader_api_service_url = "http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL"
 downloader_api_username = "mcgill"
 downloader_api_password = "palfa@Mc61!!"
-downloader_temp = "/homes/borgii/snipka/dev/pipeline2.0/DL_DIR" # When set to empty string will download to directory of the script
+downloader_temp = "/home/snip3/dev/pythonapps/pipeline2.0/DL_DIR" # When set to empty string will download to directory of the script
 downloader_space_to_use = 21474836480 #Size to use in bytes; Use 'None' to use all available space
 downloader_numofdownloads = 1
 downloader_numofrestores = 2
