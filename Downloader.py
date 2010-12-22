@@ -290,6 +290,8 @@ class restore:
                     self.inc_tries(filename)
                     self.downloaders[filename].start()
                 else:
+                    print "downloader_numofretries > int(self.get_tries(filename)):" +str(downloader_numofretries > int(self.get_tries(filename)))
+                    print "not self.have_finished(filename): "+ str(not self.have_finished(filename))
                     print self.name +" Maximum retries reached for: "+ filename
                     return False
                 
