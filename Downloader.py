@@ -408,7 +408,7 @@ class restore:
         db_cur = db_conn.cursor();
 
         for filename,dl_instance in self.downloaders.items():
-            query = "UPDATE restore_downloads SET status = '%s' WHERE guid = '%s' and filename = '%s'" % (instance.status.replace("'","").replace('"',''),self.name,filename)
+            query = "UPDATE restore_downloads SET status = '%s' WHERE guid = '%s' and filename = '%s'" % (dl_instance.status.replace("'","").replace('"',''),self.name,filename)
             db_cur.execute(query)
             db_conn.commit()
         db_conn.close()
