@@ -4,6 +4,10 @@ import optparse
 import sys
 
 import numpy as np
+
+# Import matplotlib/pylab and set for non-interactive plots
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import psr_utils

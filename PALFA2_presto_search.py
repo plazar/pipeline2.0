@@ -7,6 +7,7 @@ import struct
 import sys
 import time
 import subprocess
+import warnings
 import re
 import types
 import tarfile
@@ -15,6 +16,7 @@ import numpy as np
 import psr_utils
 import presto
 import sifting
+import DDplan2b
 from formats import psrfits
 
 # Basic parameters
@@ -27,6 +29,10 @@ from formats import psrfits
 # In general, it is a very good idea to use them if there is enough scratch
 # space on the machines that are processing (~30GB/beam processed)
 use_subbands          = True
+
+# To fold from raw data (ie not from subbands or dedispersed FITS files)
+# set the following to True.
+presto_search.fold_rawdata          = True
 
 # Tunable parameters for searching and folding
 # (you probably don't need to tune any of them)
@@ -191,25 +197,30 @@ def get_folding_command(cand, obs, ddplans):
     # Note:  the following calculations should probably only be done once,
     #        but in general, these calculation are effectively instantaneous
     #        compared to the folding itself
-    if use_subbands:  # Fold the subbands
-        subdms = get_all_subdms(ddplans)
-        subfiles = find_closest_subbands(obs, subdms, cand.DM)
-        foldfiles = subfiles
-    else:  # Folding the downsampled PSRFITS files instead
-        hidms = [x.lodm for x in ddplans[1:]] + [2000]
-        dfacts = [x.downsamp for x in ddplans]
-        for hidm, dfact in zip(hidms, dfacts):
-            if cand.DM < hidm:
-                downsamp = dfact
-                break
-        if downsamp==1:
-            foldfiles = obs.filenmstr
-        else:
-            dsfiles = [] 
-            for f in obs.filenames:
-                fbase = f.rstrip(".fits")
-                dsfiles.append(fbase+"_DS%d.fits"%downsamp)
-            foldfiles = ' '.join(dsfiles)
+    if fold_rawdata:
+        # Fold raw data
+        foldfiles = obs.filenmstr
+    else:
+        if use_subbands:
+            # Fold the subbands
+            subdms = get_all_subdms(ddplans)
+            subfiles = find_closest_subbands(obs, subdms, cand.DM)
+            foldfiles = subfiles
+        else:  # Folding the downsampled PSRFITS files instead
+            hidms = [x.lodm for x in ddplans[1:]] + [2000]
+            dfacts = [x.downsamp for x in ddplans]
+            for hidm, dfact in zip(hidms, dfacts):
+                if cand.DM < hidm:
+                    downsamp = dfact
+                    break
+            if downsamp==1:
+                foldfiles = obs.filenmstr
+            else:
+                dsfiles = [] 
+                for f in obs.filenames:
+                    fbase = f.rstrip(".fits")
+                    dsfiles.append(fbase+"_DS%d.fits"%downsamp)
+                foldfiles = ' '.join(dsfiles)
     p = 1.0 / cand.f
     if p < 0.002:
         Mp, Mdm, N = 2, 2, 24
@@ -244,14 +255,15 @@ class obs_info:
         for filenm in self.filenms:
             #m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]\..*\.fits", \
             m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]_4b\..*\.fits", \
-                            filenm)
+            #m = re.match("^4bit-.*\.b(?P<beam>[0-7])g[0-9]\..*\.fits$", \
+                            os.path.split(filenm)[-1])
             if m is None:
                 raise ValueError("Data files don't appear to be ALFA MockSpec data " \
-                                    "(based on filename)!")
+                                    "based on filename (%s)!" % filenm)
         # m should be the re.match object from last filename 
         # (Is this consistent with all files?)
         self.alfabeam = int(m.group('beam'))
-        self.mocksubband = int(m.group('subband'))
+        # self.mocksubband = int(m.group('subband'))
         
         # Read info from PSRFITS file
         spec_info = psrfits.SpectraInfo(filenms)
@@ -262,7 +274,9 @@ class obs_info:
         self.dt = spec_info.dt # in sec
         self.BW = spec_info.BW
         self.orig_T = spec_info.T
-        self.N = psr_utils.choose_N(self.orig_N)
+        # Downsampling is catered to the number of samples per row.
+        # self.N = psr_utils.choose_N(self.orig_N)
+        self.N = self.orig_N
         self.T = self.N * self.dt
         self.nchan = spec_info.num_channels
         self.samp_per_row = spec_info.spectra_per_subint
@@ -349,12 +363,20 @@ class dedisp_plan:
         self.downsamp = int(downsamp)
         # Downsample less for the subbands so that folding
         # candidates is more acurate
-        self.sub_downsamp = self.downsamp / 2
-        if self.sub_downsamp==0: self.sub_downsamp = 1
+        #
+        # Turning this off because downsampling factors are not necessarily
+        # powers of 2 any more! Also, are we folding from raw data now?
+        # -- PL Nov. 26, 2010
+        #
+        self.sub_downsamp = self.downsamp
+        self.dd_downsamp = 1
+        # self.sub_downsamp = self.downsamp / 2
+        # if self.sub_downsamp==0: self.sub_downsamp = 1
         # The total downsampling is:
         #   self.downsamp = self.sub_downsamp * self.dd_downsamp
-        if self.downsamp==1: self.dd_downsamp = 1
-        else: self.dd_downsamp = 2
+
+        # if self.downsamp==1: self.dd_downsamp = 1
+        # else: self.dd_downsamp = 2
         self.sub_dmstep = self.dmsperpass * self.dmstep
         self.dmlist = []  # These are strings for comparison with filenames
         self.subdmlist = []
@@ -365,18 +387,18 @@ class dedisp_plan:
                       np.arange(self.dmsperpass)*self.dmstep + lodm]
             self.dmlist.append(dmlist)
 
-ddplans = []
-if (1):
-    #
-    # Using a small DDplan for debugging
-    # Generated using:
-    #   DDplan.py -l 0 -d 400 -f 1450.168 -b 172.0625 
-    #               -n 256 -t 6.5476190476190506e-05 -r 2 -s 32
-    # I set downsamp equal to 1, though.
-    # -PL
-    #
-    # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
-    ddplans.append(dedisp_plan(   0.0,   3,      24,     6,       32,       1))
+#ddplans = []
+#if (1):
+#    #
+#    # Using a small DDplan for debugging
+#    # Generated using:
+#    #   DDplan.py -l 0 -d 400 -f 1450.168 -b 172.0625 
+#    #               -n 256 -t 6.5476190476190506e-05 -r 2 -s 32
+#    # I set downsamp equal to 1, though.
+#    # -PL
+#    #
+#    # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
+#    ddplans.append(dedisp_plan(   0.0,   3,      24,     6,       32,       1))
 
 
 def main(filenms, workdir, resultsdir):
@@ -436,6 +458,18 @@ def search_job(job):
     """Search the observation defined in the obs_info
         instance 'job'.
     """
+    # Generate dedispersion plan
+    global ddplans
+    ddplans = []
+    obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
+                                job.samp_per_row)
+    plan = obs.gen_ddplan(lodm, hidm, numsub, resolution)
+    plan.plot(fn=os.path.join(job.outputdir, job.basefilenm+"_ddplan.ps"))
+    print plan
+    for ddstep in plan.DDsteps:
+        ddplans.append(dedisp_plan(ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
+                        ddstep.numprepsub, ddstep.numsub, ddstep.downsamp))
+
     # Use whatever .zaplist is found in the current directory
     default_zaplist = glob.glob("*.zaplist")[0]
 
@@ -450,14 +484,6 @@ def search_job(job):
     #        above some large value?  Maybe 30%?
     job.masked_fraction = find_masked_fraction(job)
     
-    # Generate dedispersion plan
-    ddplans = []
-    obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
-                                job.samp_per_row)
-    for ddstep in obs.gen_DDplan(lodm, hidm, numsub, resolution).DDsteps:
-        ddplans.append([ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
-                        ddstep.numprepsub, ddstep.numsub, ddstep.downsamp])
-
     # Iterate over the stages of the overall de-dispersion plan
     dmstrs = []
     for ddplan in ddplans:
@@ -492,7 +518,8 @@ def search_job(job):
                 cmd = "prepsubband -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
                         "-numout %d -o %s subbands/%s.sub[0-9]*" % \
                         (ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
-                        ddplan.dmsperpass, ddplan.dd_downsamp, job.N/ddplan.downsamp,
+                        ddplan.dmsperpass, ddplan.dd_downsamp, 
+                        psr_utils.choose_N(job.orig_N/ddplan.downsamp),
                         job.basefilenm, subbasenm)
                 job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
             
@@ -500,7 +527,7 @@ def search_job(job):
                 cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d " \
                         "-numout %d -o %s %s"%\
                         (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
-                        ddplan.dmsperpass, job.N/ddplan.downsamp,
+                        ddplan.dmsperpass, psr_utils.choose_N(job.orig_N/ddplan.downsamp),
                         job.basefilenm, filenmstr)
                 job.dedispersing_time += timed_execute(cmd)
             
@@ -530,7 +557,7 @@ def search_job(job):
                 except: pass
                 
                 # Do the low-acceleration search
-                cmd = "accelsearch -locpow -harmpolish -numharm %d -sigma %f " \
+                cmd = "accelsearch -harmpolish -numharm %d -sigma %f " \
                         "-zmax %d -flo %f %s"%\
                         (lo_accel_numharm, lo_accel_sigma, lo_accel_zmax, \
                         lo_accel_flo, fftnm)
@@ -540,7 +567,7 @@ def search_job(job):
                 except: pass
         
                 # Do the high-acceleration search
-                cmd = "accelsearch -locpow -harmpolish -numharm %d -sigma %f " \
+                cmd = "accelsearch -harmpolish -numharm %d -sigma %f " \
                         "-zmax %d -flo %f %s"%\
                         (hi_accel_numharm, hi_accel_sigma, hi_accel_zmax, \
                         hi_accel_flo, fftnm)

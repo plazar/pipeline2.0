@@ -30,12 +30,12 @@ def get_datafns():
         fns = os.getenv("DATAFILES", "").split(',')
 
     # Ensure all files exist
-    for fn in fns:
-        if not os.path.exists(fn):
-            raise ValueError("Data file %s doesn't exist!" % fn)
+    # for fn in fns:
+    #    if not os.path.exists(fn):
+    #        raise ValueError("Data file %s doesn't exist!" % fn)
 
     # Ensure there are files
-    if not fn:
+    if not fns:
         raise ValueError("No data files provided!")
     return fns
 
@@ -68,11 +68,16 @@ def main():
 
     # Update job's log 
     # Copy data file locally?
+    for fn in fns:
+        os.system("rsync -auvl %s %s" % (fn, workdir))
 
+    fns = [os.path.join(workdir, os.path.split(fn)[-1]) for fn in fns]
+    
     presto_search = config.init_presto_search()
     presto_search.main(fns, workdir, resultsdir)
 
     # Copy search results to results RAID
+    os.system("rsync -auvl %s lore2:/exports/data7/PALFA/test_new_pipeline" % resultsdir.rstrip('/'))
 
     # Remove working directory and output directory
 #    shutil.rmtree(workdir)
