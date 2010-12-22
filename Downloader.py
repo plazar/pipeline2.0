@@ -211,8 +211,9 @@ class restore:
                 ftp.auth_tls()
                 ftp.set_pasv(1)
                 connected = True
+                print self.name +" Connected to ftp"
             except Exception, e:
-                print "Could not establish connection. Wating 1 sec."
+                print self.name +" Could not establish connection. Wating 1 sec."
                 sleep(1)
 
         login_timing_out = True
@@ -220,12 +221,13 @@ class restore:
             try:
                 login_response = ftp.login('palfadata','NAIC305m')
                 login_timing_out = False
+                print self.name +" Logged in to ftp."
             except:
                 print "Login Command Timed out. Waiting 1 sec"
                 sleep(1)
 
         if login_response != "230 User logged in.":
-            print "Could not login with user: palfadata  password: NAIC305m"
+            print self.name +" Could not login with user: palfadata  password: NAIC305m"
             return False
 
         cwd_timing_out = True
@@ -233,6 +235,7 @@ class restore:
             try:
                 cwd_response = ftp.cwd(self.name)
                 cwd_timing_out = False
+                print self.name +" Changed to restore directory."
             except:
                 print "CWD command timed out. Waiting 1 sec."
                 sleep(1)
@@ -246,14 +249,16 @@ class restore:
             try:
                 files_in_res_dir = ftp.nlst()
                 timing_out = False
+                print self.name +" Got file names in directory."
             except:
-                print "Listing File command timed out"
+                print self.name +" Listing File command timed out"
 
         for file in files_in_res_dir:
             did_not_get_file_size = True
             while did_not_get_file_size:
                 try:
                     file_size = ftp.size(file)
+                    print self.name +" got file size for "+ file
                     did_not_get_file_size = False
                 except:
                     print "Could not get size of: "+ file
