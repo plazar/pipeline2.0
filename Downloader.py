@@ -72,8 +72,9 @@ class DownloadModule:
           for file in files:
             filename = os.path.join(path, file)
             folder_size += os.path.getsize(filename)
+            print filename +": "+ str(os.path.getsize(filename))
         if folder_size < downloader_space_to_use:
-            print folder_size +" <? "+ downloader_space_to_use
+            print str(folder_size) +" <? "+ str(downloader_space_to_use)
             print "Enough Space"
             return True
         else:
