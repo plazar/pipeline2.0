@@ -145,7 +145,7 @@ class restore:
         self.update()
         print self.values
         
-        if self.values['dl_status'].split(":")[0] == "Finished":
+        if self.values['dl_status'].split(":")[0] == "Finished" or self.is_finished():
             return False
         elif self.values['dl_status'].split(":")[0] == "waiting_path":
             if self.getLocation():
