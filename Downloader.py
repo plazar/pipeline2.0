@@ -198,13 +198,44 @@ class restore:
     
     def get_files(self):
         ftp = ftpslib.FTP_TLS()
-        ftp.connect('arecibo.tc.cornell.edu',31001)
-        ftp.auth_tls()
-        ftp.set_pasv(1)
-        print ftp.login('palfadata','NAIC305m')
-        print ftp.cwd(self.name)
-        for file in ftp.nlst():
-            file_size = ftp.size(file)
+        connected = False
+        while not connected:
+            try:
+                ftp.connect('arecibo.tc.cornell.edu',31001)
+                ftp.auth_tls()
+                ftp.set_pasv(1)
+                connected = True
+            except Exception, e:
+                print "Could not establish connection. Wating 1 sec."
+                sleep(1)
+
+        login_response = ftp.login('palfadata','NAIC305m')
+        if login_response != "230 User logged in.":
+            print "Could not login with user: palfadata  password: NAIC305m"
+            return False
+
+         cwd_response = ftp.cwd(self.name)
+        if cwd_response != "250 CWD command successful."
+            print "Restore Directory not found"
+            return False
+
+        timing_out = True
+        while timing_out:
+            try:
+                files_in_res_dir = ftp.nlst()
+                timing_out = False
+            except:
+                print "Listing File command timed out"
+
+        for file in files_in_res_dir:
+            did_not_get_file_size = True
+            while did_not_get_file_size:
+                try:
+                    file_size = ftp.size(file)
+                    did_not_get_file_size = False
+                except:
+                    print "Could not get size of: "+ file
+
             self.size += file_size
             self.files[file] = file_size
         ftp.close()
@@ -405,23 +436,36 @@ class downloader(Thread):
 #        self.db_conn.row_factory = sqlite3.Row
 #        self.db_cur = self.db_conn.cursor();
         
-        
-        try:
-            self.ftp = ftpslib.FTP_TLS()
-            self.ftp.connect('arecibo.tc.cornell.edu',31001)
-            self.ftp.auth_tls()
-            self.ftp.set_pasv(1)
-        except Exception , e:
-            #self.update_status({'dl_status':"Failed: '"+ self.file_name +"' -- "+ str(e)})
-            self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
+        not_logged_in = True
+        while not_logged_in:
+            try:
+                self.ftp = ftpslib.FTP_TLS()
+                self.ftp.connect('arecibo.tc.cornell.edu',31001)
+                self.ftp.auth_tls()
+                self.ftp.set_pasv(1)
+                not_logged_in = False
+            except Exception , e:
+                #self.update_status({'dl_status':"Failed: '"+ self.file_name +"' -- "+ str(e)})
+                #self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
+                print "Could not connect to host. Waiting 1 sec."
+                sleep(1)
         
 #        if not os.path.exists(os.path.join(rawdata_directory,self.file_name)):
 #        try:
-        print self.ftp.login('palfadata','NAIC305m')
+
+
+        login_response = self.ftp.login('palfadata','NAIC305m')
+        if login_response != "230 User logged in.":
+            print "Could not login with user: palfadata  password: NAIC305m"
+            self.status = "Failed: Login failed '"+ str(self.file_name) +"' -- "
 #            try:
         self.download = True
         print self.restore_dir
-        print self.ftp.cwd(self.restore_dir)
+        cwd_response = self.ftp.cwd(self.restore_dir)
+        if cwd_response != "250 CWD command successful."
+            print "Restore Directory not found"
+            self.status = "Failed: Directory change failed '"+ str(self.file_name) +"' -- "
+
         print "Filename: "+ self.file_name
         self.file = open(os.path.join(downloader_temp,self.file_name),'wb')
         self.status = 'New'
