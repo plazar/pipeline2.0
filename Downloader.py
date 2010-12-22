@@ -160,7 +160,8 @@ class restore:
                 return False
             else:
                 print "Starting Downloaders for: "+self.name
-                self.get_files()
+                if self.files == dict():
+                    self.get_files()
                 self.create_dl_entries()
                 self.start_downloader()
                 self.update_dl_status()
@@ -275,11 +276,14 @@ class restore:
                     self.inc_tries(filename)
                     self.downloaders[filename].start()
                 else:
+                    print ""
+                    print "========= "+filename+" ========"
                     print "downloader_numofretries > int(self.get_tries(filename)):" +str(downloader_numofretries > int(self.get_tries(filename)))
                     print "int(self.get_tries(filename)):" +str(int(self.get_tries(filename)))
                     print "downloader_numofretries:" +str(downloader_numofretries)
                     print "not self.have_finished(filename): "+ str(not self.have_finished(filename))
                     print self.name +" Maximum retries reached for: "+ filename
+                    print ""
                     return False
                 
     def have_finished(self,filename):
@@ -471,15 +475,14 @@ class downloader(Thread):
                 print "Could not connect to host. Waiting 1 sec."
                 sleep(1)
         
-#        if not os.path.exists(os.path.join(rawdata_directory,self.file_name)):
-#        try:
+
 
 
         login_response = self.ftp.login('palfadata','NAIC305m')
         if login_response != "230 User logged in.":
             print "Could not login with user: palfadata  password: NAIC305m"
             self.status = "Failed: Login failed '"+ str(self.file_name) +"' -- "
-#            try:
+
         self.download = True
         print self.restore_dir
         cwd_response = self.ftp.cwd(self.restore_dir)
@@ -490,16 +493,13 @@ class downloader(Thread):
         print "Filename: "+ self.file_name
         self.file = open(os.path.join(downloader_temp,self.file_name),'wb')
         self.status = 'New'
-                #self.update_status({'dl_status':'New','filename':self.file_name})
-#            except Exception , e:
+
         if not self.status:
             self.status = "Failed: '"+ self.file_name +"' -- "#+ str(e)
-#        except Exception , e:
+
         if not self.status:
             self.status = "Failed: Login failed '"+ str(self.file_name) +"' -- "#+ str(e)
-#        else:
-#            if not self.status:
-#                self.status = "Failed: File '"+ self.file_name +"' already exists."
+
         self.total_size_got = 0
         self.file_size = 0
         
