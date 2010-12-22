@@ -163,9 +163,8 @@ class restore:
                 if self.files == dict():
                     self.get_files()
                 self.create_dl_entries()
-                self.start_downloader()
-                self.update_dl_status()
-                return True
+                if not self.start_downloader():
+                    return False
 
 
         self.update_dl_status()
@@ -269,12 +268,14 @@ class restore:
                 db_conn.commit()
     
     def start_downloader(self):
+        started_atleast_one = False
         for filename,filesize in self.files.items():
             if not filename in self.downloaders:
                 if downloader_numofretries > int(self.get_tries(filename)) and not self.have_finished(filename):
                     self.downloaders[filename] = downloader(self.name,filename)
                     self.inc_tries(filename)
                     self.downloaders[filename].start()
+                    started_atleast_one = True
                 else:
                     print ""
                     print "========= "+filename+" ========"
@@ -284,7 +285,8 @@ class restore:
                     print "not self.have_finished(filename): "+ str(not self.have_finished(filename))
                     print self.name +" Maximum retries reached for: "+ filename
                     print ""
-                    return False
+        return started_atleast_one
+                    
                 
     def have_finished(self,filename):
         db_conn = sqlite3.connect(self.db_name);
@@ -468,6 +470,17 @@ class downloader(Thread):
                 self.ftp.connect('arecibo.tc.cornell.edu',31001)
                 self.ftp.auth_tls()
                 self.ftp.set_pasv(1)
+                login_response = self.ftp.login('palfadata','NAIC305m')
+                if login_response != "230 User logged in.":
+                    print "Could not login with user: palfadata  password: NAIC305m"
+                    self.status = "Failed: Login failed '"+ str(self.file_name) +"' -- "
+                self.download = True
+                print self.restore_dir
+                cwd_response = self.ftp.cwd(self.restore_dir)
+                if cwd_response != "250 CWD command successful.":
+                    print "Restore Directory not found"
+                    self.status = "Failed: Directory change failed '"+ str(self.file_name) +"' -- "    
+                
                 not_logged_in = False
             except Exception , e:
                 #self.update_status({'dl_status':"Failed: '"+ self.file_name +"' -- "+ str(e)})
@@ -475,21 +488,6 @@ class downloader(Thread):
                 print "Could not connect to host. Waiting 1 sec."
                 sleep(1)
         
-
-
-
-        login_response = self.ftp.login('palfadata','NAIC305m')
-        if login_response != "230 User logged in.":
-            print "Could not login with user: palfadata  password: NAIC305m"
-            self.status = "Failed: Login failed '"+ str(self.file_name) +"' -- "
-
-        self.download = True
-        print self.restore_dir
-        cwd_response = self.ftp.cwd(self.restore_dir)
-        if cwd_response != "250 CWD command successful.":
-            print "Restore Directory not found"
-            self.status = "Failed: Directory change failed '"+ str(self.file_name) +"' -- "
-
         print "Filename: "+ self.file_name
         self.file = open(os.path.join(downloader_temp,self.file_name),'wb')
         self.status = 'New'
