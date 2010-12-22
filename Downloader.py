@@ -214,8 +214,8 @@ class restore:
             print "Could not login with user: palfadata  password: NAIC305m"
             return False
 
-         cwd_response = ftp.cwd(self.name)
-        if cwd_response != "250 CWD command successful."
+        cwd_response = ftp.cwd(self.name)
+        if cwd_response != "250 CWD command successful.":
             print "Restore Directory not found"
             return False
 
@@ -462,7 +462,7 @@ class downloader(Thread):
         self.download = True
         print self.restore_dir
         cwd_response = self.ftp.cwd(self.restore_dir)
-        if cwd_response != "250 CWD command successful."
+        if cwd_response != "250 CWD command successful.":
             print "Restore Directory not found"
             self.status = "Failed: Directory change failed '"+ str(self.file_name) +"' -- "
 
