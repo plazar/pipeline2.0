@@ -203,68 +203,53 @@ class restore:
             
     
     def get_files(self):
-        ftp = ftpslib.FTP_TLS()
         connected = False
-        while not connected:
+        logged_in = False
+        cwd = False
+        list_cmd = False
+        got_all_files_size = False
+
+        no_connection = True
+        while no_connection:
             try:
+                ftp = ftpslib.FTP_TLS()
                 ftp.connect('arecibo.tc.cornell.edu',31001)
                 ftp.auth_tls()
                 ftp.set_pasv(1)
                 connected = True
-                print self.name +" Connected to ftp"
-            except Exception, e:
-                print self.name +" Could not establish connection. Wating 1 sec."
-                sleep(1)
 
-        login_timing_out = True
-        while login_timing_out:
-            try:
                 login_response = ftp.login('palfadata','NAIC305m')
-                login_timing_out = False
-                print self.name +" Logged in to ftp."
-            except:
-                print "Login Command Timed out. Waiting 1 sec"
-                sleep(1)
+                logged_in = True
+                if login_response != "230 User logged in.":
+                    print self.name +" Could not login with user: palfadata  password: NAIC305m"
+                    return False
 
-        if login_response != "230 User logged in.":
-            print self.name +" Could not login with user: palfadata  password: NAIC305m"
-            return False
-
-        cwd_timing_out = True
-        while cwd_timing_out:
-            try:
                 cwd_response = ftp.cwd(self.name)
-                cwd_timing_out = False
-                print self.name +" Changed to restore directory."
-            except:
-                print "CWD command timed out. Waiting 1 sec."
-                sleep(1)
+                cwd = True
+                if cwd_response != "250 CWD command successful.":
+                    print self.name+" Restore Directory not found"
+                    return False
 
-        if cwd_response != "250 CWD command successful.":
-            print "Restore Directory not found"
-            return False
-
-        timing_out = True
-        while timing_out:
-            try:
                 files_in_res_dir = ftp.nlst()
-                timing_out = False
-                print self.name +" Got file names in directory."
-            except:
-                print self.name +" Listing File command timed out"
+                list_cmd = True
 
-        for file in files_in_res_dir:
-            did_not_get_file_size = True
-            while did_not_get_file_size:
-                try:
+                for file in files_in_res_dir:
                     file_size = ftp.size(file)
                     print self.name +" got file size for "+ file
-                    did_not_get_file_size = False
-                except:
-                    print "Could not get size of: "+ file
+                    self.size += file_size
+                    self.files[file] = file_size
+                got_all_files_size = True
 
-            self.size += file_size
-            self.files[file] = file_size
+                no_connection = False
+            except Exception, e:
+                print self.name +" FTP-Connection Error: "+ str(e) +"Wating for retry...2 seconds"
+                print self.name +" FTP-Connection Managed to Connect: "+ str(connected)
+                print self.name +" FTP-Connection Managed to Login: "+ str(logged_in)
+                print self.name +" FTP-Connection Managed to CWD: "+ str(cwd)
+                print self.name +" FTP-Connection Managed to List-Cmd: "+ str(list_cmd)
+                print self.name +" FTP-Connection Managed to Get-All-Files'-Size: "+ str(got_all_files_size)
+                sleep(2)
+            
         ftp.close()
     
     def create_dl_entries(self):
