@@ -209,12 +209,28 @@ class restore:
                 print "Could not establish connection. Wating 1 sec."
                 sleep(1)
 
-        login_response = ftp.login('palfadata','NAIC305m')
+        login_timing_out = True
+        while login_timing_out:
+            try:
+                login_response = ftp.login('palfadata','NAIC305m')
+                login_timing_out = False
+            except:
+                print "Login Command Timed out. Waiting 1 sec"
+                sleep(1)
+
         if login_response != "230 User logged in.":
             print "Could not login with user: palfadata  password: NAIC305m"
             return False
 
-        cwd_response = ftp.cwd(self.name)
+        cwd_timing_out = True
+        while cwd_timing_out:
+            try:
+                cwd_response = ftp.cwd(self.name)
+                cwd_timing_out = False
+            except:
+                print "CWD command timed out. Waiting 1 sec."
+                sleep(1)
+
         if cwd_response != "250 CWD command successful.":
             print "Restore Directory not found"
             return False
@@ -290,6 +306,8 @@ class restore:
         db_cur.execute(fin_query)
         fin_count = len(db_cur.fetchall())
         db_conn.close()
+        if fin_count == all_count:
+            self.update_status({"dl_status": "Finished:_"})
         return (fin_count == all_count)
 
     def get_tries(self,filename):
