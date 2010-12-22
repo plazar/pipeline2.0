@@ -142,16 +142,19 @@ class restore:
             print "Will not start a restore: have no name"
             return self.name
         print "Will run the restore."
+        self.update_dl_status()
         self.update()
         print self.values
         
         if self.values['dl_status'].split(":")[0] == "Finished" or self.is_finished():
+            self.update_dl_status()
             return False
         elif self.values['dl_status'].split(":")[0] == "waiting_path":
             if self.getLocation():
                 self.get_files()
                 self.create_dl_entries()
                 self.update_status({'dl_status': "Download Ready:_"})
+                self.update_dl_status()
         elif self.values['dl_status'].split(":")[0] == "Download Ready":
             if self.is_finished():
                 return False
@@ -160,8 +163,11 @@ class restore:
                 self.get_files()
                 self.create_dl_entries()
                 self.start_downloader()
+                self.update_dl_status()
                 return True
 
+
+        self.update_dl_status()
         self.update()
         return True
 
