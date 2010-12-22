@@ -289,6 +289,9 @@ class restore:
                     self.downloaders[filename] = downloader(self.name,filename)
                     self.inc_tries(filename)
                     self.downloaders[filename].start()
+                else:
+                    print self.name +" Maximum retries reached for: "+ filename
+                    return False
                 
     def have_finished(self,filename):
         db_conn = sqlite3.connect(self.db_name);
@@ -512,6 +515,7 @@ class downloader(Thread):
         self.file_size = 0
         
     def run(self):
+        print self.restore_dir +" Starting Downloader for file: "+self.file_name
         try:
             self.start_time = time.time()
             self.file_size = self.ftp.size(self.file_name)
