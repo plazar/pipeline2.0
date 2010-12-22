@@ -32,7 +32,7 @@ use_subbands          = True
 
 # To fold from raw data (ie not from subbands or dedispersed FITS files)
 # set the following to True.
-presto_search.fold_rawdata          = True
+fold_rawdata          = True
 
 # Tunable parameters for searching and folding
 # (you probably don't need to tune any of them)
@@ -251,22 +251,10 @@ class obs_info:
         self.filenms = filenms
         self.filenmstr = ' '.join(self.filenms)
         self.basefilenm = os.path.split(filenms[0])[1].rstrip(".fits")
-        # Check that filenames have correct format
-        for filenm in self.filenms:
-            #m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]\..*\.fits", \
-            m = re.match(".*\.b(?P<beam>[0-7])s(?P<subband>[0-1])g[0-9]_4b\..*\.fits", \
-            #m = re.match("^4bit-.*\.b(?P<beam>[0-7])g[0-9]\..*\.fits$", \
-                            os.path.split(filenm)[-1])
-            if m is None:
-                raise ValueError("Data files don't appear to be ALFA MockSpec data " \
-                                    "based on filename (%s)!" % filenm)
-        # m should be the re.match object from last filename 
-        # (Is this consistent with all files?)
-        self.alfabeam = int(m.group('beam'))
-        # self.mocksubband = int(m.group('subband'))
         
         # Read info from PSRFITS file
         spec_info = psrfits.SpectraInfo(filenms)
+        self.backend = spec_info.backend
         self.MJD = spec_info.start_MJD[0]
         self.ra_string = spec_info.ra_str
         self.dec_string = spec_info.dec_str
@@ -401,6 +389,45 @@ class dedisp_plan:
 #    ddplans.append(dedisp_plan(   0.0,   3,      24,     6,       32,       1))
 
 
+def set_DDplan(job, backend):
+    """Set the dedispersion plan as a global variable.
+
+        The dedispersion plans are hardcoded and 
+        depend on the backend data were recorded with.
+    """
+    # Generate dedispersion plan
+    global ddplans
+    ddplans = []
+    
+    # The following code will run the dedispersion planner on demand.
+    # Instead, dedispersion plans for WAPP and Mock data are hardcoded.
+    #
+    # obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
+    #                             job.samp_per_row)
+    # plan = obs.gen_ddplan(lodm, hidm, numsub, resolution)
+    # plan.plot(fn=os.path.join(job.outputdir, job.basefilenm+"_ddplan.ps"))
+    # print plan
+    # for ddstep in plan.DDsteps:
+    #     ddplans.append(dedisp_plan(ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
+    #                    ddstep.numprepsub, ddstep.numsub, ddstep.downsamp))
+    
+    if backend.lower() == 'pdev':
+        # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
+        ddplans.append(dedisp_plan(   0.0,  0.1,    76,     28,     96,        1 ))
+        ddplans.append(dedisp_plan( 212.8,  0.3,    64,     12,     96,        2 ))
+        ddplans.append(dedisp_plan( 443.2,  0.3,    76,      4,     96,        3 ))
+        ddplans.append(dedisp_plan( 534.4,  0.5,    76,      9,     96,        5 ))
+        ddplans.append(dedisp_plan( 876.4,  0.5,    76,      3,     96,        6 ))
+        ddplans.append(dedisp_plan( 990.4,  1.0,    76,      1,     96,       10 ))
+    elif backend.lower() == 'wapp':
+        # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
+        ddplans.append(dedisp_plan(   0.0,  0.3,    76,      9,     96,        1 ))
+        ddplans.append(dedisp_plan( 205.2,  2.0,    76,      5,     96,        5 ))
+        ddplans.append(dedisp_plan( 965.2, 10.0,    76,      1,     96,       25 ))
+    else:
+        raise ValueError("No dediserpsion plan for unknown backend (%s)!" % backend)
+
+
 def main(filenms, workdir, resultsdir):
 
     # Change to the specified working directory
@@ -458,17 +485,7 @@ def search_job(job):
     """Search the observation defined in the obs_info
         instance 'job'.
     """
-    # Generate dedispersion plan
-    global ddplans
-    ddplans = []
-    obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
-                                job.samp_per_row)
-    plan = obs.gen_ddplan(lodm, hidm, numsub, resolution)
-    plan.plot(fn=os.path.join(job.outputdir, job.basefilenm+"_ddplan.ps"))
-    print plan
-    for ddstep in plan.DDsteps:
-        ddplans.append(dedisp_plan(ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
-                        ddstep.numprepsub, ddstep.numsub, ddstep.downsamp))
+    set_DDplan(job, job.backend)
 
     # Use whatever .zaplist is found in the current directory
     default_zaplist = glob.glob("*.zaplist")[0]
@@ -587,23 +604,23 @@ def search_job(job):
     basedme = ".singlepulse "
     # The following will make plots for DM ranges:
     #    0-110, 100-310, 300-1000+
-    dmglobs = [[basedmb+"[0-9].[0-9][0-9]"+basedme,
-               basedmb+"[0-9][0-9].[0-9][0-9]"+basedme,
-               basedmb+"10[0-9].[0-9][0-9]"+basedme],
-               [basedmb+"[12][0-9][0-9].[0-9][0-9]"+basedme,
-               basedmb+"30[0-9].[0-9][0-9]"+basedme],
-               [basedmb+"[3-9][0-9][0-9].[0-9][0-9]"+basedme,
-               basedmb+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme]]
+    dmglobs = [basedmb+"[0-9].[0-9][0-9]"+basedme +
+               basedmb+"[0-9][0-9].[0-9][0-9]"+basedme +
+               basedmb+"10[0-9].[0-9][0-9]"+basedme,
+               basedmb+"[12][0-9][0-9].[0-9][0-9]"+basedme +
+               basedmb+"30[0-9].[0-9][0-9]"+basedme,
+               basedmb+"[3-9][0-9][0-9].[0-9][0-9]"+basedme +
+               basedmb+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme]
     dmrangestrs = ["0-110", "100-310", "300-1000+"]
     psname = job.basefilenm+"_singlepulse.ps"
     for dmglob, dmrangestr in zip(dmglobs, dmrangestrs):
         dmfiles = []
-        for dmg in dmglob:
+        for dmg in dmglob.split():
             dmfiles += glob.glob(dmg.strip())
         # Check that there are matching files and they are not all empty
-        if dmfiles and ([os.path.getsize(f) for f in dmfiles]):
-            cmd = 'single_pulse_search.py -t %f %s' % \
-                (singlepulse_plot_SNR, " ".join(dmfiles))
+        if dmfiles and sum([os.path.getsize(f) for f in dmfiles]):
+            cmd = 'single_pulse_search.py -t %f -g "%s"' % \
+                (singlepulse_plot_SNR, dmglob)
             job.singlepulse_time += timed_execute(cmd)
             os.rename(psname,
                         job.basefilenm+"_DMs%s_singlepulse.ps"%dmrangestr)
