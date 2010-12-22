@@ -22,9 +22,10 @@ def get_datafns():
                 arguments, so we check for if "DATAFILES" environment 
                 variable is set.)
     """
-    if sys.argv[1:]:
+    if sys.argv[2:]:
+        # First argument is results directory
         # Files provided on command line
-        fns = sys.argv[1:]
+        fns = sys.argv[2:]
     else:
         # Files provided with environment variable
         fns = os.getenv("DATAFILES", "").split(',')
@@ -39,6 +40,28 @@ def get_datafns():
         raise ValueError("No data files provided!")
     return fns
 
+
+def get_outdir():
+    """Get output directory from command line or environment variable.
+        Environment variable option is only checked if no files
+        are provided on command line. 
+        
+        (NOTE: PBS does not provide batch scripts wtih command line 
+                arguments, so we check for if "OUTDIR" environment 
+                variable is set.)
+    """
+    if sys.argv[1:]:
+        # Check command line
+        outdir = sys.argv[1]
+    else:
+        # Use environment variable
+        outdir = os.getenv("OUTDIR", "")
+
+    # Ensure output directory is defined
+    if not outdir:
+        raise ValueError("Output directory is not defined!")
+    return outdir
+        
 
 def init_workspace():
     """Initialize workspace. 
@@ -60,11 +83,13 @@ def init_workspace():
 
 def main():
     fns = get_datafns()
+    outdir = get_outdir()
     workdir, resultsdir = init_workspace()
    
     print "Running on ", socket.gethostname()
-    print "Local working directory: ", workdir
-    print "Local results directory: ", resultsdir
+    print "Local working directory:", workdir
+    print "Local results directory:", resultsdir
+    print "When finished results will be copied to:", outdir
 
     # Update job's log 
     # Copy data file locally?
@@ -77,11 +102,11 @@ def main():
     presto_search.main(fns, workdir, resultsdir)
 
     # Copy search results to results RAID
-    os.system("rsync -auvl %s lore2:/exports/data7/PALFA/test_new_pipeline" % resultsdir.rstrip('/'))
+    os.system("rsync -auvl %s %s" % (resultsdir.rstrip('/'), outdir))
 
     # Remove working directory and output directory
-#    shutil.rmtree(workdir)
-#    shutil.rmtree(resultsdir)
+    shutil.rmtree(workdir)
+    shutil.rmtree(resultsdir)
 
 
 if __name__=='__main__':
