@@ -20,7 +20,7 @@ import pprint
 import dev
 from formats import psrfits
 
-
+import sqlite3
 
 from mailer import ErrorMailer
 
@@ -147,6 +147,27 @@ class JobPool:
         if job.jobname+".fits" in self.datafiles:
             self.datafiles.remove(job.jobname+".fits")
 
+    def get_datafiles_from_db(self):
+        didnt_get_files = True
+        tmp_datafiles = []
+        while didnt_get_files:
+            try:
+                db_conn = sqlite3.connect("sqlite3db");
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                fin_file_query = "SELECT * FROM restore_downloads WHERE status LIKE 'Finished:%'"
+                db_cur.execute(fin_file_query)
+                row = db_cur.fetchone()
+                while row:
+                    print row['filename'] +" "+ row['status']
+                    tmp_datafiles.append(os.path.join(config.rawdata_directory,row['filename']))
+                    row = db_cur.fetchone()                
+                didnt_get_files = False
+                return tmp_datafiles
+            except Exception,e:
+                print "Database error: "+ str(e)+" Retrying in 1 sec"
+                    
+                    
 
     def get_datafiles(self):
         """Return a list of data files found in:
