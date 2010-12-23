@@ -159,10 +159,12 @@ class JobPool:
                 db_cur.execute(fin_file_query)
                 row = db_cur.fetchone()
                 while row:
-                    print row['filename'] +" "+ row['status']
+                    #print row['filename'] +" "+ row['status']
                     tmp_datafiles.append(os.path.join(config.rawdata_directory,row['filename']))
                     row = db_cur.fetchone()                
                 didnt_get_files = False
+		for file in tmp_datafiles:
+			print file
                 return tmp_datafiles
             except Exception,e:
                 print "Database error: "+ str(e)+" Retrying in 1 sec"
@@ -246,11 +248,11 @@ class JobPool:
     def submit_job(self, job):
         """Submit PulsarSearchJob j to the queue. Update j's log.
         """
-#        print 'qsub -V -v DATAFILES="%s" -l %s -N %s search.py' % \
-#                            (','.join(job.datafiles), config.resource_list, \
+#        print 'qsub -V -v DATAFILES="%s" -v OUTDIR="%s" -l %s -N %s search.py' % \
+#                            (','.join(job.datafiles), config.result_out_dir, config.resource_list, \
 #                                    config.job_basename)
-        pipe = subprocess.Popen('qsub -V -v DATAFILES="%s" -l %s -N %s -e %s search.py' % \
-                            (','.join(job.datafiles), config.resource_list, \
+        pipe = subprocess.Popen('qsub -V -v DATAFILES="%s" -v OUTDIR="%s" -l %s -N %s -e %s search.py' % \
+                            (','.join(job.datafiles), config.result_out_dir, config.resource_list, \
                                     config.job_basename,'qsublog'), \
                             shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
 
@@ -375,7 +377,8 @@ class JobPool:
 
     def fetch_new_jobs(self):
 #        print "=====================================  Fetching new jobs"
-        files_to_x_check = self.get_datafiles()
+        files_to_x_check = self.get_datafiles_from_db()
+#        files_to_x_check = self.get_datafiles()
 #        print "Files found: "+ str(len(files_to_x_check))
         for file in self.datafiles:
             if file in files_to_x_check:
@@ -432,6 +435,7 @@ class PulsarSearchJob:
             raise Exception('Could not get input filename(s)')
 
         if not os.path.isfile(filename):
+	    print "------------"+ filename
             raise Exception('File with the given path doesn\'t exists.')
         elif filename[len(filename)-5:] != ".fits":
             raise Exception('Unrecognized input file extension.')
@@ -443,21 +447,22 @@ class PulsarSearchJob:
             processing date: (not from file name)
             mjd: (Read from the file header using the psrfits module.)
         """
-        parsed=psrfits.SpectraInfo(filename)
-        imjd, fmjd=DATEOBS_to_MJD(parsed.date_obs)
+        print "----->"+ filename
+	parsed=psrfits.SpectraInfo([filename])
+        imjd, fmjd=psrfits.DATEOBS_to_MJD(parsed.date_obs)
         mjdtmp="%.14f" % fmjd
         MJD="%5d.%14s" % (imjd, mjdtmp[2:])
         basename=os.path.basename(filename)
         rawdata_basename=basename[len(basename)-5:]
         
         try:
-            beam_num = int(basename[len(basename)-16:len(basename)-15])
+            beam_num = parsed.beam_id #int(basename[len(basename)-16:len(basename)-15])
         except ValueError:
             raise Exception('Could not determine raw file\'s beam number.')
         
         proc_date=datetime.datetime.now().strftime('%y%m%d')
         
-        presto_out_dir = config.base_working_directory +"/"+ MJD +"/"+ rawdata_basename +"/"+ str(beam_num)
+        presto_out_dir = config.result_out_dir +"/"+ rawdata_basename +"/101223" #"/"+ MJD +"/"+ rawdata_basename +"/"+ str(beam_num)
         
         try:
             os.makedirs(presto_out_dir)
