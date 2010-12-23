@@ -25,24 +25,25 @@ def main():
    # datafiles = get_datafiles()
 
     
-    try:
-        from job import *
-        import job
-        jobpool = JobPool()
-        jobpool.start()
-        for job in jobpool.jobs:
-            print job.jobname
-            print job.get_log_status()
-        
+#    try:
+    from job import *
+    import job
+    jobpool = JobPool()
+    jobpool.start()
+    for job in jobpool.jobs:
+        print job.jobname
+        print job.get_log_status()
+   
         jobpool.status()
     
-        while True:
-            jobpool.rotate()
-            time.sleep(1)
+    while True:
+        jobpool.rotate()
+        time.sleep(1)
             
-    except Exception as e:
-        mailer = ErrorMailer("The following error has occured:\n"+str(e))
-        mailer.send()
+ #   except Exception, e:
+#	print "Error occured: "+ str(e)
+        #mailer = ErrorMailer("The following error has occured:\n"+str(e))
+        #mailer.send()
         
     
         

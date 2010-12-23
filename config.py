@@ -8,10 +8,11 @@ survey = "PALFA2.0"
 ################################################################
 # Configurations for processing
 ################################################################
+result_out_dir = "/data/alfa/test_pipeline/results"
 base_working_directory = "/exports/scratch/PALFA/"    
 zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
-log_dir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/log/"
-log_archive = "/homes/borgii/plazar/research/PALFA/pipeline2.0/log_archive/"
+log_dir = "/homes/borgii/snipka/dev/pipeline2.0/log/"
+log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
 #log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
 #log_archive = "C:/Reposotories/PALFA/pipeline2.0/log_archive"
 
@@ -26,7 +27,7 @@ delete_rawdata = False
 # Configurations for raw data
 ################################################################
 #rawdata_directory = "/data/alfa/FTP"
-rawdata_directory = "/homes/borgii/snipka/FTP"
+rawdata_directory = "/data/alfa/test_pipeline"
 #rawdata_directory = "C:/Reposotories/PALFA/FTP"
 rawdata_re_pattern = r"^p2030.*b[0-7]s[0-1]g?.*\.fits$"
 
@@ -101,8 +102,8 @@ def init_presto_search():
 downloader_api_service_url = "http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL"
 downloader_api_username = "mcgill"
 downloader_api_password = "palfa@Mc61!!"
-downloader_temp = "/home/snip3/dev/pythonapps/pipeline2.0/DL_DIR" # When set to empty string will download to directory of the script
-downloader_space_to_use = 21474836480 #Size to use in bytes; Use 'None' to use all available space
+downloader_temp = "/data/alfa/test_pipeline" # When set to empty string will download to directory of the script
+downloader_space_to_use = 12884901888 #Size to use in bytes; Use 'None' to use all available space
 downloader_numofdownloads = 1
 downloader_numofrestores = 2
 downloader_numofretries = 3
