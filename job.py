@@ -54,10 +54,13 @@ class JobPool:
         if not files_in:
             return
         for datafile in (files_in):
-            p_searchjob = PulsarSearchJob([datafile])
-            if  isinstance(p_searchjob, PulsarSearchJob):
-                self.datafiles.append(datafile)
-                self.jobs.append(p_searchjob)
+            try:
+                p_searchjob = PulsarSearchJob([datafile])
+                if  isinstance(p_searchjob, PulsarSearchJob):
+                    self.datafiles.append(datafile)
+                    self.jobs.append(p_searchjob)
+            except Exception,e:
+                print "Erro occured while creating a SearchJob: "+str(e)
         
     def group_files(self, files_in):
         """Given a list of datafiles, group files that need to be merged before
@@ -252,7 +255,7 @@ class JobPool:
 #                            (','.join(job.datafiles), config.result_out_dir, config.resource_list, \
 #                                    config.job_basename)
         pipe = subprocess.Popen('qsub -V -v DATAFILES="%s" -v OUTDIR="%s" -l %s -N %s -e %s search.py' % \
-                            (','.join(job.datafiles), config.result_out_dir, config.resource_list, \
+                            (','.join(job.datafiles), job., config.resource_list, \
                                     config.job_basename,'qsublog'), \
                             shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
 
@@ -453,7 +456,7 @@ class PulsarSearchJob:
         mjdtmp="%.14f" % fmjd
         MJD="%5d.%14s" % (imjd, mjdtmp[2:])
         basename=os.path.basename(filename)
-        rawdata_basename=basename[len(basename)-5:]
+        rawdata_basename=basename[:len(basename)-5]
         
         try:
             beam_num = parsed.beam_id #int(basename[len(basename)-16:len(basename)-15])
@@ -462,7 +465,7 @@ class PulsarSearchJob:
         
         proc_date=datetime.datetime.now().strftime('%y%m%d')
         
-        presto_out_dir = config.result_out_dir +"/"+ rawdata_basename +"/101223" #"/"+ MJD +"/"+ rawdata_basename +"/"+ str(beam_num)
+        presto_out_dir = config.result_out_dir +"/"+ rawdata_basename +"/"+ proc_date #"/"+ MJD +"/"+ rawdata_basename +"/"+ str(beam_num)
         
         try:
             os.makedirs(presto_out_dir)
