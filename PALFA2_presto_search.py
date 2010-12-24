@@ -16,7 +16,6 @@ import numpy as np
 import psr_utils
 import presto
 import sifting
-import DDplan2b
 from formats import psrfits
 
 # Basic parameters
@@ -174,12 +173,12 @@ def timed_execute(cmd, stdout=None, stderr=sys.stderr):
     return end - start
 
 
-def get_folding_command(cand, obs, ddplans):
+def get_folding_command(cand, obs):
     """
-    get_folding_command(cand, obs, ddplans):
+    get_folding_command(cand, obs):
         Return a command for prepfold for folding the subbands using
-            an obs_info instance, a list of the ddplans, and a candidate 
-            instance that describes the observations and searches.
+            an obs_info instance, and a candidate instance that 
+            describes the observations and searches.
     """
     # Folding rules are based on the facts that we want:
     #   1.  Between 24 and 200 bins in the profiles
@@ -203,12 +202,12 @@ def get_folding_command(cand, obs, ddplans):
     else:
         if use_subbands:
             # Fold the subbands
-            subdms = get_all_subdms(ddplans)
+            subdms = get_all_subdms(obs.ddplans)
             subfiles = find_closest_subbands(obs, subdms, cand.DM)
             foldfiles = subfiles
         else:  # Folding the downsampled PSRFITS files instead
-            hidms = [x.lodm for x in ddplans[1:]] + [2000]
-            dfacts = [x.downsamp for x in ddplans]
+            hidms = [x.lodm for x in obs.ddplans[1:]] + [2000]
+            dfacts = [x.downsamp for x in obs.ddplans]
             for hidm, dfact in zip(hidms, dfacts):
                 if cand.DM < hidm:
                     downsamp = dfact
@@ -300,6 +299,47 @@ class obs_info:
         self.num_sifted_cands = 0
         self.num_folded_cands = 0
         self.num_single_cands = 0
+        # Set dedispersion plan
+        self.set_DDplan()
+
+    def set_DDplan(self):
+    """Set the dedispersion plan.
+
+        The dedispersion plans are hardcoded and 
+        depend on the backend data were recorded with.
+    """
+    # Generate dedispersion plan
+    self.ddplans = []
+    
+    # The following code will run the dedispersion planner on demand.
+    # Instead, dedispersion plans for WAPP and Mock data are hardcoded.
+    #
+    # import DDplan2b
+    # obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
+    #                             job.samp_per_row)
+    # plan = obs.gen_ddplan(lodm, hidm, numsub, resolution)
+    # plan.plot(fn=os.path.join(job.outputdir, job.basefilenm+"_ddplan.ps"))
+    # print plan
+    # for ddstep in plan.DDsteps:
+    #     self.ddplans.append(dedisp_plan(ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
+    #                    ddstep.numprepsub, ddstep.numsub, ddstep.downsamp))
+    
+    if self.backend.lower() == 'pdev':
+        # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
+        self.ddplans.append(dedisp_plan(   0.0,  0.1,    76,     28,     96,        1 ))
+        self.ddplans.append(dedisp_plan( 212.8,  0.3,    64,     12,     96,        2 ))
+        self.ddplans.append(dedisp_plan( 443.2,  0.3,    76,      4,     96,        3 ))
+        self.ddplans.append(dedisp_plan( 534.4,  0.5,    76,      9,     96,        5 ))
+        self.ddplans.append(dedisp_plan( 876.4,  0.5,    76,      3,     96,        6 ))
+        self.ddplans.append(dedisp_plan( 990.4,  1.0,    76,      1,     96,       10 ))
+    elif self.backend.lower() == 'wapp':
+        # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
+        self.ddplans.append(dedisp_plan(   0.0,  0.3,    76,      9,     96,        1 ))
+        self.ddplans.append(dedisp_plan( 205.2,  2.0,    76,      5,     96,        5 ))
+        self.ddplans.append(dedisp_plan( 965.2, 10.0,    76,      1,     96,       25 ))
+    else:
+        raise ValueError("No dediserpsion plan for unknown backend (%s)!" % self.backend)
+        
 
     def write_report(self, filenm):
         report_file = open(filenm, "w")
@@ -374,58 +414,6 @@ class dedisp_plan:
             dmlist = ["%.2f"%dm for dm in \
                       np.arange(self.dmsperpass)*self.dmstep + lodm]
             self.dmlist.append(dmlist)
-
-#ddplans = []
-#if (1):
-#    #
-#    # Using a small DDplan for debugging
-#    # Generated using:
-#    #   DDplan.py -l 0 -d 400 -f 1450.168 -b 172.0625 
-#    #               -n 256 -t 6.5476190476190506e-05 -r 2 -s 32
-#    # I set downsamp equal to 1, though.
-#    # -PL
-#    #
-#    # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
-#    ddplans.append(dedisp_plan(   0.0,   3,      24,     6,       32,       1))
-
-
-def set_DDplan(job, backend):
-    """Set the dedispersion plan as a global variable.
-
-        The dedispersion plans are hardcoded and 
-        depend on the backend data were recorded with.
-    """
-    # Generate dedispersion plan
-    global ddplans
-    ddplans = []
-    
-    # The following code will run the dedispersion planner on demand.
-    # Instead, dedispersion plans for WAPP and Mock data are hardcoded.
-    #
-    # obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
-    #                             job.samp_per_row)
-    # plan = obs.gen_ddplan(lodm, hidm, numsub, resolution)
-    # plan.plot(fn=os.path.join(job.outputdir, job.basefilenm+"_ddplan.ps"))
-    # print plan
-    # for ddstep in plan.DDsteps:
-    #     ddplans.append(dedisp_plan(ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
-    #                    ddstep.numprepsub, ddstep.numsub, ddstep.downsamp))
-    
-    if backend.lower() == 'pdev':
-        # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
-        ddplans.append(dedisp_plan(   0.0,  0.1,    76,     28,     96,        1 ))
-        ddplans.append(dedisp_plan( 212.8,  0.3,    64,     12,     96,        2 ))
-        ddplans.append(dedisp_plan( 443.2,  0.3,    76,      4,     96,        3 ))
-        ddplans.append(dedisp_plan( 534.4,  0.5,    76,      9,     96,        5 ))
-        ddplans.append(dedisp_plan( 876.4,  0.5,    76,      3,     96,        6 ))
-        ddplans.append(dedisp_plan( 990.4,  1.0,    76,      1,     96,       10 ))
-    elif backend.lower() == 'wapp':
-        # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
-        ddplans.append(dedisp_plan(   0.0,  0.3,    76,      9,     96,        1 ))
-        ddplans.append(dedisp_plan( 205.2,  2.0,    76,      5,     96,        5 ))
-        ddplans.append(dedisp_plan( 965.2, 10.0,    76,      1,     96,       25 ))
-    else:
-        raise ValueError("No dediserpsion plan for unknown backend (%s)!" % backend)
 
 
 def main(filenms, workdir, resultsdir):
@@ -503,7 +491,7 @@ def search_job(job):
     
     # Iterate over the stages of the overall de-dispersion plan
     dmstrs = []
-    for ddplan in ddplans:
+    for ddplan in job.ddplans:
 
         # Make a downsampled filterbank file if we are not using subbands
         if not use_subbands:
@@ -663,7 +651,7 @@ def search_job(job):
         if cands_folded == max_cands_to_fold:
             break
         if cand.sigma > to_prepfold_sigma:
-            job.folding_time += timed_execute(get_folding_command(cand, job, ddplans))
+            job.folding_time += timed_execute(get_folding_command(cand, job))
             cands_folded += 1
 
     # Now step through the .ps files and convert them to .png and gzip them
