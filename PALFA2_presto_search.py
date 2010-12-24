@@ -303,42 +303,42 @@ class obs_info:
         self.set_DDplan()
 
     def set_DDplan(self):
-    """Set the dedispersion plan.
+        """Set the dedispersion plan.
 
-        The dedispersion plans are hardcoded and 
-        depend on the backend data were recorded with.
-    """
-    # Generate dedispersion plan
-    self.ddplans = []
-    
-    # The following code will run the dedispersion planner on demand.
-    # Instead, dedispersion plans for WAPP and Mock data are hardcoded.
-    #
-    # import DDplan2b
-    # obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
-    #                             job.samp_per_row)
-    # plan = obs.gen_ddplan(lodm, hidm, numsub, resolution)
-    # plan.plot(fn=os.path.join(job.outputdir, job.basefilenm+"_ddplan.ps"))
-    # print plan
-    # for ddstep in plan.DDsteps:
-    #     self.ddplans.append(dedisp_plan(ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
-    #                    ddstep.numprepsub, ddstep.numsub, ddstep.downsamp))
-    
-    if self.backend.lower() == 'pdev':
-        # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
-        self.ddplans.append(dedisp_plan(   0.0,  0.1,    76,     28,     96,        1 ))
-        self.ddplans.append(dedisp_plan( 212.8,  0.3,    64,     12,     96,        2 ))
-        self.ddplans.append(dedisp_plan( 443.2,  0.3,    76,      4,     96,        3 ))
-        self.ddplans.append(dedisp_plan( 534.4,  0.5,    76,      9,     96,        5 ))
-        self.ddplans.append(dedisp_plan( 876.4,  0.5,    76,      3,     96,        6 ))
-        self.ddplans.append(dedisp_plan( 990.4,  1.0,    76,      1,     96,       10 ))
-    elif self.backend.lower() == 'wapp':
-        # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
-        self.ddplans.append(dedisp_plan(   0.0,  0.3,    76,      9,     96,        1 ))
-        self.ddplans.append(dedisp_plan( 205.2,  2.0,    76,      5,     96,        5 ))
-        self.ddplans.append(dedisp_plan( 965.2, 10.0,    76,      1,     96,       25 ))
-    else:
-        raise ValueError("No dediserpsion plan for unknown backend (%s)!" % self.backend)
+            The dedispersion plans are hardcoded and
+            depend on the backend data were recorded with.
+        """
+        # Generate dedispersion plan
+        self.ddplans = []
+
+        # The following code will run the dedispersion planner on demand.
+        # Instead, dedispersion plans for WAPP and Mock data are hardcoded.
+        #
+        # import DDplan2b
+        # obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
+        #                             job.samp_per_row)
+        # plan = obs.gen_ddplan(lodm, hidm, numsub, resolution)
+        # plan.plot(fn=os.path.join(job.outputdir, job.basefilenm+"_ddplan.ps"))
+        # print plan
+        # for ddstep in plan.DDsteps:
+        #     self.ddplans.append(dedisp_plan(ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
+        #                    ddstep.numprepsub, ddstep.numsub, ddstep.downsamp))
+
+        if self.backend.lower() == 'pdev':
+            # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
+            self.ddplans.append(dedisp_plan(   0.0,  0.1,    76,     28,     96,        1 ))
+            self.ddplans.append(dedisp_plan( 212.8,  0.3,    64,     12,     96,        2 ))
+            self.ddplans.append(dedisp_plan( 443.2,  0.3,    76,      4,     96,        3 ))
+            self.ddplans.append(dedisp_plan( 534.4,  0.5,    76,      9,     96,        5 ))
+            self.ddplans.append(dedisp_plan( 876.4,  0.5,    76,      3,     96,        6 ))
+            self.ddplans.append(dedisp_plan( 990.4,  1.0,    76,      1,     96,       10 ))
+        elif self.backend.lower() == 'wapp':
+            # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
+            self.ddplans.append(dedisp_plan(   0.0,  0.3,    76,      9,     96,        1 ))
+            self.ddplans.append(dedisp_plan( 205.2,  2.0,    76,      5,     96,        5 ))
+            self.ddplans.append(dedisp_plan( 965.2, 10.0,    76,      1,     96,       25 ))
+        else:
+            raise ValueError("No dediserpsion plan for unknown backend (%s)!" % self.backend)
         
 
     def write_report(self, filenm):
