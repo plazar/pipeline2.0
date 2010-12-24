@@ -16,9 +16,9 @@ RADTODEG = 180.0/np.pi
 HOURTORAD = np.pi/12.0
 RADTOHOUR = 12.0/np.pi
 
-hms_re = re.compile(r'^(?P<sign>[-+])?(?P<hour>\d{2}):(?P<min>\d{2})' \
+hms_re = re.compile(r'^(?P<sign>[-+])?(?P<hour>\d\d+):(?P<min>\d{2})' \
                      r'(?::(?P<sec>\d{2}(?:.\d+)?))?$')
-dms_re = re.compile(r'^(?P<sign>[-+])?(?P<deg>\d{2}):(?P<min>\d{2})' \
+dms_re = re.compile(r'^(?P<sign>[-+])?(?P<deg>\d\d+):(?P<min>\d{2})' \
                      r'(?::(?P<sec>\d{2}(?:.\d+)?))?$')
 
 def hmsstr_to_rad(hmsstr):
@@ -56,7 +56,7 @@ def dmsstr_to_rad(dmsstr):
     """
     dmsstr = np.atleast_1d(dmsstr)
     degs = np.zeros(dmsstr.size)
-
+    signs = np.zeros(dmsstr.size)
     for i,s in enumerate(dmsstr):
         # parse string using regular expressions
         match = dms_re.match(s)
@@ -71,14 +71,15 @@ def dmsstr_to_rad(dmsstr):
             sign = -1
         else:
             sign = 1
-        
+        signs[i] = sign
+
         deg = float(d['deg']) + \
                 float(d['min'])/60.0 + \
                 float(d['sec'])/3600.0
 
         degs[i] = deg
 
-    degs = sign*degs
+    degs = signs*degs
     return deg_to_rad(degs)
 
 
