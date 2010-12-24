@@ -104,7 +104,7 @@ def main():
     presto_search.main(fns, workdir, resultsdir)
 
     # Copy search results to results RAID
-    os.system("rsync -auvl %s %s" % (resultsdir.rstrip('/'), outdir))
+    os.system("rsync -auvl %s/ %s" % (resultsdir, outdir))
 
     # Remove working directory and output directory
     shutil.rmtree(workdir)
