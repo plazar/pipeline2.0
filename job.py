@@ -9,7 +9,7 @@ import re
 import os.path
 import config
 import datetime
-#import PBSQuery
+import PBSQuery
 import socket
 import subprocess
 
@@ -252,10 +252,10 @@ class JobPool:
         """Submit PulsarSearchJob j to the queue. Update j's log.
         """
 #        print 'qsub -V -v DATAFILES="%s" -v OUTDIR="%s" -l %s -N %s search.py' % \
-#                            (','.join(job.datafiles), config.result_out_dir, config.resource_list, \
+#                            (','.join(job.datafiles), job.presto_output_dir, config.resource_list, \
 #                                    config.job_basename)
         pipe = subprocess.Popen('qsub -V -v DATAFILES="%s" -v OUTDIR="%s" -l %s -N %s -e %s search.py' % \
-                            (','.join(job.datafiles), job., config.resource_list, \
+                            (','.join(job.datafiles), job.presto_output_dir, config.resource_list, \
                                     config.job_basename,'qsublog'), \
                             shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
 
@@ -389,13 +389,17 @@ class JobPool:
 #        print "Files kept: "+str(len(files_to_x_check))
 
         for file in files_to_x_check:
-            tmp_job = PulsarSearchJob([file])
-            if not self.restart_job(tmp_job):
-#                print "Removing file: "+ file
-                self.delete_job(tmp_job)
-                files_to_x_check.remove(file)
-#            else:
-#                print "Will not remove file because i can restart the job: "+ file
+	    try:
+            	tmp_job = PulsarSearchJob([file])
+           	if not self.restart_job(tmp_job):
+                    print "Removing file: "+ file
+                    self.delete_job(tmp_job)
+                    files_to_x_check.remove(file)
+                else:
+                    print "Will not remove file because i can restart the job: "+ file
+	    except Exception, e:
+                print "Error while creating a PulsarSearchJob: "+str(e)
+
 #        print "Files left to add to queue: "+ str(len(files_to_x_check))
         self.create_jobs_from_datafiles(files_to_x_check)
 #        print "===================================== END END END  Fetching new jobs"
