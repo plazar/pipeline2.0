@@ -8,11 +8,11 @@ survey = "PALFA2.0"
 ################################################################
 # Configurations for processing
 ################################################################
-result_out_dir = "/data/alfa/test_pipeline/results"
+base_results_directory = "/data/data7/PALFA/test_new_pipeline/"
 base_working_directory = "/exports/scratch/PALFA/"    
 zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
-log_dir = "/homes/borgii/snipka/dev/pipeline2.0/log/"
-log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
+log_dir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/log/"
+log_archive = "/homes/borgii/plazar/research/PALFA/pipeline2.0/log_archive/"
 #log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
 #log_archive = "C:/Reposotories/PALFA/pipeline2.0/log_archive"
 

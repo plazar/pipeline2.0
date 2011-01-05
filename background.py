@@ -11,6 +11,7 @@ import subprocess
 import time
 import socket
 import shutil
+import job
 
 #import PBSQuery
 
@@ -26,19 +27,17 @@ def main():
 
     
     try:
-        from job import *
-        import job
-        jobpool = JobPool()
+        jobpool = job.JobPool()
         jobpool.start()
-        for job in jobpool.jobs:
-            print job.jobname
-            print job.get_log_status()
+        for j in jobpool.jobs:
+            print j.jobname
+            print j.get_log_status()
    
         jobpool.status()
     
         while True:
             jobpool.rotate()
-            time.sleep(1)
+            time.sleep(60)
             
     except Exception, e:
 	print "Error occured: "+ str(e)

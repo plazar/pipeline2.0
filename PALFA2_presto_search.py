@@ -315,10 +315,10 @@ class obs_info:
         # Instead, dedispersion plans for WAPP and Mock data are hardcoded.
         #
         # import DDplan2b
-        # obs = DDplan2b.Observation(job.dt, job.fctr, job.BW, job.nchan, \
-        #                             job.samp_per_row)
+        # obs = DDplan2b.Observation(self.dt, self.fctr, self.BW, self.nchan, \
+        #                             self.samp_per_row)
         # plan = obs.gen_ddplan(lodm, hidm, numsub, resolution)
-        # plan.plot(fn=os.path.join(job.outputdir, job.basefilenm+"_ddplan.ps"))
+        # plan.plot(fn=os.path.join(self.outputdir, self.basefilenm+"_ddplan.ps"))
         # print plan
         # for ddstep in plan.DDsteps:
         #     self.ddplans.append(dedisp_plan(ddstep.loDM, ddstep.dDM, ddstep.DMs_per_prepsub, \
@@ -473,8 +473,6 @@ def search_job(job):
     """Search the observation defined in the obs_info
         instance 'job'.
     """
-    set_DDplan(job, job.backend)
-
     # Use whatever .zaplist is found in the current directory
     default_zaplist = glob.glob("*.zaplist")[0]
 
@@ -658,18 +656,9 @@ def search_job(job):
 
     psfiles = glob.glob("*.ps")
     for psfile in psfiles:
-        if "singlepulse" in psfile:
-            # For some reason the singlepulse files don't transform nicely...
-            # epsfile = psfile.replace(".ps", ".eps")
-            # timed_execute("eps2eps "+psfile+" "+epsfile)
-            # timed_execute("pstoimg -quiet -density 100 -crop a "+epsfile)
-            timed_execute("convert -quality 90 %s -background white -flatten -rotate 90 +matte %s" % (psfile, psfile[:-3]+".png"))
-            # try:
-            #     os.remove(epsfile)
-            # except: pass
-        else:
-            # timed_execute("pstoimg -quiet -density 100 -flip cw "+psfile)
-            timed_execute("convert -quality 90 %s -background white -flatten -rotate 90 +matte %s" % (psfile, psfile[:-3]+".png"))
+        # The '[0]' appeneded to the end of psfile is to convert only the 1st page
+        timed_execute("convert -quality 90 %s -background white -flatten -rotate 90 +matte %s" % \
+                            (psfile+"[0]", psfile[:-3]+".png"))
         timed_execute("gzip "+psfile)
     
 

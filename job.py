@@ -55,6 +55,7 @@ class JobPool:
             return
         for datafile in (files_in):
             try:
+                print "DEBUG: [datafile] when creating PulsarSearchJob", [datafile]
                 p_searchjob = PulsarSearchJob([datafile])
                 if  isinstance(p_searchjob, PulsarSearchJob):
                     self.datafiles.append(datafile)
@@ -249,18 +250,18 @@ class JobPool:
         self.fetch_new_jobs()
 
     def submit_job(self, job):
-        """Submit PulsarSearchJob j to the queue. Update j's log.
+        """Submit PulsarSearchJob job to the queue. Update job's log.
         """
-#        print 'qsub -V -v DATAFILES="%s" -v OUTDIR="%s" -l %s -N %s search.py' % \
-#                            (','.join(job.datafiles), job.presto_output_dir, config.resource_list, \
-#                                    config.job_basename)
-        pipe = subprocess.Popen('qsub -V -v DATAFILES="%s" -v OUTDIR="%s" -l %s -N %s -e %s search.py' % \
-                            (','.join(job.datafiles), job.presto_output_dir, config.resource_list, \
-                                    config.job_basename,'qsublog'), \
-                            shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
+        print "DEBUG: job.datafiles:", job.datafiles, type(job.datafiles)
+        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s search.py' % \
+                            (','.join(job.datafiles), job.get_output_dir(), config.resource_list, \
+                                    config.job_basename, 'qsublog')
+        print "DEBUG: cmd:", cmd
+        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
 
         jobid = pipe.communicate()[0]
         job.jobid = jobid.rstrip()
+        print "Job ID:", job.jobid
        
         pipe.stdin.close()
 
@@ -428,10 +429,9 @@ class PulsarSearchJob:
         #self.logfilenm = self.jobname + ".log"
         self.logfilenm = os.path.join(config.log_dir,os.path.basename(self.jobname) + ".log")
         self.log = JobLog(self.logfilenm, self)
-        self.presto_output_dir = self.prep_out_dir()
         self.status = self.NEW_JOB
 
-    def prep_out_dir(self,in_datafiles=None):
+    def get_output_dir(self,in_datafiles=None):
         if not in_datafiles:
             in_datafiles = self.datafiles
         if isinstance(in_datafiles, list):
@@ -465,17 +465,19 @@ class PulsarSearchJob:
         try:
             beam_num = parsed.beam_id #int(basename[len(basename)-16:len(basename)-15])
         except ValueError:
-            raise Exception('Could not determine raw file\'s beam number.')
+            raise Exception("Could not determine raw file's beam number.")
         
         proc_date=datetime.datetime.now().strftime('%y%m%d')
         
-        presto_out_dir = config.result_out_dir +"/"+ rawdata_basename +"/"+ proc_date #"/"+ MJD +"/"+ rawdata_basename +"/"+ str(beam_num)
+        presto_out_dir = os.path.join(config.base_results_directory, rawdata_basename, proc_date)
         
-        try:
-            os.makedirs(presto_out_dir)
-        except OSError:
-            if not os.path.exists(presto_out_dir):
-                raise "Could not create directory: %s" % presto_out_dir
+        # Directory should be made by rsync when results are 
+        # copied by PALFA2_presto_search.py -PL Dec. 26, 2010
+        # try:
+        #     os.makedirs(presto_out_dir)
+        # except OSError:
+        #     if not os.path.exists(presto_out_dir):
+        #         raise "Could not create directory: %s" % presto_out_dir
         
         return presto_out_dir
 
