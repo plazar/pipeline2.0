@@ -155,7 +155,7 @@ class Header(object):
         return result
 
     @classmethod
-    def autogen_header(cls, fns, beamnum):
+    def autogen_header(cls, fns, *args, **kwargs):
         """Automatically generate a Header object.
             More specifically: Given a list of filenames
             find out which subclass of Header is appropriate
@@ -167,7 +167,7 @@ class Header(object):
             if type(obj)==types.TypeType and issubclass(obj, Header):
                 if obj.is_correct_filetype(fns):
                     print "Using %s" % objname
-                    header = obj(fns, beamnum)
+                    header = obj(fns, *args, **kwargs)
                     break
         if 'header' not in dir():
             raise ValueError("Cannot determine datafile's type.")

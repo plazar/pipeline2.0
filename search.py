@@ -83,12 +83,9 @@ def init_workspace():
 
 
 def main():
-    os.system("env")
     print "Running on ", socket.gethostname()
     fns = get_datafns()
     print "Searching %d files:" % len(fns)
-    for f in fns:
-        print "\t%s" % f
     outdir = get_outdir()
     workdir, resultsdir = init_workspace()
    
@@ -96,14 +93,12 @@ def main():
     print "Local results directory:", resultsdir
     print "When finished results will be copied to:", outdir
 
-    # Update job's log 
-    # Copy data file locally?
+    # Copy data files locally
     for fn in fns:
         os.system("rsync -auvl %s %s" % (fn, workdir))
 
     fns = [os.path.join(workdir, os.path.split(fn)[-1]) for fn in fns]
    
-    print "DEBUG: fns", fns
     presto_search = config.init_presto_search()
     presto_search.main(fns, workdir, resultsdir)
 

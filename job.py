@@ -7,20 +7,18 @@ Patrick Lazarus, June 5th, 2010
 import os
 import re
 import os.path
-import config
 import datetime
-import PBSQuery
+import sqlite3
 import socket
 import subprocess
-
-import socket
 import shutil
-
 import pprint
-import dev
-from formats import psrfits
 
-import sqlite3
+import PBSQuery
+
+import header_uploader
+import config
+import dev
 
 from mailer import ErrorMailer
 
@@ -252,11 +250,9 @@ class JobPool:
     def submit_job(self, job):
         """Submit PulsarSearchJob job to the queue. Update job's log.
         """
-        print "DEBUG: job.datafiles:", job.datafiles, type(job.datafiles)
         cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s search.py' % \
                             (','.join(job.datafiles), job.get_output_dir(), config.resource_list, \
                                     config.job_basename, 'qsublog')
-        print "DEBUG: cmd:", cmd
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
 
         jobid = pipe.communicate()[0]
@@ -448,20 +444,19 @@ class PulsarSearchJob:
             raise Exception('Unrecognized input file extension.')
 
 
-        """for the file: p2030.20100810.B2020+28.b0s0g0.00100.fits
-            rawdata basename: p2030.20100810.B2020+28.b0s0g0.00100
-            beam number: 0 (from b0)
-            processing date: (not from file name)
-            mjd: (Read from the file header using the psrfits module.)
-        """
-        print "----->"+ filename
-	parsed=psrfits.SpectraInfo([filename])
-        imjd, fmjd=psrfits.DATEOBS_to_MJD(parsed.date_obs)
-        mjdtmp="%.14f" % fmjd
-        MJD="%5d.%14s" % (imjd, mjdtmp[2:])
-        basename=os.path.basename(filename)
-        rawdata_basename=basename[:len(basename)-5]
+        # for the file: p2030.20100810.B2020+28.b0s0g0.00100.fits
+        #    rawdata basename: p2030.20100810.B2020+28.b0s0g0.00100
+        #    beam number: 0 (from b0)
+        #    processing date: (not from file name)
+        #    mjd: (Read from the file header using the psrfits module.)
         
+        print "----->"+ filename
+	parsed = header_uploader.Header.autogen_header([filename])
+        mjd = int(parsed.timestamp_mjd)
+        beam_num = parsed.beam_id
+        obs_name = parsed.obs_name
+        
+
         try:
             beam_num = parsed.beam_id #int(basename[len(basename)-16:len(basename)-15])
         except ValueError:
@@ -469,7 +464,8 @@ class PulsarSearchJob:
         
         proc_date=datetime.datetime.now().strftime('%y%m%d')
         
-        presto_out_dir = os.path.join(config.base_results_directory, rawdata_basename, proc_date)
+        presto_outdir = os.path.join(config.base_results_directory, mjd, \
+                                        obs_name, beam_num, proc_date)
         
         # Directory should be made by rsync when results are 
         # copied by PALFA2_presto_search.py -PL Dec. 26, 2010
@@ -479,7 +475,7 @@ class PulsarSearchJob:
         #     if not os.path.exists(presto_out_dir):
         #         raise "Could not create directory: %s" % presto_out_dir
         
-        return presto_out_dir
+        return presto_outdir
 
         
     def get_log_status(self):
