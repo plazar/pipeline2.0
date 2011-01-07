@@ -287,7 +287,7 @@ def main():
     warnings.warn("Connecting to common-copy DB at Cornell for testing...")
     
     # Define a list of diagnostics to apply
-    diagnostic_types = [#RFIPercentageDiagnostic,
+    diagnostic_types = [RFIPercentageDiagnostic,
                         RFIPlotDiagnostic,
                         AccelCandsDiagnostic,
                         NumFoldedDiagnostic,
