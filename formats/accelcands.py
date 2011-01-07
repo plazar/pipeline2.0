@@ -19,7 +19,7 @@ candinfo_re = re.compile(r'^(?P<accelfile>.*):(?P<candnum>\d*) *(?P<dm>[^ ]*)' \
                          r' *(?P<r>[^ ]*) *(?P<z>[^ ]*) *\((?P<numhits>\d*)\)$')
 
 
-class Candidate(object):
+class AccelCand(object):
     """Object to represent candidates as they are listed
         in *.accelcands files.
     """
@@ -53,6 +53,49 @@ class Candidate(object):
             result += str(dmhit)
         return result
 
+    def __cmp__(self, other):
+        """By default candidates are sorted by increasing sigma.
+        """
+        return cmp(self.sigma, other.sigma)
+
+
+class AccelCandlist(list):
+    def __init__(self, *args, **kwargs):
+        super(AccelCandlist, self).__init__(*args, **kwargs)
+
+    def __getattr__(self, key):
+        return np.array([getattr(c, key) for c in self])
+
+    def write_candlist(self, fn=sys.stdout):
+        """Write AccelCandlist to a file with filename fn.
+ 
+            Inputs:
+                fn - path of output candlist, or an open file object
+                    (Default: standard output stream)
+            NOTE: if fn is an already-opened file-object it will not be
+                    closed by this function.
+        """
+        if type(fn) == types.StringType:
+            toclose = True
+            file = open(fn, 'w')
+        else:
+            # fn is actually a file-object
+            toclose = False
+            file = fn
+ 
+        # Print column headers
+        file.write("#" + "file:candnum".center(66) + "DM".center(9) + \
+                   "SNR".center(8) + "sigma".center(8) + "numharm".center(9) + \
+                   "ipow".center(9) + "cpow".center(9) +  "P(ms)".center(14) + \
+                   "r".center(12) + "z".center(8) + "numhits".center(9) + "\n")
+
+        self.sort(reverse=True) # Sort cands by decreasing simga
+        for cand in self:
+            cand.dmhits.sort()
+            file.write(str(cand))
+        if toclose:
+            file.close()
+
 
 class DMHit(object):
     """Object to represent a DM hit of an accelcands candidate.
@@ -66,6 +109,11 @@ class DMHit(object):
         result += "   " + int(self.snr/3.0)*'*' + '\n'
         return result
 
+    def __cmp__(self, other):
+        """By default DM hits are sorted by DM.
+        """
+        return cmp(self.dm, other.dm)
+
 
 class AccelcandsError(Exception):
     """An error to throw when a line in a *.accelcands file
@@ -74,43 +122,14 @@ class AccelcandsError(Exception):
     pass
 
 
-def write_candlist(candlist, fn=sys.stdout):
-    """Write candlist provided to a file with filename fn.
-
-        Inputs:
-            fn - path of output candlist, or an open file object
-                (Default: standard output stream)
-        NOTE: if fn is an already-opened file-object it will not be
-                closed by this function.
-    """
-    if type(fn) == types.StringType:
-        toclose = True
-        file = open(fn, 'w')
-    else:
-        # fn is actually a file-object
-        toclose = False
-        file = fn
-
-    file.write("#" + "file:candnum".center(66) + "DM".center(9) + \
-               "SNR".center(8) + "sigma".center(8) + "numharm".center(9) + \
-               "ipow".center(9) + "cpow".center(9) +  "P(ms)".center(14) + \
-               "r".center(12) + "z".center(8) + "numhits".center(9) + "\n")
-    candlist.sort(cmp=lambda x, y: cmp(x.sigma, y.sigma), reverse=True)
-    for cand in candlist:
-        cand.dmhits.sort(cmp=lambda x, y: cmp(x.dm, y.dm))
-        file.write(str(cand))
-    if toclose:
-        file.close()
-
-
 def parse_candlist(candlistfn):
-    """Parse candidate list and return a list of Candidate objects.
+    """Parse candidate list and return a list of AccelCand objects.
         
         Inputs:
             candlistfn - path of candlist, or an open file object
     
         Outputs:
-            list of Candidates objects
+            An AccelCandlist object
     """
     if type(candlistfn) == types.StringType:
         candlist = open(candlistfn, 'r')
@@ -119,7 +138,7 @@ def parse_candlist(candlistfn):
         # candlistfn is actually a file-object
         candlist = candlistfn
         toclose = False
-    cands = []
+    cands = AccelCandlist()
     for line in candlist:
         if not line.partition("#")[0].strip():
             # Ignore lines with no content
@@ -128,7 +147,7 @@ def parse_candlist(candlistfn):
         if candinfo_match:
             cdict = candinfo_match.groupdict()
             cdict['period'] = float(cdict['period'])/1000.0 # convert ms to s
-            cands.append(Candidate(**cdict))
+            cands.append(AccelCand(**cdict))
         else:
             dmhit_match = dmhit_re.match(line)
             if dmhit_match:
