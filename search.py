@@ -91,7 +91,11 @@ def main():
    
     print "Local working directory:", workdir
     print "Local results directory:", resultsdir
-    print "When finished results will be copied to:", outdir
+    if resultshost is not None:
+        print "When finished results will be copied to: %s:%s" % \
+                    (resultshost, outdir)
+    else:
+        print "When finished results will be copied to: %s" % outdir
 
     # Copy data files locally
     for fn in fns:
@@ -103,8 +107,14 @@ def main():
     presto_search.main(fns, workdir, resultsdir)
 
     # Copy search results to outdir
-    os.system("mkdir -p %s" % outdir)
-    os.system("rsync -auvl %s/ %s" % (resultsdir, outdir))
+    resultshost = config.results_directory_host
+    if resultshost is not None:
+        os.system("ssh %s -- mkdir -m 750 -p %s" % (config.results_directory_host, outdir)
+        os.system("rsync -auvl %s/ %s:%s" % (resultsdir, config.results_directory_host, \
+                                            outdir))
+    else:
+        os.system("mkdir -m 750 -p %s" % outdir)
+        os.system("rsync -auvl %s/ %s" % (resultsdir, outdir))
 
     # Remove working directory and output directory
     shutil.rmtree(workdir)

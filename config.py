@@ -8,7 +8,9 @@ survey = "PALFA2.0"
 ################################################################
 # Configurations for processing
 ################################################################
-base_results_directory = "/data/data7/PALFA/test_new_pipeline/"
+results_directory_host = "lore2" # Set to None to not create 
+                                 # results dir and copy via ssh.
+base_results_directory = "/exports/data7/PALFA/test_new_pipeline/"
 base_working_directory = "/exports/scratch/PALFA/"    
 zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
 log_dir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/log/"
