@@ -9,6 +9,9 @@ Define a WAPP file object that can:
 Requires: pycparser - A parser for the C language written in python
 (http://code.google.com/p/pycparser/)
 
+Which in turn requires: ply - Python Lex & Yacc
+(http://pypi.python.org/pypi/ply)
+
 Patrick Lazarus, Sept. 10, 2010
 """
 
