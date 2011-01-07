@@ -7,21 +7,19 @@ Patrick Lazarus, June 5th, 2010
 import os
 import re
 import os.path
-import config
 import datetime
-import PBSQuery
+import sqlite3
 import socket
 import subprocess
-
-import socket
 import shutil
-
 import pprint
-import dev
-from formats import psrfits
 
-import sqlite3
 import logging
+import PBSQuery
+import datafile
+import config
+import dev
+
 
 from mailer import ErrorMailer
 
@@ -277,11 +275,9 @@ class JobPool:
     def submit_job(self, job):
         """Submit PulsarSearchJob job to the queue. Update job's log.
         """
-        print "DEBUG: job.datafiles:", job.datafiles, type(job.datafiles)
         cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s search.py' % \
                             (','.join(job.datafiles), job.get_output_dir(), config.resource_list, \
                                     config.job_basename, 'qsublog')
-        print "DEBUG: cmd:", cmd
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
 
         jobid = pipe.communicate()[0]
@@ -439,48 +435,30 @@ class PulsarSearchJob:
         self.log = JobLog(self.logfilenm, self)
         self.status = self.NEW_JOB
 
-    #Base on filename to be processed returns a full path of
-    #presto output directory for results of search
-    def get_output_dir(self,in_datafiles=None):
-        if not in_datafiles:
-            in_datafiles = self.datafiles
-        #TODO: are these needed
-        if isinstance(in_datafiles, list):
-            filename=in_datafiles[0]
-        elif isinstance(in_datafiles, string):
-            filename=in_datafiles
-        else:
-            raise Exception('Could not get input filename(s)')
 
-        if not os.path.isfile(filename):
-	    print "------------"+ filename
-	    raise Exception('File with the given path doesn\'t exists.')
-        elif not filename.endswith(".fits"):
-            raise Exception('Unrecognized input file extension.')
-
-
-        """for the file: p2030.20100810.B2020+28.b0s0g0.00100.fits
-            rawdata basename: p2030.20100810.B2020+28.b0s0g0.00100
-            beam number: 0 (from b0)
-            processing date: (not from file name)
-            mjd: (Read from the file header using the psrfits module.)
+    def get_output_dir(self):
+        """Generate path to output job's results.
+            
+            path is: 
+                {base_results_directory/{mjd}/{obs_name}/{beam_num}/{proc_date}/
+            Note: 'base_results_directory' is defined in the config file.
+                    'mjd', 'obs_name', and 'beam_num' are from parsing
+                    the job's datafiles. 'proc_date' is the current date
+                    in YYMMDD format.
         """
-        print "----->"+ filename
-        basename=os.path.basename(filename)
-        rawdata_basename=basename[:len(basename)-5]
-        #TODO: use beam_num for prest_out_dir
-        parsed=psrfits.SpectraInfo([filename])
-        imjd, fmjd=psrfits.DATEOBS_to_MJD(parsed.date_obs)
-        mjdtmp="%.14f" % fmjd
-        MJD="%5d.%14s" % (imjd, mjdtmp[2:])
-        try:
-            beam_num = parsed.beam_id #int(basename[len(basename)-16:len(basename)-15])
-        except ValueError:
-            raise Exception("Could not determine raw file's beam number.")
+        print "----->"+ self.datafiles
+	
+        data = datafile.autogen_dataobj(self.datafiles)
+        if not isinstance(data, datafile.PsrfitsData)
+            raise Exception("Data must be of PSRFITS format.")
+        mjd = int(data.timestamp_mjd)
+        beam_num = data.beam_id
+        obs_name = data.obs_name
         
         proc_date=datetime.datetime.now().strftime('%y%m%d')
         
-        presto_out_dir = os.path.join(config.base_results_directory, rawdata_basename, proc_date)
+        presto_outdir = os.path.join(config.base_results_directory, mjd, \
+                                        obs_name, beam_num, proc_date)
         
         # Directory should be made by rsync when results are 
         # copied by PALFA2_presto_search.py -PL Dec. 26, 2010
@@ -490,7 +468,7 @@ class PulsarSearchJob:
         #     if not os.path.exists(presto_out_dir):
         #         raise "Could not create directory: %s" % presto_out_dir
         
-        return presto_out_dir
+        return presto_outdir
 
         
     def get_log_status(self):

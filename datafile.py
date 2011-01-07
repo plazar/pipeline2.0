@@ -1,15 +1,9 @@
 #!/usr/bin/env python
 
 """
-Script to upload header information to commonDB given a PALFA data file.
+Data object definitions to represent PALFA data files.
 
-Argument 1: PALFA beam number (0-7; beam 7 is a copy of beam 6)
-Other arguments: data file names
-
-*** Values are different on different machines (32/64-bit issue?) ***
-    *** Needs investigation! ***
-
-Patrick Lazarus, Sept. 10, 2010
+Patrick Lazarus, Jan. 5, 2011
 """
 
 import os.path
@@ -19,7 +13,6 @@ import warnings
 import types
 
 import numpy as np
-#import database
 from astro_utils import sextant
 from astro_utils import protractor
 from astro_utils import calendar
@@ -32,9 +25,28 @@ COORDS_TABLE = "/homes/borgii/alfa/svn/workingcopy_PL/PALFA/miscellaneous/" + \
 date_re = re.compile(r'^(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})$')
 time_re = re.compile(r'^(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})$')
 
-class Header(object):
-    """PALFA Header object. 
-        Defines observation information relevant to the common DB.
+
+def autogen_dataobj(fns, *args, **kwargs):
+    """Automatically generate a Data object.
+        More specifically: Given a list of filenames
+        find out which subclass of Data is appropriate
+        and instantiate and return the object.
+    """
+    for objname in globals():
+        obj = eval(objname)
+        if type(obj)==types.TypeType and issubclass(obj, Data):
+            if obj.is_correct_filetype(fns):
+                print "Using %s" % objname
+                data = obj(fns, *args, **kwargs)
+                break
+    if 'data' not in dir():
+        raise ValueError("Cannot determine datafile's type.")
+    return data
+
+
+class Data(object):
+    """PALFA Data object. 
+        Collects observation information.
     """
     # An impossible to match string:
     # The end-of-line mark is before the start-of-line mark
@@ -42,49 +54,8 @@ class Header(object):
     filename_re = re.compile('$x^')
 
     def __init__(self):
-        raise NotImplementedError("Constructor not implemented for abstract class Header.")
+        raise NotImplementedError("Constructor not implemented for abstract class Data.")
 
-    def get_upload_sproc_call(self):
-        """Return the EXEC spHeaderLoader string to upload
-            this header to the PALFA common DB.
-        """
-        sprocstr = "EXEC spHeaderLoader " + \
-            "@obs_name='%s', " % self.obs_name + \
-            "@beam_id=%d, " % self.beam_id + \
-            "@original_wapp_file='%s', " % self.original_file + \
-            "@sample_time=%f, " % self.sample_time + \
-            "@observation_time=%f, " % self.observation_time + \
-            "@timestamp_mjd=%.15f, " % self.timestamp_mjd + \
-            "@num_samples_per_record=%d, " % self.num_samples_per_record + \
-            "@center_freq=%f, " % self.center_freq + \
-            "@channel_bandwidth=%f, " % self.channel_bandwidth + \
-            "@num_channels_per_record=%d, " % self.num_channels_per_record + \
-            "@num_ifs=%d, " % self.num_ifs + \
-            "@orig_right_ascension=%.4f, " % self.orig_right_ascension + \
-            "@orig_declination=%.4f, " % self.orig_declination + \
-            "@orig_galactic_longitude=%.8f, " % self.orig_galactic_longitude + \
-            "@orig_galactic_latitude=%.8f, " % self.orig_galactic_latitude + \
-            "@source_name='%s', " % self.source_name + \
-            "@sum_id=%d, " % self.sum_id + \
-            "@orig_start_az=%.4f, " % self.orig_start_az + \
-            "@orig_start_za=%.4f, " % self.orig_start_za + \
-            "@start_ast=%.8f, " % self.start_ast + \
-            "@start_lst=%.8f, " % self.start_lst + \
-            "@project_id='%s', " % self.project_id + \
-            "@observers='%s', " % self.observers + \
-            "@file_size=%d, " % self.file_size + \
-            "@data_size=%d, " % self.data_size + \
-            "@num_samples=%d, " % self.num_samples + \
-            "@orig_ra_deg=%.8f, " % self.orig_ra_deg + \
-            "@orig_dec_deg=%.8f, " % self.orig_dec_deg + \
-            "@right_ascension=%.4f, " % self.right_ascension + \
-            "@declination=%.4f, " % self.declination + \
-            "@galactic_longitude=%.8f, " % self.galactic_longitude + \
-            "@galactic_latitude=%.8f, " % self.galactic_latitude + \
-            "@ra_deg=%.8f, " % self.ra_deg + \
-            "@dec_deg=%.8f" % self.dec_deg
-        return sprocstr
-    
     def get_correct_positions(self):
         """Reconstruct original wapp filename and check
             for correct beam positions from the coordinates
@@ -113,7 +84,7 @@ class Header(object):
             self.galactic_latitude = self.orig_galactic_latitude
         elif len(matches) == 1:
             # Use values from coords table
-            if beamnum % 2:
+            if self.beam_id % 2:
                 # Even beam number. Use columns 2 and 3.
                 ra, decl = matches[0].split()[1:3]
             else:
@@ -129,10 +100,6 @@ class Header(object):
         else:
             raise ValueError("Bad number of matches (%d) in coords table!" % len(matches))
 
-    def __str__(self):
-        s = self.get_upload_sproc_call()
-        return s.replace('@', '\n    @')
-    
     # These are class methods.
     # They don't need to be called with an instance.
     @classmethod
@@ -144,8 +111,8 @@ class Header(object):
     
     @classmethod
     def is_correct_filetype(cls, filenames):
-        """Check if the header class accurately describes the data
-            in the files listed in filenames.
+        """Check if the Data class accurately describes the
+            datafiles listed in filenames.
         """
         result = True
         for fn in filenames:
@@ -154,31 +121,12 @@ class Header(object):
                 break
         return result
 
-    @classmethod
-    def autogen_header(cls, fns, *args, **kwargs):
-        """Automatically generate a Header object.
-            More specifically: Given a list of filenames
-            find out which subclass of Header is appropriate
-            and instantiate and return the object.
-        """
 
-        for objname in globals():
-            obj = eval(objname)
-            if type(obj)==types.TypeType and issubclass(obj, Header):
-                if obj.is_correct_filetype(fns):
-                    print "Using %s" % objname
-                    header = obj(fns, *args, **kwargs)
-                    break
-        if 'header' not in dir():
-            raise ValueError("Cannot determine datafile's type.")
-        return header
-
-
-class WappHeader(Header):
-    """PALFA WAPP Header object.
+class WappData(Data):
+    """PALFA WAPP Data object.
     """
     def __init__(self, wappfns, beamnum):
-        """WAPP Header object constructor.
+        """WAPP Data object constructor.
         """
         # Open wapp files, sort by offset since start of observation
         cmp_offset = lambda w1,w2: cmp(w1.header['timeoff'], w2.header['timeoff'])
@@ -203,7 +151,11 @@ class WappHeader(Header):
             raise ValueError("Offset since start of observation not consistent.")
         
         self.original_file = os.path.split(w0.filename)[-1]
-        self.beam_id = beamnum
+        matchdict = self.fnmatch(self.original_file).groupdict()
+        if 'beam' in matchdict:
+            self.beam_id = int(matchdict['beam'])
+        else:
+            self.beam_id = beamnum
         self.project_id = w0.header['project_id']
         self.observers = w0.header['observers']
         self.start_ast = w0.header['start_ast']
@@ -229,7 +181,7 @@ class WappHeader(Header):
         self.timestamp_mjd = day + dayfrac
 
         # Combine obs_name
-        scan = self.fnmatch(self.original_file).groupdict()['scan']
+        scan = matchdict()['scan']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     scan])
@@ -256,7 +208,7 @@ class WappHeader(Header):
         self.orig_galactic_latitude = float(b)
         self.get_correct_positions()
 
-class MultiplexedWappHeader(WappHeader):
+class MultiplexedWappData(WappData):
     """WAPP Headers of multiplexed PALFA data.
     """
     filename_re = re.compile(r'^(?P<projid>[Pp]\d{4})\.(?P<source>.*)\.' \
@@ -264,9 +216,9 @@ class MultiplexedWappHeader(WappHeader):
                                 r'(?P<scan>\d{4})$')
 
     def __init__(self, wappfns, beamnum):
-        """Constructor for MultiplexedWappHeader objects.
+        """Constructor for MultiplexedWappData objects.
         """
-        super(MultiplexedWappHeader, self).__init__(wappfns, beamnum)
+        super(MultiplexedWappData, self).__init__(wappfns, beamnum)
         # Multiple files
         # Factors of 2 is because two beams are multiplexed
         self.data_size = int(sum([w.data_size/2.0 for w in self.wapps]))
@@ -277,18 +229,19 @@ class MultiplexedWappHeader(WappHeader):
         self.num_samples_per_record = self.num_samples
 
 
-class DumpOfWappHeader(WappHeader):
-    """Dump of PALFA WAPP Headers.
+class DumpOfWappData(WappData):
+    """Dump of PALFA WAPP Data.
         These dumps are produced when converting from WAPP to PSR fits.
     """
     filename_re = re.compile(r'^(?P<projid>[Pp]\d{4})_(?P<mjd>\d{5})_' \
                                 r'(?P<sec>\d{5})_(?P<scan>\d{4})_' \
                                 r'(?P<source>.*)_(?P<beam>\d)\.w4bit\.wapp_hdr$')
 
-    def __init__(self, fns, beamnum):
-        """Dumpy of PALFA WAPP Header constructor.
+    def __init__(self, fns):
+        """Dump of PALFA WAPP Data constructor.
         """
-        super(DumpOfWappHeader, self).__init__(fns, beamnum)
+        # Beam number will be gotten from file name
+        super(DumpOfWappData, self).__init__(fns, None)
         # The file provided has no data, thus we cannot determine sizes
         self.data_size = -1
         self.file_size = -1
@@ -299,10 +252,10 @@ class DumpOfWappHeader(WappHeader):
         self.num_samples_per_record = self.num_samples
 
 
-class PsrfitsHeader(Header):
-    """PSR fits Header object.
+class PsrfitsData(Data):
+    """PSRFITS Data object.
     """
-    def __init__(self, fitsfns, beamnum):
+    def __init__(self, fitsfns):
         """PSR fits Header object constructor.
         """
         # Read information from files
@@ -344,15 +297,15 @@ class PsrfitsHeader(Header):
         self.num_samples_per_record = self.specinfo.spectra_per_subint
 
 
-class WappPsrfitsHeader(PsrfitsHeader):
-    """PSR fits Header object for WAPP data.
+class WappPsrfitsData(PsrfitsData):
+    """PSRFITS Data object for WAPP data.
     """
     filename_re = re.compile(r'^(?P<projid>[Pp]\d{4})_(?P<mjd>\d{5})_' \
                                 r'(?P<sec>\d{5})_(?P<scan>\d{4})_' \
                                 r'(?P<source>.*)_(?P<beam>\d)\.w4bit\.fits$')
 
-    def __init__(self, fitsfns, beamnum):
-        super(WappPsrfitsHeader, self).__init__(fitsfns, beamnum)
+    def __init__(self, fitsfns):
+        super(WappPsrfitsData, self).__init__(fitsfns)
         # Note Puerto Rico doesn't observe daylight savings time
         # so it is 4 hours behind UTC all year
         dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1
@@ -367,16 +320,16 @@ class WappPsrfitsHeader(PsrfitsHeader):
                                     str(self.scan_num)])
 
 
-class MockPsrfitsHeader(PsrfitsHeader):
-    """PSR fits Header object for MockSpec data.
+class MockPsrfitsData(PsrfitsData):
+    """PSR fits Data object for MockSpec data.
     """
     filename_re = re.compile(r'^(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
                                 r'(?P<source>.*)\.b(?P<beam>[0-7])' \
                                 r's(?P<subband>[01])g0_4b.(?P<scan>\d{5})\.' \
                                 r'(?P=scan)\.fits')
 
-    def __init__(self, fitsfns, beamnum):
-        super(MockPsrfitsHeader, self).__init__(fitsfns, beamnum)
+    def __init__(self, fitsfns):
+        super(MockPsrfitsData, self).__init__(fitsfns, beamnum)
         # Note Puerto Rico doesn't observe daylight savings time
         # so it is 4 hours behind UTC all year
         dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1
@@ -389,41 +342,3 @@ class MockPsrfitsHeader(PsrfitsHeader):
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
-
-
-
-def print_usage():
-    print "header_uploader.py beam_num file1 [file2 ...]"
-
-
-if __name__=='__main__':
-    if len(sys.argv) < 3:
-        print_usage()
-        sys.exit(1)
-    beamnum = int(sys.argv[1])
-    fns = sys.argv[2:]
-    header = Header.autogen_header(fns, beamnum)
-
-    # Get query to upload
-    query = header.get_upload_sproc_call()
-   
-    ### FOR TESTING
-    print header
-    sys.stderr.write("EXITING BEFORE ACCESSING DATABASE (for testing purposes).\n")
-    sys.exit(2)
-    ###############
-
-    # Connect to DB
-    db = database.Database('palfa-common-copy')
-    db.cursor.execute(query)
-    db.cursor.commit()
-    
-    # Check to see if upload worked
-    result = db.cursor.fetchone()
-    if result < 0:
-        print "An error was encountered! (Error code: %d)" % result
-        sys.exit(1)
-    else:
-        print "Success! (Return value: %d)" % result
-
-    db.close()

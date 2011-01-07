@@ -8,10 +8,12 @@ Patrick Lazarus, Dec. 20th, 2010
 import re
 import sys
 import glob
+import atexit
 import os.path
 import tarfile
 import optparse
 import datetime
+import warnings
 
 import database
 
@@ -19,6 +21,17 @@ from formats import accelcands
 
 # get configurations from config file
 import config
+
+# A global dictionary to keep track of database connections
+db_connections = {}
+
+
+@atexit.register # register this function to be executed at exit time
+def close_db_connections():
+    """A function to close database connections at exit time.
+    """
+    for db in db_connections.values():
+        db.close()
 
 
 class Diagnostic(object):
@@ -38,9 +51,30 @@ class Diagnostic(object):
         raise NotImplementedError("Method 'get_diagnostic(...)' " \
                                     "is not implemented for %s." % self.__class__.__name__)
 
-    def upload(self):
-        raise NotImplementedError("Method 'upload(...)' " \
+    def upload(self, dbname='common', verbose=False):
+        if dbname not in db_connections:
+            db_connections[dbname] = database.Database(dbname)
+        db = db_connections[dbname]
+        query = self.get_upload_sproc_call()
+        db.cursor.execute(query)
+        db.conn.commit()
+        
+        if verbose:
+            # Check to see if upload worked
+            result = db.cursor.fetchone()
+            if result < 0:
+                raise DiagnosticError("An error was encountered! " \
+                                        "(Error code: %d)" % result)
+            else:
+                print "Success! (Return value: %d)" % result
+
+    def get_upload_sproc_call(self):
+        raise NotImplementedError("Method 'get_upload_sproc_call(...)' " \
                                     "is not implemented for %s." % self.__class__.__name__)
+    
+    def __str__(self):
+        s = self.get_upload_sproc_call()
+        return s.replace('@', '\n    @')
 
 
 class FloatDiagnostic(Diagnostic):
@@ -51,16 +85,17 @@ class FloatDiagnostic(Diagnostic):
         self.value = None # The diagnostic value to upload
         self.get_diagnostic()
 
-    def upload(self):
-        db.cursor.execute("EXEC spDiagnosticAdder " \
-                          "SET obs_name='%s', " % self.obs_name + \
-                          "    beam_id=%d, " % self.beam_id + \
-                          "    instit='%s', " % config.institution + \
-                          "    pipeline='%s', % config.pipeline + \
-                          "    version_number='%s', " % self.version_number + \
-                          "    diagnostic_type_name='%s', " % self.name + \
-                          "    diagnostic_type_description='%s', " % self.description + \
-                          "    diagnostic_value=%.12g;" % self.value)
+    def get_upload_sproc_call(self):
+        sprocstr = "EXEC spDiagnosticAdder " \
+            "@obs_name='%s', " % self.obs_name + \
+            "@beam_id=%d, " % self.beam_id + \
+            "@instit='%s', " % config.institution + \
+            "@pipeline='%s', " % config.pipeline + \
+            "@version_number='%s', " % self.version_number + \
+            "@diagnostic_type_name='%s', " % self.name + \
+            "@diagnostic_type_description='%s', " % self.description + \
+            "@diagnostic=%.12g" % self.value
+        return sprocstr
 
 
 class PlotDiagnostic(Diagnostic):
@@ -72,17 +107,18 @@ class PlotDiagnostic(Diagnostic):
         self.filedata = None # The binary file's data
         self.get_diagnostic()
 
-    def upload(self):
-        db.cursor.execute("EXEC spDiagnosticPlotAdder " \
-                          "SET obs_name='%s', " % self.obs_name + \
-                          "    beam_id=%d, " % self.beam_id + \
-                          "    instit='%s', " % config.institution + \
-                          "    pipeline='%s', % config.pipeline + \
-                          "    version_number='%s', " % self.version_number + \
-                          "    diagnostic_plot_type_name='%s', " % self.name + \
-                          "    diagnostic_plot_type_description='%s', " % self.description + \
-                          "    filename='%s', " % os.path.split(self.value)[-1] + \
-                          "    diagnostic_plot=0x%s;" % self.filedata.encode('hex'))
+    def get_upload_sproc_call(self):
+        sprocstr = "EXEC spDiagnosticPlotAdder " \
+            "@obs_name='%s', " % self.obs_name + \
+            "@beam_id=%d, " % self.beam_id + \
+            "@instit='%s', " % config.institution + \
+            "@pipeline='%s', " % config.pipeline + \
+            "@version_number='%s', " % self.version_number + \
+            "@diagnostic_plot_type_name='%s', " % self.name + \
+            "@diagnostic_plot_type_description='%s', " % self.description + \
+            "@filename='%s', " % os.path.split(self.value)[-1] + \
+            "@diagnostic_plot=0x%s" % self.filedata.encode('hex')
+        return sprocstr
 
 
 class RFIPercentageDiagnostic(FloatDiagnostic):
@@ -248,11 +284,8 @@ class DiagnosticError(Exception):
 
 
 def main():
-    # Connect to the database
-    global db
     warnings.warn("Connecting to common-copy DB at Cornell for testing...")
-    db = database.Database('common-copy')
-
+    
     # Define a list of diagnostics to apply
     diagnostic_types = [RFIPercentageDiagnostic,
                         RFIPlotDiagnostic,
@@ -275,11 +308,7 @@ def main():
             print "\nMoving along..."
             break
         else:
-            d.upload()
-            print "Uploaded (%s)" % d.value
-
-    # Close connection to the database
-    db.close()
+            d.upload('common-copy', verbose=options.verbose)
 
 
 if __name__ == '__main__':
@@ -302,5 +331,10 @@ if __name__ == '__main__':
                         help="Directory containing results from processing. " \
                              "Diagnostic information will be derived from the " \
                              "contents of this directory.")
-    (options, sys.argv) = parser.parse_args()
+    parser.add_option('--verbose', dest='verbose', action='store_true', \
+                        help="Print success/failure information to screen. " \
+                             "(Default: do not print).", \
+                        default=False)
+
+    options, args = parser.parse_args()
     main()

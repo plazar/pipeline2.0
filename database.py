@@ -48,8 +48,11 @@ elif sys.platform.startswith("linux"):
             }
     }
 
+
+# Set defaults
 DEFAULTDB = 'common'
 DATABASES['default'] = DATABASES[DEFAULTDB]
+
 
 class Database:
     """Database object for connecting to databases using pyodbc.
@@ -86,7 +89,11 @@ class Database:
     def close(self):
         """Close database connection.
         """
-        self.conn.close()
+        try:
+            self.conn.close()
+        except ProgrammingError:
+            # database connection is already closed
+            pass
 
     def showall(self):
         desc = self.cursor.description
