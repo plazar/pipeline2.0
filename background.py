@@ -27,7 +27,9 @@ def main():
 
     
     try:
+        #initialize new JobPool object to manage search jobs in QSUB
         jobpool = job.JobPool()
+        #entry point for JobPool to begin (fetch jobs via Database)
         jobpool.start()
         for j in jobpool.jobs:
             print j.jobname
@@ -36,11 +38,16 @@ def main():
         jobpool.status()
     
         while True:
-            jobpool.rotate()
+            #rotation function changes/updates the states and submits jobs
+            #that were created
+            try:
+                jobpool.rotate()
+            except Exception, e:
+                print "Error occured: %s" % str(e)
             time.sleep(60)
             
     except Exception, e:
-	print "Error occured: "+ str(e)
+	    print "Fatal occured: "+ str(e)
         #mailer = ErrorMailer("The following error has occured:\n"+str(e))
         #mailer.send()
         

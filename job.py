@@ -21,6 +21,7 @@ import dev
 from formats import psrfits
 
 import sqlite3
+import logging
 
 from mailer import ErrorMailer
 
@@ -32,14 +33,14 @@ class JobPool:
         self.cycles = 0
         self.merged_dict = {}
         
-
+    #Entry point for the JobPool to creat PulsarSearchJobs from Database
     def start(self):
-        print "Loading datafile(s)..."
-       
+        print "Loading datafile(s)..."       
         print "Creating Jobs from datafile(s)..."
         self.fetch_new_jobs()
         print "Created "+str(len(self.jobs))+" job(s)"
-        
+    
+    #Creates PulsarSearchJob(s) from datafiles added to the list -> self.datafiles    
     def create_jobs_from_datafiles(self,files_in = None):
         """Given a list of datafiles, group them into jobs.
             For each job return a PulsarSearchJob object.
@@ -61,7 +62,7 @@ class JobPool:
                     self.datafiles.append(datafile)
                     self.jobs.append(p_searchjob)
             except Exception,e:
-                print "Erro occured while creating a SearchJob: "+str(e)
+                print "Error occured while creating a SearchJob: "+str(e)
         
     def group_files(self, files_in):
         """Given a list of datafiles, group files that need to be merged before
@@ -128,6 +129,7 @@ class JobPool:
                 files_out.append(item)
         return files_out
 
+    #Removes a job from JobPool
     def delete_job(self, job):
         """Delete datafiles for PulsarSearchJob j. Update j's log.
             Archive j's log.
@@ -151,6 +153,7 @@ class JobPool:
         if job.jobname+".fits" in self.datafiles:
             self.datafiles.remove(job.jobname+".fits")
 
+    #Returns a list of files that Downloader marked Finished:* in the qlite3db
     def get_datafiles_from_db(self):
         didnt_get_files = True
         tmp_datafiles = []
@@ -173,7 +176,14 @@ class JobPool:
             except Exception,e:
                 print "Database error: "+ str(e)+" Retrying in 1 sec"
                     
-                    
+    def update_db_file_processed(self, job):
+        db_conn = sqlite3.connect("sqlite3db");
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+        fin_file_query = "UPDATE restore_downloads SET status = 'Processed' WHERE filename = '%s'" % (job.datafiles[0])
+        db_cur.execute(fin_file_query)
+        db_conn.commit()
+        db_conn.close()            
 
     def get_datafiles(self):
         """Return a list of data files found in:
@@ -187,7 +197,7 @@ class JobPool:
                 if re.match(config.rawdata_re_pattern, fn) is not None:
                     tmp_datafiles.append(os.path.join(dirpath, fn))
 		    print "Adding file:" + os.path.join(dirpath, fn)
-        return tmp_datafiles
+        return tmdebug.outp_datafiles
 
 
 
@@ -201,23 +211,45 @@ class JobPool:
         """
         raise NotImplementedError("upload_results() isn't implemented.")
 
+    #Progresess and reports status of the JobPool and Jobs that are being run
+    #or created for submitting to QSUB
     def rotate(self):
         print "Rotating through: "+ str(len(self.jobs)) +" jobs."
+
+        #update status of QSUB number of running and queued jobs
         numrunning, numqueued = self.get_queue_status()
         print "Jobs Running: "+ str(numrunning)
         print "Jobs Queued: "+ str(numqueued)
         cansubmit = (numqueued == 0) # Can submit a job if none are queued
         self.qsub_update_status()
 
-        
+        #For each job;
+        #if the job is new and we allow to submit(queued plus running jobs)
+        #the job will get submitted to qsub;
+        #otherwise the jobs is already submitted or it is terminated.
+        #If the job is submited and not terminated, then it means that it is 
+        #run or queued in QSUB, so no action should be taken;
+        #if the job is terminated then we see if errors were reported by QSUB, 
+        #if so check if we could start it again; if not the job is deleted
+        #due to multiple fails;
+        #If the job has terminated without errors then the processing is 
+        #assumed to be completed successfuly and upload of the results is called upon the job
         for job in self.jobs[:]:
             jobname = str(job.jobname)
             status, job.jobid = job.get_log_status()
             self.qsub_update_status()
-
-            if  job.status == PulsarSearchJob.NEW_JOB:
+            numrunning, numqueued = self.get_queue_status()
+            print "Jobs Running: "+ str(numrunning)
+            print "Jobs Queued: "+ str(numqueued)
+            
+            #check if it is a new job waiting for submission to QSUB
+            if  job.status == PulsarSearchJob.NEW_JOB and\
+             config.max_jobs_running > int(numrunning) + int(numqueued):
+                #the job is new and we allow more jobs for submission;
+                #see if the job can be started
                 if self.restart_job(job):
                     print "Submitting a job"
+                    #submit a job to QSUB
                     self.submit_job(job)
                 else:
                     print "Forbidden to restart this job - deleting"
@@ -225,7 +257,9 @@ class JobPool:
             elif job.status > PulsarSearchJob.NEW_JOB:
                 pass
             elif job.status == PulsarSearchJob.TERMINATED:
+                #check if the job terminated with errors
                 if self.qsub_job_error(job):
+                    #if error occured try to restart the job
                     if self.restart_job(job):
                         print "Resubmitting a job: "+ job.jobid
                         self.submit_job(job)
@@ -234,6 +268,10 @@ class JobPool:
                         self.delete_job(job)
                 else:
                     #if job terminated with no errors - upload the results
+                    try:
+                        self.update_db_file_processed(job)
+                    except Exception,e:
+                        print "*\n*\n*Failed to update file status to Processed: "+ str(e) +"*\n*\n*"
                     self.upload_results(job)
 
 
@@ -249,6 +287,7 @@ class JobPool:
 
         self.fetch_new_jobs()
 
+    #Submit a search job to QSUB
     def submit_job(self, job):
         """Submit PulsarSearchJob job to the queue. Update job's log.
         """
@@ -262,12 +301,12 @@ class JobPool:
         jobid = pipe.communicate()[0]
         job.jobid = jobid.rstrip()
         print "Job ID:", job.jobid
-       
         pipe.stdin.close()
 
 #        job.jobid = dev.get_fake_job_id()
 #        dev.write_fake_qsub_error(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
 
+        #Change status of the job to Submited and log
         job.status = PulsarSearchJob.SUBMITED
         job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
                                         info="Job ID: %s" % job.jobid.strip()))
@@ -295,14 +334,12 @@ class JobPool:
                     else:
                         self.demand_file_list[d] = 1
          
-
     def get_queue_status(self):
         """Connect to the PBS queue and return the number of
             survey jobs running and the number of jobs queued.
 
             Returns a 2-tuple: (numrunning, numqueued).
         """
-        return (0,0)
     
         batch = PBSQuery.PBSQuery()
         alljobs = batch.getjobs()
@@ -344,6 +381,8 @@ class JobPool:
         else:
             return False
     
+    #Updates for each job in JobPool the status according to the PBSQuery
+    #batch job status
     def qsub_update_status(self):
         """Updates JobPool Jobs using from qsub queue and qsub error logs.
         """
@@ -359,6 +398,8 @@ class JobPool:
                 if job.status > PulsarSearchJob.NEW_JOB:
                     job.status = PulsarSearchJob.TERMINATED
 
+    #Determines if the Job should be restarted
+    #returns Tdebug.outrue or False
     def restart_job(self, job):
         log_status, job.jobid = job.get_log_status()
         self.qsub_job_error(job)
@@ -379,33 +420,32 @@ class JobPool:
             return False
         pass
 
+    #Fetchs new jobs from datafiles. Only adds jobs for files that are not already
+    #being used by another job
     def fetch_new_jobs(self):
-#        print "=====================================  Fetching new jobs"
         files_to_x_check = self.get_datafiles_from_db()
 #        files_to_x_check = self.get_datafiles()
-#        print "Files found: "+ str(len(files_to_x_check))
         for file in self.datafiles:
             if file in files_to_x_check:
                 files_to_x_check.remove(file)
-#        print "Files kept: "+str(len(files_to_x_check))
 
         for file in files_to_x_check:
-	    try:
-            	tmp_job = PulsarSearchJob([file])
-           	if not self.restart_job(tmp_job):
-                    print "Removing file: "+ file
-                    self.delete_job(tmp_job)
-                    files_to_x_check.remove(file)
-                else:
-                    print "Will not remove file because i can restart the job: "+ file
-	    except Exception, e:
-                print "Error while creating a PulsarSearchJob: "+str(e)
+	        try:
+	            tmp_job = PulsarSearchJob([file])
+	            if not self.restart_job(tmp_job):
+	                print "Removing file: "+ file
+	                self.delete_job(tmp_job)
+	                files_to_x_check.remove(file)
+	            else:
+	                print "Will not remove file because i can restart the job: "+ file
+	        except Exception, e:
+	            print "Error while creating a PulsarSearchJob: "+str(e)
 
-#        print "Files left to add to queue: "+ str(len(files_to_x_check))
         self.create_jobs_from_datafiles(files_to_x_check)
-#        print "===================================== END END END  Fetching new jobs"
 
 
+#The following class represents a search job that is either waiting to be submitted
+#to QSUB or is running
 class PulsarSearchJob:
     """A single pulsar search job object.
     """
@@ -431,6 +471,8 @@ class PulsarSearchJob:
         self.log = JobLog(self.logfilenm, self)
         self.status = self.NEW_JOB
 
+    #Base on filename to be processed returns a full path of
+    #presto output directory for results of search
     def get_output_dir(self,in_datafiles=None):
         if not in_datafiles:
             in_datafiles = self.datafiles
@@ -442,8 +484,8 @@ class PulsarSearchJob:
             raise Exception('Could not get input filename(s)')
 
         if not os.path.isfile(filename):
-	    print "------------"+ filename
-            raise Exception('File with the given path doesn\'t exists.')
+	        print "------------"+ filename
+	        raise Exception('File with the given path doesn\'t exists.')
         elif filename[len(filename)-5:] != ".fits":
             raise Exception('Unrecognized input file extension.')
 
