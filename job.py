@@ -378,12 +378,13 @@ class JobPool:
     #returns Tdebug.outrue or False
     def can_start_job(self, job):
         #TODO: is this needed. We can change check_for_qsub_job_errors to use filename instead of jobid
+        if(job.count_status("deleted") > 0):
+            return False
+
         log_status, job.jobid = job.get_log_status()
         self.check_for_qsub_job_errors(job)
-
         numfails = job.count_status("processing failed")
-        deleted = job.count_status("deleted")
-        if (numfails > config.max_attempts or deleted > 0):
+        if (numfails > config.max_attempts):
             return False
 
         return True
