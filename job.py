@@ -452,9 +452,9 @@ class PulsarSearchJob:
             raise Exception('Could not get input filename(s)')
 
         if not os.path.isfile(filename):
-	        print "------------"+ filename
-	        raise Exception('File with the given path doesn\'t exists.')
-        elif filename.endswith(".fits"):
+	    print "------------"+ filename
+	    raise Exception('File with the given path doesn\'t exists.')
+        elif not filename.endswith(".fits"):
             raise Exception('Unrecognized input file extension.')
 
 
