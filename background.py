@@ -29,18 +29,13 @@ def main():
     try:
         #initialize new JobPool object to manage search jobs in QSUB
         jobpool = job.JobPool()
-        #entry point for JobPool to begin (fetch jobs via Database)
-        jobpool.start()
-        for j in jobpool.jobs:
-            print j.jobname
-            print j.get_log_status()
-   
-        jobpool.status()
-    
+        jobpool.recover_from_qsub()
         while True:
             #rotation function changes/updates the states and submits jobs
             #that were created
             try:
+                jobpool.fetch_new_jobs()
+                jobpool.status()
                 jobpool.rotate()
             except Exception, e:
                 print "Error occured: %s" % str(e)
