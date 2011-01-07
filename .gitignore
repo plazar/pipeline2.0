@@ -1,6 +1,8 @@
 *.pyc
 *.swp
 *batchjob*
+*.out
+log/
 log_archive/
 qsublog/
 nbproject/
