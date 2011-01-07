@@ -26,7 +26,7 @@ date_re = re.compile(r'^(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})$')
 time_re = re.compile(r'^(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})$')
 
 
-def autogen_dataobj(cls, fns, *args, **kwargs):
+def autogen_dataobj(fns, *args, **kwargs):
     """Automatically generate a Data object.
         More specifically: Given a list of filenames
         find out which subclass of Data is appropriate

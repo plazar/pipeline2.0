@@ -16,7 +16,7 @@ import pprint
 
 import PBSQuery
 
-import header_uploader
+import datafile
 import config
 import dev
 
@@ -427,40 +427,24 @@ class PulsarSearchJob:
         self.log = JobLog(self.logfilenm, self)
         self.status = self.NEW_JOB
 
-    def get_output_dir(self,in_datafiles=None):
-        if not in_datafiles:
-            in_datafiles = self.datafiles
-        if isinstance(in_datafiles, list):
-            filename=in_datafiles[0]
-        elif isinstance(in_datafiles, string):
-            filename=in_datafiles
-        else:
-            raise Exception('Could not get input filename(s)')
-
-        if not os.path.isfile(filename):
-	    print "------------"+ filename
-            raise Exception('File with the given path doesn\'t exists.')
-        elif filename[len(filename)-5:] != ".fits":
-            raise Exception('Unrecognized input file extension.')
-
-
-        # for the file: p2030.20100810.B2020+28.b0s0g0.00100.fits
-        #    rawdata basename: p2030.20100810.B2020+28.b0s0g0.00100
-        #    beam number: 0 (from b0)
-        #    processing date: (not from file name)
-        #    mjd: (Read from the file header using the psrfits module.)
-        
-        print "----->"+ filename
-	parsed = header_uploader.Header.autogen_header([filename])
-        mjd = int(parsed.timestamp_mjd)
-        beam_num = parsed.beam_id
-        obs_name = parsed.obs_name
-        
-
-        try:
-            beam_num = parsed.beam_id #int(basename[len(basename)-16:len(basename)-15])
-        except ValueError:
-            raise Exception("Could not determine raw file's beam number.")
+    def get_output_dir(self):
+        """Generate path to output job's results.
+            
+            path is: 
+                {base_results_directory/{mjd}/{obs_name}/{beam_num}/{proc_date}/
+            Note: 'base_results_directory' is defined in the config file.
+                    'mjd', 'obs_name', and 'beam_num' are from parsing
+                    the job's datafiles. 'proc_date' is the current date
+                    in YYMMDD format.
+        """
+        print "----->"+ self.datafiles
+	
+        data = datafile.autogen_dataobj(self.datafiles)
+        if not isinstance(data, datafile.PsrfitsData)
+            raise Exception("Data must be of PSRFITS format.")
+        mjd = int(data.timestamp_mjd)
+        beam_num = data.beam_id
+        obs_name = data.obs_name
         
         proc_date=datetime.datetime.now().strftime('%y%m%d')
         
