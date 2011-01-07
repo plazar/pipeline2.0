@@ -91,6 +91,7 @@ def main():
    
     print "Local working directory:", workdir
     print "Local results directory:", resultsdir
+    resultshost = config.results_directory_host
     if resultshost is not None:
         print "When finished results will be copied to: %s:%s" % \
                     (resultshost, outdir)
@@ -107,9 +108,9 @@ def main():
     presto_search.main(fns, workdir, resultsdir)
 
     # Copy search results to outdir
-    resultshost = config.results_directory_host
+    
     if resultshost is not None:
-        os.system("ssh %s -- mkdir -m 750 -p %s" % (config.results_directory_host, outdir)
+        os.system("ssh %s -- mkdir -m 750 -p %s" % (config.results_directory_host, outdir))
         os.system("rsync -auvl %s/ %s:%s" % (resultsdir, config.results_directory_host, \
                                             outdir))
     else:

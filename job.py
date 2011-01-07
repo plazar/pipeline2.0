@@ -446,10 +446,9 @@ class PulsarSearchJob:
                     the job's datafiles. 'proc_date' is the current date
                     in YYMMDD format.
         """
-        print "----->"+ self.datafiles
 	
         data = datafile.autogen_dataobj(self.datafiles)
-        if not isinstance(data, datafile.PsrfitsData)
+        if not isinstance(data, datafile.PsrfitsData):
             raise Exception("Data must be of PSRFITS format.")
         mjd = int(data.timestamp_mjd)
         beam_num = data.beam_id
@@ -457,8 +456,9 @@ class PulsarSearchJob:
         
         proc_date=datetime.datetime.now().strftime('%y%m%d')
         
-        presto_outdir = os.path.join(config.base_results_directory, mjd, \
-                                        obs_name, beam_num, proc_date)
+        
+        presto_outdir = os.path.join(config.base_results_directory, str(mjd), \
+                                        str(obs_name), str(beam_num), proc_date)
         
         # Directory should be made by rsync when results are 
         # copied by PALFA2_presto_search.py -PL Dec. 26, 2010
