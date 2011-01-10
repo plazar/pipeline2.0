@@ -301,6 +301,9 @@ class SpectraInfo:
         # A few extras
         self.start_lst = primary['STT_LST']
 
+        # Close the psrfits file
+        hdus.close()
+
     def __str__(self):
         """Format spectra_info's information into a easy to
             read string and return it.

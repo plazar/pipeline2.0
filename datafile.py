@@ -12,7 +12,9 @@ import re
 import warnings
 import types
 
+import pyfits
 import numpy as np
+
 from astro_utils import sextant
 from astro_utils import protractor
 from astro_utils import calendar
@@ -53,8 +55,9 @@ class Data(object):
     # This variable should be overridden by subclasses of Header
     filename_re = re.compile('$x^')
 
-    def __init__(self):
-        raise NotImplementedError("Constructor not implemented for abstract class Data.")
+    def __init__(self, fns):
+        self.fns = fns
+        self.posn_corrected = False # Have RA/Dec been corrected in file header
 
     def get_correct_positions(self):
         """Reconstruct original wapp filename and check
@@ -84,16 +87,17 @@ class Data(object):
             self.galactic_latitude = self.orig_galactic_latitude
         elif len(matches) == 1:
             # Use values from coords table
+            self.posn_corrected = True
             if self.beam_id % 2:
                 # Even beam number. Use columns 2 and 3.
-                ra, decl = matches[0].split()[1:3]
+                self.correct_ra, self.correct_decl = matches[0].split()[1:3]
             else:
-                ra, decl = matches[0].split()[3:5]
-            self.right_ascension = float(ra.replace(':', ''))
-            self.declination = float(decl.replace(':', ''))
-            self.ra_deg = float(protractor.convert(ra, 'hmsstr', 'deg')[0])
-            self.dec_deg = float(protractor.convert(decl, 'dmsstr', 'deg')[0])
-            l, b = sextant.equatorial_to_galactic(ra, decl, \
+                self.correct_ra, self.correct_decl = matches[0].split()[3:5]
+            self.right_ascension = float(self.correct_ra.replace(':', ''))
+            self.declination = float(self.correct_decl.replace(':', ''))
+            self.ra_deg = float(protractor.convert(self.correct_ra, 'hmsstr', 'deg')[0])
+            self.dec_deg = float(protractor.convert(self.correct_decl, 'dmsstr', 'deg')[0])
+            l, b = sextant.equatorial_to_galactic(self.correct_ra, self.correct_decl, \
                                     'sexigesimal', 'deg', J2000=True)
             self.galactic_longitude = float(l[0])
             self.galactic_latitude = float(b[0])
@@ -128,6 +132,7 @@ class WappData(Data):
     def __init__(self, wappfns, beamnum):
         """WAPP Data object constructor.
         """
+        super(WappData, self).__init__(wappfns)
         # Open wapp files, sort by offset since start of observation
         cmp_offset = lambda w1,w2: cmp(w1.header['timeoff'], w2.header['timeoff'])
         self.wapps = sorted([wapp.wapp(fn) for fn in wappfns], cmp=cmp_offset)
@@ -237,11 +242,11 @@ class DumpOfWappData(WappData):
                                 r'(?P<sec>\d{5})_(?P<scan>\d{4})_' \
                                 r'(?P<source>.*)_(?P<beam>\d)\.w4bit\.wapp_hdr$')
 
-    def __init__(self, fns):
+    def __init__(self, wappfns):
         """Dump of PALFA WAPP Data constructor.
         """
         # Beam number will be gotten from file name
-        super(DumpOfWappData, self).__init__(fns, None)
+        super(DumpOfWappData, self).__init__(wappfns, None)
         # The file provided has no data, thus we cannot determine sizes
         self.data_size = -1
         self.file_size = -1
@@ -258,8 +263,9 @@ class PsrfitsData(Data):
     def __init__(self, fitsfns):
         """PSR fits Header object constructor.
         """
+        super(PsrfitsData, self).__init__(fitsfns)
         # Read information from files
-        self.specinfo = psrfits.SpectraInfo(fitsfns)
+        self.specinfo = psrfits.SpectraInfo(self.fns)
         self.original_file = os.path.split(sorted(self.specinfo.filenames)[0])[-1]
         self.beam_id = self.specinfo.beam_id
         if self.beam_id is None:
@@ -318,6 +324,19 @@ class WappPsrfitsData(PsrfitsData):
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
+
+    def update_positons(self):
+        """Update positions in raw data file's header.
+            
+            Note: This cannot be undone!
+        """
+        if self.posn_corrected:
+            for fn in self.fns:
+                hdus = pyfits.open(fn, mode='update')
+                primary = hdus['PRIMARY'].header
+                primary['RA'] = self.correct_ra 
+                primary['DEC'] = self.correct_decl
+                hdus.close() # hdus are updated at close-time
 
 
 class MockPsrfitsData(PsrfitsData):

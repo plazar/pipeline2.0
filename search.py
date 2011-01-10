@@ -103,12 +103,11 @@ def main():
         os.system("rsync -auvl %s %s" % (fn, workdir))
 
     fns = [os.path.join(workdir, os.path.split(fn)[-1]) for fn in fns]
-   
+
     presto_search = config.init_presto_search()
     presto_search.main(fns, workdir, resultsdir)
 
     # Copy search results to outdir
-    
     if resultshost is not None:
         os.system("ssh %s -- mkdir -m 750 -p %s" % (config.results_directory_host, outdir))
         os.system("rsync -auvl %s/ %s:%s" % (resultsdir, config.results_directory_host, \

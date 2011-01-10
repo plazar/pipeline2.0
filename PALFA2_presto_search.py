@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import glob
 import os
 import os.path
@@ -16,7 +17,8 @@ import numpy as np
 import psr_utils
 import presto
 import sifting
-from formats import psrfits
+
+import datafile
 
 # Basic parameters
 # institution is one of: 'UBC', 'NRAOCV', 'McGill', 'Columbia', 'Cornell', 'UTB'
@@ -252,7 +254,8 @@ class obs_info:
         self.basefilenm = os.path.split(filenms[0])[1].rstrip(".fits")
         
         # Read info from PSRFITS file
-        spec_info = psrfits.SpectraInfo(filenms)
+        data = datafile.autogen_dataobj(fns)
+        spec_info = data.specinfo
         self.backend = spec_info.backend
         self.MJD = spec_info.start_MJD[0]
         self.ra_string = spec_info.ra_str
@@ -268,14 +271,11 @@ class obs_info:
         self.nchan = spec_info.num_channels
         self.samp_per_row = spec_info.spectra_per_subint
         self.fctr = spec_info.fctr
-        #
-        ###################################################
-        # Should we worry about correcting faulty positions
-        # in the file header?
-        # Say, for wapp2psrfits files?
-        # -PL
-        ###################################################
-        #
+  
+        # Correct positions in data file headers for WappPsrfitsData
+        if isinstance(data, datafile.WappPsrfitsData):
+            data.update_positions()
+        
         # Determine the average barycentric velocity of the observation
         self.baryv = get_baryv(self.ra_string, self.dec_string,
                                self.MJD, self.T, obs="AO")
