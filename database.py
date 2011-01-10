@@ -57,22 +57,26 @@ DATABASES['default'] = DATABASES[DEFAULTDB]
 class Database:
     """Database object for connecting to databases using pyodbc.
     """
-    def __init__(self, db="default"):
+    def __init__(self, db="default", autocommit=True):
         """Constructor for Database object.
             
             Input:
                 'db': database to connect to. (Default: 'default')
                         (gets passed to 'self.connect')
+                'autocommit': boolean, determines if autocommit should
+                                be turned on or off.
         """
         self.db = db
-        self.connect(db)
+        self.connect(db, autocommit=autocommit)
     
-    def connect(self, db="default"):
+    def connect(self, db="default", autocommit=True):
         """Establish a database connection. Set self.conn and self.cursor.
             
             Input:
                 'db': databse to connect to. Must be a key in module's
                         DATABASES dict. (Default: 'default')
+                'autocommit': boolean, determines if autocommit should
+                                be turned on or off.
             Output:
                 None
         """
@@ -80,8 +84,11 @@ class Database:
             warnings.warn("Database (%s) not recognized. Using default (%s)." \
                             % (db, DEFAULTDB))
             db = 'default'
-        self.conn = pyodbc.connect(**DATABASES[db])    
+        self.conn = pyodbc.connect(autocommit=autocommit, **DATABASES[db])   
         self.cursor = self.conn.cursor()
+
+    def execute(self, *args, **kwargs):
+        self.cursor.execute(*args, **kwargs)
 
     def commit(self):
         self.conn.commit()

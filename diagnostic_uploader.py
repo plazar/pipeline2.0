@@ -51,23 +51,15 @@ class Diagnostic(object):
         raise NotImplementedError("Method 'get_diagnostic(...)' " \
                                     "is not implemented for %s." % self.__class__.__name__)
 
-    def upload(self, dbname='common', verbose=False):
+    def upload(self, dbname='common'):
         if dbname not in db_connections:
             db_connections[dbname] = database.Database(dbname)
         db = db_connections[dbname]
         query = self.get_upload_sproc_call()
         db.cursor.execute(query)
-        db.conn.commit()
+        result = db.cursor.fetchone()[0]
+        return result
         
-        if verbose:
-            # Check to see if upload worked
-            result = db.cursor.fetchone()
-            if result < 0:
-                raise DiagnosticError("An error was encountered! " \
-                                        "(Error code: %d)" % result)
-            else:
-                print "Success! (Return value: %d)" % result
-
     def get_upload_sproc_call(self):
         raise NotImplementedError("Method 'get_upload_sproc_call(...)' " \
                                     "is not implemented for %s." % self.__class__.__name__)
@@ -210,10 +202,10 @@ class MinSigmaFoldedDiagnostic(FloatDiagnostic):
                     "from this beam."
 
     def get_diagnostic(self):
-        raise NotImplementedError("Need to cross-check png files with accelcands list.")
         # find *.accelcands file
         candlists = glob.glob(os.path.join(self.directory, "*.accelcands"))
-        pfdpngs = glob.glob(os.path.join(self.directory, "*.pfd.png"))
+        pfdpngs = [os.path.split(fn)[-1] for fn in \
+                    glob.glob(os.path.join(self.directory, "*.pfd.png"))]
 
         if len(candlists) != 1:
             raise DiagnosticError("Wrong number of candidate lists found (%d)!" % \
@@ -225,6 +217,15 @@ class MinSigmaFoldedDiagnostic(FloatDiagnostic):
             pngfn = "%s_Z%s_ACCEL_Cand_%d.pfd.png" % (base, accel, c.candnum)
             if pngfn in pfdpngs:
                 sigmas.append(c.sigma)
+        if len(pfdpngs) > len(sigmas):
+            raise DiagnosticError("Not all *.pfd.png images were found " \
+                                    "in candlist! (%d > %d)" % \
+                                    (len(pfdpngs), len(sigmas)))
+        elif len(pfdpngs) < len(sigmas):
+            raise DiagnosticError("Some *.pfd.png image match multiple " \
+                                    "entries in candlist! (%d < %d)" % \
+                                    (len(pfdpngs), len(sigmas)))
+
         self.value = min(sigmas)
 
 
@@ -241,7 +242,9 @@ class NumAboveThreshDiagnostic(FloatDiagnostic):
             raise DiagnosticError("Wrong number of candidate lists found (%d)!" % \
                                     len(candlists))
         candlist = accelcands.parse_candlist(candlists[0])
-        self.value = len([c for c in candlist if c.sigma >= config.to_prepfold_sigma])
+        presto_search = config.init_presto_search()
+        self.value = len([c for c in candlist \
+                            if c.sigma >= presto_search.to_prepfold_sigma])
 
 
 def find_in_tarballs(dir, matchfunc):
@@ -283,7 +286,25 @@ class DiagnosticError(Exception):
     pass
 
 
-def main():
+class DiagnosticUploadError(Exception):
+    """Error to throw when a diagnostic problem specifically 
+        concerning uploading is encountered.
+    """
+    pass
+
+
+def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False):
+    """Upload diagnostic to common DB.
+        
+        Inputs:
+            obsname:
+            beamnum:
+            versionnum:
+            directory:
+            verbose:
+        Outputs:
+            None
+    """
     warnings.warn("Connecting to common-copy DB at Cornell for testing...")
     
     # Define a list of diagnostics to apply
@@ -296,19 +317,30 @@ def main():
                         NumAboveThreshDiagnostic,
                        ]
 
+    results = []
     # Loop over diagnostics, adding missing values to the DB
     for diagnostic_type in diagnostic_types:
         print "Working on %s" % diagnostic_type.name
-        try:
-            d = diagnostic_type(options.obsname, options.beamnum, \
-                                options.versionnum, options.directory)
-        except DiagnosticError, e:
-            print "Error caught. %s. Skipping..." % e
-        except KeyboardInterrupt:
-            print "\nMoving along..."
-            break
-        else:
-            d.upload('common-copy', verbose=options.verbose)
+        d = diagnostic_type(obsname, beamnum, \
+                            versionnum, directory)
+        result = d.upload('common-copy')
+
+        if verbose:
+            # Check to see if upload worked
+            if result < 0:
+                raise DiagnosticUploadError("An error was encountered! " \
+                                    "(Error code: %d)" % result)
+            else:
+                print "\tSuccess! (Return value: %d)" % result
+        results.append(result)
+    return results
+
+
+
+def main():
+    upload_diagnostics(options.obsname, options.beamnum, \
+                        options.versionnum, options.directory, \
+                        options.verbose)
 
 
 if __name__ == '__main__':
