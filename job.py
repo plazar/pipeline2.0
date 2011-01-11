@@ -470,7 +470,7 @@ class PulsarSearchJob:
             response = pipe.communicate()[0]
             pipe.stdin.close()
             batch = PBSQuery.PBSQuery().getjobs()
-            if not (self.jobid in batch):
+            if not (self.jobid in batch) or 'E' in batch[self.jobid]['job_state']:
                 return True
         return False
         
