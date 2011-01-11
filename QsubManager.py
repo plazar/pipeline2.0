@@ -37,8 +37,7 @@ class Qsub(PipelineQueueManager):
         response = pipe.communicate()[0]
         pipe.stdin.close()
         batch = PBSQuery.PBSQuery().getjobs()
-        if not (self.jobid in batch) or 'E' in batch[self.jobid]['job_state']:
-            self.jobid = None
+        if not (jobid_str in batch) or 'E' in batch[jobid_str]['job_state']:
             return True
         return False
     
