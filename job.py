@@ -248,6 +248,7 @@ class JobPool:
              config.max_jobs_running > int(numrunning) + int(numqueued):
                 #the job is new and we allow more jobs for submission;
                 #see if the job can be started
+                job.get_qsub_status()
                 self.attempt_to_start_job(job)
             elif job.status == PulsarSearchJob.TERMINATED:
                 #check if the job terminated with errors
@@ -266,24 +267,11 @@ class JobPool:
     def attempt_to_start_job(self,job):
         if self.can_start_job(job):
             print "Submitting the job: "+ job.jobid
-            self.submit_job(job)
+            job.submit()
         else:
             print "Removing the job: Multiple fails: "+job.jobname
             self.delete_job(job)
 
-    #Submit a search job to QSUB
-    def submit_job(self, job):
-        """Submit PulsarSearchJob job to the queue. Update job's log.
-        """
-        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s search.py' % \
-                            (','.join(job.datafiles), job.get_output_dir(), config.resource_list, \
-                                    config.job_basename, 'qsublog')
-        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
-
-        jobid = pipe.communicate()[0]
-        job.jobid = jobid.rstrip()
-        print "Job ID:", job.jobid
-        pipe.stdin.close()
 
 #        job.jobid = dev.get_fake_job_id()
 #        dev.write_fake_qsub_error(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
@@ -336,21 +324,6 @@ class JobPool:
                 elif 'Q' in batch[j]['job_state']:
                     numqueued += 1
         return (numrunning, numqueued)
-
-    def update_status_from_qsub(self):
-        """Updates for each job in JobPool the status according to the PBSQuery
-            batch job status.
-        """
-        for job in self.jobs:
-            batch = PBSQuery.PBSQuery().getjobs()
-            if job.jobid in batch:
-                if 'R' in batch[job.jobid]['job_state']:
-                    job.status = PulsarSearchJob.SUBMITED_RUNNING
-                elif 'Q' in batch[job.jobid]['job_state']:
-                    job.status = PulsarSearchJob.SUBMITED_QUEUED
-            else:
-                if job.status > PulsarSearchJob.NEW_JOB:
-                    job.status = PulsarSearchJob.TERMINATED
 
 #TODO: recreate search jobs from qsub
     def recover_from_qsub(self):
@@ -470,6 +443,23 @@ class PulsarSearchJob:
         
         return presto_outdir
 
+    #Submit a search job to QSUB
+    def submit(self):
+        """Submit PulsarSearchJob job to the queue. Update job's log.
+        """
+        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s search.py' % \
+                            (','.join(self.datafiles), self.get_output_dir(), config.resource_list, \
+                                    config.job_basename, 'qsublog')
+        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
+        jobid = pipe.communicate()[0]
+        
+        if not jobid:
+            return False
+        
+        self.jobid = jobid.rstrip()        
+        print "Job ID:", job.jobid
+        pipe.stdin.close()
+        return True
         
     def get_log_status(self):
         """Get and return the status of the most recent log entry.
@@ -498,6 +488,23 @@ class PulsarSearchJob:
             raise ValueError("First data file is not a FITS file!" \
                              "\n(%s)" % datafile0)
         return jobname
+    
+    def get_qsub_status(self):
+        """Updates job's status according to the PBSQuery
+            batch job status.
+        """
+        
+        if self.jobid == None:
+            return
+        
+        batch = PBSQuery.PBSQuery().getjobs()
+        if self.jobid in batch:
+            if 'R' in batch[job.jobid]['job_state']:
+                job.status = PulsarSearchJob.SUBMITED_RUNNING
+            elif 'Q' in batch[job.jobid]['job_state']:
+                job.status = PulsarSearchJob.SUBMITED_QUEUED
+        else:
+            job.status = PulsarSearchJob.TERMINATED
 
 class JobLog:
     """A object for reading/writing logfiles for search jobs.

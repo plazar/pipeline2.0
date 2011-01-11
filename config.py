@@ -125,4 +125,7 @@ mailer_smtp_password = 'dod235328'
 mailer_to = 'snipka@gmail.com' # Notifications will be sent to the set email
 mailer_from = None  #To show the mailing from address
 
-
+################################################################
+# Background Script Configuration
+################################################################
+bgs_sleep = 60 #sleep time for background script in seconds
