@@ -6,6 +6,7 @@ print "Creating the job..."
 sj = job.PulsarSearchJob(datafile)
 print "Submitting the job to QSUB..."
 sj.submit()
+print "Qsub jobid: %s" % sj.jobid
 print "Getting QSUB status of the job..."
 sj.get_qsub_status()
 print "Status: %s " % str(sj.status)
