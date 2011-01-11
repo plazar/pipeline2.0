@@ -20,7 +20,7 @@ import config
 import dev
 
 from QsubManager import Qsub
-import QsubManager
+from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = Qsub
 
 
