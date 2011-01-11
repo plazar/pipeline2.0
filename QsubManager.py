@@ -39,6 +39,7 @@ class Qsub(PipelineQueueManager):
         batch = PBSQuery.PBSQuery().getjobs()
         if not (jobid_str in batch) or 'E' in batch[jobid_str]['job_state']:
             return True
+        print "Returning false here"
         return False
     
     @staticmethod
