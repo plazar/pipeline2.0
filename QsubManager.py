@@ -2,6 +2,7 @@ import config
 from PipelineQueueManager import PipelineQueueManager
 import PBSQuery
 import subprocess
+import os
 
 class Qsub(PipelineQueueManager):
     
