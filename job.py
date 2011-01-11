@@ -457,7 +457,7 @@ class PulsarSearchJob:
             return False
         
         self.jobid = jobid.rstrip()        
-        print "Job ID:", job.jobid
+        print "Job ID:", self.jobid
         pipe.stdin.close()
         return True
         
