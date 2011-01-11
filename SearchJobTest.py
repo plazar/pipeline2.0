@@ -12,3 +12,4 @@ sj.get_qsub_status()
 print "Status: %s " % str(sj.status)
 print "Removing the job from QSUB..."
 print "Removed?: %s" % sj.delete()
+print "Errors while running the job?: %s" % sj.queue_error()

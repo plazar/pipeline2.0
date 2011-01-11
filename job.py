@@ -324,11 +324,11 @@ class JobPool:
         """Check if qsub job terminated with an error.
             Return True if the job terminated with the error, False otherwise.
         """
-        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0])):
-            if os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0])) > 0:
-                job.log.addentry(LogEntry(qsubid=job.jobid, status="Processing failed", host=socket.gethostname(), \
-                                        info="Job ID: %s" % job.jobid.strip()))
-                return True
+        
+        if QueueManagerClass.error(job.jobid):
+            job.log.addentry(LogEntry(qsubid=job.jobid, status="Processing failed", host=socket.gethostname(), \
+                info="Job ID: %s" % job.jobid.strip()))
+            return True
         else:
             return False
     
@@ -485,6 +485,17 @@ class PulsarSearchJob:
             self.status = PulsarSearchJob.TERMINATED
         
         return self.status
+    
+    def queue_error(self):
+        """Check if queued job terminated with an error.
+            Return True if the job terminated with the error, False otherwise.
+        """
+        if QueueManagerClass.error(self.jobid):
+            self.log.addentry(LogEntry(qsubid=self.jobid, status="Processing failed", host=socket.gethostname(), \
+                info="Job ID: %s" % self.jobid.strip()))
+            return True
+        else:
+            return False
         
        
 

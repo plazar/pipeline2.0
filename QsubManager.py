@@ -56,3 +56,11 @@ class Qsub(PipelineQueueManager):
                 elif 'Q' in batch[j]['job_state']:
                     numqueued += 1
         return (numrunning, numqueued)
+    
+    @staticmethod
+    def error(jobid_str):
+        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])):
+            if os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])) > 0:
+                return True
+        else:
+            return False
