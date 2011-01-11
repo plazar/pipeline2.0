@@ -440,6 +440,7 @@ class PulsarSearchJob:
         if self.jobid:
             if QueueManagerClass.delete(self.jobid):
                 self.jobid = None
+                return True
         return False
        
         
