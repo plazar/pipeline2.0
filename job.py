@@ -438,7 +438,7 @@ class PulsarSearchJob:
         """Remove PulsarSearchJob job from the queue.
         """
         if self.jobid:
-            return QueueManagerClass(self.jobid)
+            return QueueManagerClass.delete(self.jobid)
         return False
        
         
