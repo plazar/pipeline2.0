@@ -6,3 +6,4 @@ sj.submit()
 sj.get_qsub_status()
 print "status: %s " % str(sj.status)
 
+print sj.delete()

@@ -460,6 +460,20 @@ class PulsarSearchJob:
         print "Job ID:", self.jobid
         pipe.stdin.close()
         return True
+    
+    def delete(self):
+        """Remove PulsarSearchJob job from the queue.
+        """
+        if self.jobid:
+            cmd = "qdel %s" % self.jobid
+            pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
+            response = pipe.communicate()[0]
+            pipe.stdin.close()
+            batch = PBSQuery.PBSQuery().getjobs()
+            if not (self.jobid in batch):
+                return True
+        return False
+        
         
     def get_log_status(self):
         """Get and return the status of the most recent log entry.
