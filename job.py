@@ -15,10 +15,12 @@ import shutil
 import pprint
 
 import logging
-import PBSQuery
 import datafile
 import config
 import dev
+
+from QsubManager import Qsub
+QueueManagerClass = Qsub
 
 
 from mailer import ErrorMailer
@@ -234,21 +236,17 @@ class JobPool:
             assumed to be completed successfuly and upload of the results is called upon the job
         '''
         print "Rotating through: "+ str(len(self.jobs)) +" jobs."
+        numrunning, numqueued = self.get_qsub_status()
         for job in self.jobs[:]:
-            #TODO: Do we still need this. Do we already have the jobid
-            status, job.jobid = job.get_log_status()
-            self.update_status_from_qsub()
-            numrunning, numqueued = self.get_status_from_qsub()
+            job.get_qsub_status()
+            
             print "Jobs Running: "+ str(numrunning)
             print "Jobs Queued: "+ str(numqueued)
             
-            if job.status > PulsarSearchJob.NEW_JOB:
-                pass
-            elif  job.status == PulsarSearchJob.NEW_JOB and\
+            if  job.status == PulsarSearchJob.NEW_JOB and\
              config.max_jobs_running > int(numrunning) + int(numqueued):
                 #the job is new and we allow more jobs for submission;
                 #see if the job can be started
-                job.get_qsub_status()
                 self.attempt_to_start_job(job)
             elif job.status == PulsarSearchJob.TERMINATED:
                 #check if the job terminated with errors
@@ -268,8 +266,11 @@ class JobPool:
         if self.can_start_job(job):
             print "Submitting the job: "+ job.jobid
             job.submit()
+            job.status = PulsarSearchJob.RUNNING
+            job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
+                                        info="Job ID: %s" % job.jobid.strip()))
         else:
-            print "Removing the job: Multiple fails: "+job.jobname
+            print "Removing the job because of multiple fails: "+job.jobname
             self.delete_job(job)
 
 
@@ -277,9 +278,7 @@ class JobPool:
 #        dev.write_fake_qsub_error(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
 
         #Change status of the job to Submited and log
-        job.status = PulsarSearchJob.SUBMITED
-        job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
-                                        info="Job ID: %s" % job.jobid.strip()))
+        
 
     def update_demand_file_list(self):
         """Return a dictionary where the keys are the datafile names
@@ -304,26 +303,16 @@ class JobPool:
                     else:
                         self.demand_file_list[d] = 1
 
-#TODO: get_status_from_qsub and   update_status_from_qsub should be merged or at least should work on the same job set
-# get_status_from_qsub is now getting all the jobs starting with config.job_basename
-# It seems like the only difference is if some qsub has jobs running or queued that are not part of our jobpool.
-    def get_status_from_qsub(self):
+    def get_qsub_status(self):
         """Connect to the PBS queue and return the number of
             survey jobs running and the number of jobs queued.
 
 
             Returns a 2-tuple: (numrunning, numqueued).
         """
-        numrunning = 0
-        numqueued = 0
-        batch = PBSQuery.PBSQuery().getjobs()
-        for j in batch.keys():
-            if batch[j]['Job_Name'][0].startswith(config.job_basename):
-                if 'R' in batch[j]['job_state']:
-                    numrunning += 1
-                elif 'Q' in batch[j]['job_state']:
-                    numqueued += 1
-        return (numrunning, numqueued)
+        
+        return QueueManagerClass.status()
+        
 
 #TODO: recreate search jobs from qsub
     def recover_from_qsub(self):
@@ -388,18 +377,16 @@ class PulsarSearchJob:
     """
     TERMINATED = 0
     NEW_JOB = 1
-    SUBMITED = 2
-    SUBMITED_QUEUED = 3
-    SUBMITED_RUNNING = 4
-    UPLOAD_STARTED = 5
-    UPLOAD_FAILED = 6
-    UPLOAD_COMPLETED = 7
-    FINISHED = 8
+    RUNNING = 2
     
     def __init__(self, datafiles):
         """PulsarSearchJob creator.
             'datafiles' is a list of data files required for the job.
         """
+        
+        
+        if not issubclass(QueueManagerClass, PipelineQueueManager):
+            raise "You must derive queue manager class from QueueManagerClass"
         self.datafiles = datafiles
         self.jobname = self.get_jobname()
         self.jobid = None
@@ -426,10 +413,7 @@ class PulsarSearchJob:
         mjd = int(data.timestamp_mjd)
         beam_num = data.beam_id
         obs_name = data.obs_name
-        
         proc_date=datetime.datetime.now().strftime('%y%m%d')
-        
-        
         presto_outdir = os.path.join(config.base_results_directory, str(mjd), \
                                         str(obs_name), str(beam_num), proc_date)
         
@@ -447,33 +431,15 @@ class PulsarSearchJob:
     def submit(self):
         """Submit PulsarSearchJob job to the queue. Update job's log.
         """
-        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s search.py' % \
-                            (','.join(self.datafiles), self.get_output_dir(), config.resource_list, \
-                                    config.job_basename, 'qsublog')
-        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
-        jobid = pipe.communicate()[0]
-        
-        if not jobid:
-            return False
-        
-        self.jobid = jobid.rstrip()        
-        print "Job ID:", self.jobid
-        pipe.stdin.close()
-        return True
+        self.jobid = QueueManagerClass.submit(self.datafiles, self.get_output_dir())
     
     def delete(self):
         """Remove PulsarSearchJob job from the queue.
         """
         if self.jobid:
-            cmd = "qdel %s" % self.jobid
-            pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
-            response = pipe.communicate()[0]
-            pipe.stdin.close()
-            batch = PBSQuery.PBSQuery().getjobs()
-            if not (self.jobid in batch) or 'E' in batch[self.jobid]['job_state']:
-                return True
+            return QueueManagerClass(self.jobid)
         return False
-        
+       
         
     def get_log_status(self):
         """Get and return the status of the most recent log entry.
@@ -507,18 +473,18 @@ class PulsarSearchJob:
         """Updates job's status according to the PBSQuery
             batch job status.
         """
-        
         if self.jobid == None:
             return
         
-        batch = PBSQuery.PBSQuery().getjobs()
-        if self.jobid in batch:
-            if 'R' in batch[self.jobid]['job_state']:
-                self.status = PulsarSearchJob.SUBMITED_RUNNING
-            elif 'Q' in batch[self.jobid]['job_state']:
-                self.status = PulsarSearchJob.SUBMITED_QUEUED
+        if QueueManagerClass.is_running(self.jobid):
+            self.status = PulsarSearchJob.RUNNING
         else:
-            job.status = PulsarSearchJob.TERMINATED
+            self.status = PulsarSearchJob.TERMINATED
+        
+        return self.status
+        
+       
+
 
 class JobLog:
     """A object for reading/writing logfiles for search jobs.
