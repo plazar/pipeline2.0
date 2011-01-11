@@ -20,6 +20,7 @@ import config
 import dev
 
 from QsubManager import Qsub
+import QsubManager
 QueueManagerClass = Qsub
 
 
