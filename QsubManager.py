@@ -1,6 +1,7 @@
 import config
 from PipelineQueueManager import PipelineQueueManager
 import PBSQuery
+import subprocess
 
 class Qsub(PipelineQueueManager):
     
