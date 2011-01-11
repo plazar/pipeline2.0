@@ -499,10 +499,10 @@ class PulsarSearchJob:
         
         batch = PBSQuery.PBSQuery().getjobs()
         if self.jobid in batch:
-            if 'R' in batch[job.jobid]['job_state']:
-                job.status = PulsarSearchJob.SUBMITED_RUNNING
-            elif 'Q' in batch[job.jobid]['job_state']:
-                job.status = PulsarSearchJob.SUBMITED_QUEUED
+            if 'R' in batch[self.jobid]['job_state']:
+                self.status = PulsarSearchJob.SUBMITED_RUNNING
+            elif 'Q' in batch[self.jobid]['job_state']:
+                self.status = PulsarSearchJob.SUBMITED_QUEUED
         else:
             job.status = PulsarSearchJob.TERMINATED
 
