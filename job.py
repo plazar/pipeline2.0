@@ -251,7 +251,7 @@ class JobPool:
                 self.attempt_to_start_job(job)
             elif job.status == PulsarSearchJob.TERMINATED:
                 #check if the job terminated with errors
-                if self.check_for_qsub_job_errors(job):
+                if job.queue_error():
                     #if error occured try to restart the job
                     self.attempt_to_start_job(job)
                 else:
