@@ -31,6 +31,19 @@ class Qsub(PipelineQueueManager):
             return False
     
     @staticmethod
+    def is_processing_file(filename_str):
+        """Must return True/False wheather the job processing the input filename
+            is running.
+        """
+        
+        batch = PBSQuery.PBSQuery().getjobs()
+        for j in batch.keys():
+            if batch[j]['Job_Name'][0].startswith(config.job_basename):
+                if batch[j]['Variable_List']['DATAFILES'][0] == filename_str:
+                    return True
+        return False
+    
+    @staticmethod
     def delete(jobid_str):
         """Must garantee the removal of the job from the Queue"""
         cmd = "qdel %s" % jobid_str
