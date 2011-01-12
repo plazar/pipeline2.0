@@ -23,6 +23,10 @@ from QsubManager import Qsub
 from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = Qsub
 
+from OutStream import OutStream as OutStream
+
+jobpool_cout = OutStream("JobPool","background.log",config.bgs_screen_output)
+job_cout = OutStream("Job","background.log",config.bgs_screen_output)
 
 from mailer import ErrorMailer
 
@@ -51,13 +55,14 @@ class JobPool:
         # For PALFA2.0 each observation is contained within a single file.
         for datafile in (files_in):
             try:
-                print "DEBUG: [datafile] when creating PulsarSearchJob", [datafile]
+                out_str =  "DEBUG: [datafile] when creating PulsarSearchJob", [datafile]
+                jobpool_cout.outs(out_str, OutStream.DEBUG)
                 p_searchjob = PulsarSearchJob([datafile])
                 if  isinstance(p_searchjob, PulsarSearchJob):
                     self.datafiles.append(datafile)
                     self.jobs.append(p_searchjob)
             except Exception,e:
-                print "Error occured while creating a SearchJob: "+str(e)
+                jobpool_cout.outs("Error occured while creating a SearchJob: "+str(e))
         
     def group_files(self, files_in):
         """Given a list of datafiles, group files that need to be merged before
@@ -149,7 +154,7 @@ class JobPool:
             if not self.is_in_demand(job):                
                 # Delete data files
                 for d in job.datafiles:
-                    print "Deleting datafile: " + str(d)
+                    jobpool_cout.outs("Deleting datafile: " + str(d))
                     os.remove(d)
                 # Archive log file
                 if os.path.exists(os.path.join(config.log_archive,os.path.basename(job.logfilenm))):
@@ -180,10 +185,11 @@ class JobPool:
                     row = db_cur.fetchone()                
                 didnt_get_files = False
 		for file in tmp_datafiles:
-			print file
+                        jobpool_cout.outs(file)
                 return tmp_datafiles
             except Exception,e:
-                print "Database error: "+ str(e)+" Retrying in 1 sec"
+                jobpool_cout.outs("Database error: %s. Retrying in 1 sec" % str(e), OutStream.ERROR)
+                print 
                     
     def update_db_file_processed(self, job):
         db_conn = sqlite3.connect("sqlite3db");
@@ -206,13 +212,13 @@ class JobPool:
             for fn in filenames:
                 if re.match(config.rawdata_re_pattern, fn) is not None:
                     tmp_datafiles.append(os.path.join(dirpath, fn))
-		    print "Adding file:" + os.path.join(dirpath, fn)
+                    jobpool_cout.outs("Adding file:" + os.path.join(dirpath, fn))
         return tmdebug.outp_datafiles
 
 
 
     def status(self):
-        print "Jobs in the Pool: "+ str(len(self.jobs))
+        jobpool_cout.outs("Jobs in the Pool: "+ str(len(self.jobs)))
         #print "Jobs Running: "+
 
     def upload_results(self,job):
@@ -236,13 +242,13 @@ class JobPool:
             If the job has terminated without errors then the processing is
             assumed to be completed successfuly and upload of the results is called upon the job
         '''
-        print "Rotating through: "+ str(len(self.jobs)) +" jobs."
+        jobpool_cout.outs("Rotating through: %s jobs." % str(len(self.jobs)))
         
         for job in self.jobs[:]:
             job.get_qsub_status()
             numrunning, numqueued = self.get_qsub_status()
-            print "Jobs Running: "+ str(numrunning)
-            print "Jobs Queued: "+ str(numqueued)
+            jobpool_cout.outs("Jobs Running: %s" % str(numrunning))
+            jobpool_cout.outs("Jobs Queued: %s" % str(numqueued))
             
             if  job.status == PulsarSearchJob.NEW_JOB and\
              config.max_jobs_running > int(numrunning) + int(numqueued):
@@ -259,19 +265,19 @@ class JobPool:
                     try:
                         self.update_db_file_processed(job)
                     except Exception,e:
-                        print "*\n*\n*Failed to update file status to Processed: "+ str(e) +"*\n*\n*"
+                        jobpool_cout.outs("*\n*\n*Failed to update file status to Processed: "+ str(e) +"*\n*\n*", OutStream.ERROR)
                     self.upload_results(job)
 
 
     def attempt_to_start_job(self,job):
         if self.can_start_job(job):
-            print "Submitting the job: "+ job.jobid
+            jobpool_cout.outs("Submitting the job: %s" % job.jobname)
             job.submit()
             job.status = PulsarSearchJob.RUNNING
             job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
                                         info="Job ID: %s" % job.jobid.strip()))
         else:
-            print "Removing the job because of multiple fails: "+job.jobname
+            jobpool_cout.outs("Removing the job because of multiple fails: %s" % job.jobname, OutStream.WARNING)
             self.delete_job(job)
 
 
@@ -360,14 +366,13 @@ class JobPool:
 	        try:
 	            tmp_job = PulsarSearchJob([file])
 	            if not self.can_start_job(tmp_job):
-	                print "Removing file: "+ file
+                        jobpool_cout.outs("Removing file: %s" % file)
 	                self.delete_job(tmp_job)
 	                files_to_x_check.remove(file)
 	            else:
-	                print "Will not remove file because i can restart the job: "+ file
+                        jobpool_cout.outs("Will not remove file because i can restart the job: %s" % file)
 	        except Exception, e:
-	            print "Error while creating a PulsarSearchJob: "+str(e)
-
+                    jobpool_cout.outs("Error while creating a PulsarSearchJob: %s" % str(e))
         self.create_jobs_from_datafiles(files_to_x_check)
 
 
@@ -387,6 +392,7 @@ class PulsarSearchJob:
         
         
         if not issubclass(QueueManagerClass, PipelineQueueManager):
+            job_cout.outs("You must derive queue manager class from QueueManagerClass",OutStream.ERROR)
             raise "You must derive queue manager class from QueueManagerClass"
         self.datafiles = datafiles
         self.jobname = self.get_jobname()
@@ -410,6 +416,7 @@ class PulsarSearchJob:
 	
         data = datafile.autogen_dataobj(self.datafiles)
         if not isinstance(data, datafile.PsrfitsData):
+            job_cout.outs("Data must be of PSRFITS format.",OutStream.ERROR)
             raise Exception("Data must be of PSRFITS format.")
         mjd = int(data.timestamp_mjd)
         beam_num = data.beam_id
@@ -468,6 +475,7 @@ class PulsarSearchJob:
         if datafile0.endswith(".fits"):
             jobname = datafile0[:-5]
         else:
+            job_cout.outs("First data file is not a FITS file!\n(%s)" % datafile0, OutStream.ERROR)
             raise ValueError("First data file is not a FITS file!" \
                              "\n(%s)" % datafile0)
         return jobname

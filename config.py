@@ -129,3 +129,4 @@ mailer_from = None  #To show the mailing from address
 # Background Script Configuration
 ################################################################
 bgs_sleep = 60 #sleep time for background script in seconds
+bgs_screen_output = True #Set to True if you want the script to output runtime information, False otherwise
