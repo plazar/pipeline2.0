@@ -237,10 +237,10 @@ class JobPool:
             assumed to be completed successfuly and upload of the results is called upon the job
         '''
         print "Rotating through: "+ str(len(self.jobs)) +" jobs."
-        numrunning, numqueued = self.get_qsub_status()
+        
         for job in self.jobs[:]:
             job.get_qsub_status()
-            
+            numrunning, numqueued = self.get_qsub_status()
             print "Jobs Running: "+ str(numrunning)
             print "Jobs Queued: "+ str(numqueued)
             
