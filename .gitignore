@@ -12,3 +12,4 @@ sqlite3db-journal
 sqlite3db
 download_module.log
 log/*
+background.log

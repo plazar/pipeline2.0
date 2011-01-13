@@ -19,16 +19,15 @@ import datafile
 import config
 import dev
 
-"""
+
 from QsubManager import Qsub
 from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = Qsub
 """
-
 from QTestManager import QTest
 from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = QTest
-
+"""
 
 from OutStream import OutStream as OutStream
 
@@ -273,7 +272,8 @@ class JobPool:
                         self.update_db_file_processed(job)
                     except Exception,e:
                         jobpool_cout.outs("*\n*\n*Failed to update file status to Processed: "+ str(e) +"*\n*\n*", OutStream.ERROR)
-                    self.upload_results(job)
+                    #self.upload_results(job)
+		    jobpool_cout.outs("Job Sucessfuly Completed: %s" % job.jobname)
 
 
     def attempt_to_start_job(self,job):

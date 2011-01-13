@@ -325,7 +325,7 @@ class WappPsrfitsData(PsrfitsData):
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
 
-    def update_positons(self):
+    def update_positions(self):
         """Update positions in raw data file's header.
             
             Note: This cannot be undone!
@@ -348,7 +348,7 @@ class MockPsrfitsData(PsrfitsData):
                                 r'(?P=scan)\.fits')
 
     def __init__(self, fitsfns):
-        super(MockPsrfitsData, self).__init__(fitsfns, beamnum)
+        super(MockPsrfitsData, self).__init__(fitsfns)
         # Note Puerto Rico doesn't observe daylight savings time
         # so it is 4 hours behind UTC all year
         dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1
@@ -361,3 +361,25 @@ class MockPsrfitsData(PsrfitsData):
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
+
+
+class MergedMockPsrfitsData(MockPsrfitsData):
+    """PSRFITS Data object for merged MockSpec data.
+    """
+    filename_re = re.compile(r'^4bit-(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
+                                r'(?P<source>.*)\.b(?P<beam>[0-7])' \
+                                r'g0\.merged\.(?P<scan>\d{5})_(?P<filenum>\d{4})' \
+                                r'\.fits')
+
+    def __init__(self, fitsfns):
+        super(MergedMockPsrfitsData, self).__init__(fitsfns)
+
+
+
+def main():
+    data = autogen_dataobj(sys.argv[1:])
+    print data.__dict__
+
+
+if __name__=='__main__':
+    main()

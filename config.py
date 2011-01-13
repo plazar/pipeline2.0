@@ -19,7 +19,7 @@ log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
 #log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
 #log_archive = "C:/Reposotories/PALFA/pipeline2.0/log_archive"
 
-max_jobs_running = 10
+max_jobs_running = 50
 job_basename = "%s_batchjob" % survey
 sleep_time = 10*60 # time to sleep between submitting jobs (in seconds)
 max_attempts = 2 # Maximum number of times a job is attempted due to errors
@@ -129,5 +129,5 @@ mailer_from = None  #To show the mailing from address
 # Background Script Configuration
 ################################################################
 bgs_sleep = 60 #sleep time for background script in seconds
-bgs_screen_output = True #Set to True if you want the script to output runtime information, False otherwise
+bgs_screen_output = False #Set to True if you want the script to output runtime information, False otherwise
 bgs_db_file_path = 'sqlite3db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
