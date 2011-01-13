@@ -254,7 +254,7 @@ class obs_info:
         self.basefilenm = os.path.split(filenms[0])[1].rstrip(".fits")
         
         # Read info from PSRFITS file
-        data = datafile.autogen_dataobj(fns)
+        data = datafile.autogen_dataobj(self.filenms)
         spec_info = data.specinfo
         self.backend = spec_info.backend
         self.MJD = spec_info.start_MJD[0]
