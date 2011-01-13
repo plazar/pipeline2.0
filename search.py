@@ -82,7 +82,27 @@ def init_workspace():
     return (workdir, resultsdir)
 
 
-def main():
+def system_call(cmd):
+    retcode = subprocess.call(cmd, shell=True)
+    if retcode < 0:
+        raise SystemCallError("System call (%s) terminated by signal (%s)!" % \
+                                (cmd, -retcode))
+    elif retcode > 0:
+        raise SystemCallError("System call (%s) failed with status (%s)!" % \
+                                (cmd, retcode))
+    else:
+        # Exit code is 0, which is "Success". Do nothing.
+        pass
+
+
+class SystemCallError(Exception):
+    """An exception to throw when a system call returns 
+        with a non-zero exit code.
+    """
+    pass
+
+
+def set_up():
     print "Running on ", socket.gethostname()
     fns = get_datafns()
     print "Searching %d files:" % len(fns)
@@ -101,32 +121,51 @@ def main():
     # Copy data files locally
     for fn in fns:
         os.system("rsync -auvl %s %s" % (fn, workdir))
-
     fns = [os.path.join(workdir, os.path.split(fn)[-1]) for fn in fns]
+    
+    return fns, workdir, resultsdir, outdir
 
+
+def search(fns, workdir, resultsdir):
+    # Search the data
+    presto_search = config.init_presto_search()
+    presto_search.main(fns, workdir, resultsdir)
+
+
+def copy_results(resultsdir, outdir):
+    # Copy search results to outdir (only if no errors occurred)
+    if resultshost is not None:
+        os.system("ssh %s -- mkdir -m 750 -p %s" % \
+                    (config.results_directory_host, outdir))
+        os.system("rsync -auvl %s/ %s:%s" % \
+                    (resultsdir, config.results_directory_host, outdir))
+    else:
+        os.system("mkdir -m 750 -p %s" % outdir)
+        os.system("rsync -auvl %s/ %s" % (resultsdir, outdir))
+
+
+def clean_up(workdir, resultsdir):
+    if workdir is not None and os.path.isdir(workdir):
+        shutil.rmtree(workdir)
+    if resultsdir is not None and os.path.isdir(resultsdir):
+        shutil.rmtree(resultsdir)
+    
+
+def main():
+    workdir = None
+    resultsdir = None
     try:
-        # Search the data
-        presto_search = config.init_presto_search()
-        presto_search.main(fns, workdir, resultsdir)
+        fns, workdir, resultsdir, outdir = set_up()
+        search(fns, workdir, resultsdir)
+        copy_results(resultsdir, outdir)
     except:
-        # Some error was encountered while searching
+        # Some error was encountered
         # Simply re-raise the error so it gets reported in the error logs
         raise
-    else:
-        # Copy search results to outdir (only if no errors occurred)
-        if resultshost is not None:
-            os.system("ssh %s -- mkdir -m 750 -p %s" % \
-                        (config.results_directory_host, outdir))
-            os.system("rsync -auvl %s/ %s:%s" % \
-                        (resultsdir, config.results_directory_host, outdir))
-        else:
-            os.system("mkdir -m 750 -p %s" % outdir)
-            os.system("rsync -auvl %s/ %s" % (resultsdir, outdir))
     finally:
         # Remove working directory and output directory
         # even if an error occurred
-        shutil.rmtree(workdir)
-        shutil.rmtree(resultsdir)
+        clean_up(workdir, resultsdir)
 
 
 if __name__=='__main__':
