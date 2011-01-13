@@ -117,13 +117,8 @@ downloader_numofretries = 3
 # Mailer uses following configurations to send notification email
 # in case of an error.
 ################################################################
+#!!!!!!!! Configure mailer in non versioned file: mail.cfg.py
 
-mailer_enabled = True
-mailer_smtp_host = 'smtp.gmail.com' # None - For use of the local smtp server
-mailer_smtp_username = 'snipka@gmail.com'
-mailer_smtp_password = 'dod235328'
-mailer_to = 'snipka@gmail.com' # Notifications will be sent to the set email
-mailer_from = None  #To show the mailing from address
 
 ################################################################
 # Background Script Configuration

@@ -178,7 +178,7 @@ class JobPool:
         tmp_datafiles = []
         while didnt_get_files:
             try:
-                db_conn = sqlite3.connect("sqlite3db");
+                db_conn = sqlite3.connect(config.bgs_db_file_path);
                 db_conn.row_factory = sqlite3.Row
                 db_cur = db_conn.cursor();
                 fin_file_query = "SELECT * FROM restore_downloads WHERE status LIKE 'Finished:%'"
@@ -194,10 +194,9 @@ class JobPool:
                 return tmp_datafiles
             except Exception,e:
                 jobpool_cout.outs("Database error: %s. Retrying in 1 sec" % str(e), OutStream.ERROR)
-                print 
                     
     def update_db_file_processed(self, job):
-        db_conn = sqlite3.connect("sqlite3db");
+        db_conn = sqlite3.connect(config.bgs_db_file_path);
         db_conn.row_factory = sqlite3.Row
         db_cur = db_conn.cursor();
         fin_file_query = "UPDATE restore_downloads SET status = 'Processed' WHERE filename = '%s'" % (job.datafiles[0])

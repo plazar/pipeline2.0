@@ -13,3 +13,4 @@ sqlite3db
 download_module.log
 log/*
 background.log
+mail_cfg.py

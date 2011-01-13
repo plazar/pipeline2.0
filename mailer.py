@@ -1,7 +1,7 @@
 import os
 import datetime
 import smtplib
-import config
+import mail_cfg
 from email.mime.text import MIMEText
 
 class ErrorMailer:
@@ -10,16 +10,16 @@ class ErrorMailer:
         self.msg = MIMEText(message)
         self.msg['Subject'] = 'Pipeline notification at: '+ datetime.datetime.now().strftime("%a %d %b, %I:%M%P")
         
-        if not config.mailer_from:
+        if not mail_cfg.mailer_from:
             self.msg['From'] = 'noreply@PRESTO-PIPELINE.app'
         else:
-            self.msg['From'] = config.mailer_from
-        self.msg['To'] = config.mailer_to
-        self.client = smtplib.SMTP(config.mailer_smtp_host,587)
+            self.msg['From'] = mail_cfg.mailer_from
+        self.msg['To'] = mail_cfg.mailer_to
+        self.client = smtplib.SMTP(mail_cfg.mailer_smtp_host,587)
         
     def send(self):
         self.client.starttls()
-        self.client.login(config.mailer_smtp_username,config.mailer_smtp_password)
+        self.client.login(mail_cfg.mailer_smtp_username,mail_cfg.mailer_smtp_password)
         self.client.sendmail(self.msg['From'], self.msg['To'], self.msg.as_string())
         self.client.quit()
     
