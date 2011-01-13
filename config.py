@@ -130,3 +130,4 @@ mailer_from = None  #To show the mailing from address
 ################################################################
 bgs_sleep = 60 #sleep time for background script in seconds
 bgs_screen_output = True #Set to True if you want the script to output runtime information, False otherwise
+bgs_db_file_path = 'sqlite3db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
