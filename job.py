@@ -333,12 +333,14 @@ class JobPool:
         datafiles = self.get_datafiles_from_db()
         
         for datafile in datafiles:
-            if QueueManagerClass.is_processing_file(datafile):
+            is_processing, jobid = QueueManagerClass.is_processing_file(datafile)
+            if is_processing:
                 tmp_job = PulsarSearchJob([datafile],testing)
                 tmp_job.status = PulsarSearchJob.RUNNING
+                tmp_job.jobid = jobid
                 self.jobs.append(tmp_job)
                 self.datafiles.append(datafile)
-                jobpool_cout.outs("Recovered a Search Job for: %s" % datafile)
+                jobpool_cout.outs("Recovered a Search Job %s for: %s" % (jobid,datafile))
         
         jobpool_cout.outs("Job Recovered from Queue Manager: %s" % str(len(self.jobs)))
 

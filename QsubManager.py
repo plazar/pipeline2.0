@@ -40,7 +40,7 @@ class Qsub(PipelineQueueManager):
         for j in batch.keys():
             if batch[j]['Job_Name'][0].startswith(config.job_basename):
                 if batch[j]['Variable_List']['DATAFILES'][0] == filename_str:
-                    return True
+                    return True,j
         return False
     
     @staticmethod
