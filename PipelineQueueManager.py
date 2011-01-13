@@ -11,6 +11,13 @@ class PipelineQueueManager:
             respectively
         """
         raise NotImplementedError
+
+    @staticmethod
+    def is_processing_file(filename_str):
+        """Must return True/False wheather the job is in the Queue or not
+            respectively
+        """
+        raise NotImplementedError
     
     @staticmethod
     def delete(jobid_str):

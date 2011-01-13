@@ -19,9 +19,16 @@ import datafile
 import config
 import dev
 
+"""
 from QsubManager import Qsub
 from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = Qsub
+"""
+
+from QTestManager import QTest
+from PipelineQueueManager import PipelineQueueManager
+QueueManagerClass = QTest
+
 
 from OutStream import OutStream as OutStream
 
@@ -35,7 +42,6 @@ class JobPool:
         self.jobs = []
         self.datafiles = []
         self.demand_file_list = {}
-        self.cycles = 0
         self.merged_dict = {}
 
     
@@ -257,7 +263,8 @@ class JobPool:
                 self.attempt_to_start_job(job)
             elif job.status == PulsarSearchJob.TERMINATED:
                 #check if the job terminated with errors
-                if job.queue_error():
+                if job.queue_error() and\
+                config.max_jobs_running > int(numrunning) + int(numqueued):
                     #if error occured try to restart the job
                     self.attempt_to_start_job(job)
                 else:
@@ -322,8 +329,19 @@ class JobPool:
         
 
 #TODO: recreate search jobs from qsub
-    def recover_from_qsub(self):
-        pass
+    def recover_from_qsub(self, testing=False):
+        jobpool_cout.outs("Starting Queue Manager Recovering process.")
+        datafiles = self.get_datafiles_from_db()
+        
+        for datafile in datafiles:
+            if QueueManagerClass.is_processing_file(datafile):
+                tmp_job = PulsarSearchJob([datafile],testing)
+                tmp_job.status = PulsarSearchJob.RUNNING
+                self.jobs.append(tmp_job)
+                self.datafiles.append(datafile)
+                jobpool_cout.outs("Recovered a Search Job for: %s" % datafile)
+        
+        jobpool_cout.outs("Job Recovered from Queue Manager: %s" % str(len(self.jobs)))
 
     #def qsub_status(self, job):
     def check_for_qsub_job_errors(self, job):
@@ -385,7 +403,7 @@ class PulsarSearchJob:
     NEW_JOB = 1
     RUNNING = 2
     
-    def __init__(self, datafiles):
+    def __init__(self, datafiles, testing=False):
         """PulsarSearchJob creator.
             'datafiles' is a list of data files required for the job.
         """
@@ -395,10 +413,16 @@ class PulsarSearchJob:
             job_cout.outs("You must derive queue manager class from QueueManagerClass",OutStream.ERROR)
             raise "You must derive queue manager class from QueueManagerClass"
         self.datafiles = datafiles
-        self.jobname = self.get_jobname()
+        if not testing:
+            self.jobname = self.get_jobname()
+        else:
+            self.jobname = datafiles[0]
         self.jobid = None
         #self.logfilenm = self.jobname + ".log"
-        self.logfilenm = os.path.join(config.log_dir,os.path.basename(self.jobname) + ".log")
+        if not testing:
+            self.logfilenm = os.path.join(config.log_dir,os.path.basename(self.jobname) + ".log")
+        else:
+            self.logfilenm = os.path.join('/home/snip3/dev/pythonapps/pipeline2.0',os.path.basename(self.jobname) + ".log")
         self.log = JobLog(self.logfilenm, self)
         self.status = self.NEW_JOB
 
