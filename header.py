@@ -94,27 +94,38 @@ class Header(object):
         db = db_connections[dbname]
         query = self.get_upload_sproc_call()
         db.cursor.execute(query)
-        db.conn.commit()
-        
-        if verbose:
-            # Check to see if upload worked
-            result = db.cursor.fetchone()
-            if result < 0:
-                print "An error was encountered! (Error code: %d)" % result
-            else:
-                print "Success! (Return value: %d)" % result
+        result = db.cursor.fetchone()[0]
+        return result
+
+
+class HeaderUploadError(Exception):
+    """Error to throw when a diagnostic-specific problem 
+        is encountered.
+    """
+    pass
+
+
+def upload_header(fns, beamnum=None, verbose=False):
+    if beamnum is not None:
+        header = Header(fns, beamnum=beamnum)
+    else:
+        header = Header(fns)
+    # header.upload('common', verbose=verbose)
+    warnings.warn("Database is set to 'common-copy' for debugging.")
+    result = header.upload('common-copy')
+
+    if verbose:
+        # Check to see if upload worked
+        if result < 0:
+            print "An error was encountered! (Error code: %d)" % result
+        else:
+            print "Success! (Return value: %d)" % result
+    return result
 
 
 def main():
-    if options.beamnum is not None:
-        header = Header(args, beamnum=options.beamnum)
-    else:
-        header = Header(args)
-    print header
-    # header.upload('common', verbose=options.verbose)
-    warnings.warn("Database is set to 'common-copy' for debugging.")
-    header.upload('common-copy', verbose=options.verbose)
-
+    upload_header(args, options.beamnum, options.verbose)
+    
 
 if __name__=='__main__':
     parser = optparse.OptionParser(usage="%(prog) [OPTIONS] file1 [file2 ...]")

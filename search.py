@@ -103,23 +103,30 @@ def main():
         os.system("rsync -auvl %s %s" % (fn, workdir))
 
     fns = [os.path.join(workdir, os.path.split(fn)[-1]) for fn in fns]
-   
-    presto_search = config.init_presto_search()
-    presto_search.main(fns, workdir, resultsdir)
 
-    # Copy search results to outdir
-    
-    if resultshost is not None:
-        os.system("ssh %s -- mkdir -m 750 -p %s" % (config.results_directory_host, outdir))
-        os.system("rsync -auvl %s/ %s:%s" % (resultsdir, config.results_directory_host, \
-                                            outdir))
+    try:
+        # Search the data
+        presto_search = config.init_presto_search()
+        presto_search.main(fns, workdir, resultsdir)
+    except:
+        # Some error was encountered while searching
+        # Simply re-raise the error so it gets reported in the error logs
+        raise
     else:
-        os.system("mkdir -m 750 -p %s" % outdir)
-        os.system("rsync -auvl %s/ %s" % (resultsdir, outdir))
-
-    # Remove working directory and output directory
-    shutil.rmtree(workdir)
-    shutil.rmtree(resultsdir)
+        # Copy search results to outdir (only if no errors occurred)
+        if resultshost is not None:
+            os.system("ssh %s -- mkdir -m 750 -p %s" % \
+                        (config.results_directory_host, outdir))
+            os.system("rsync -auvl %s/ %s:%s" % \
+                        (resultsdir, config.results_directory_host, outdir))
+        else:
+            os.system("mkdir -m 750 -p %s" % outdir)
+            os.system("rsync -auvl %s/ %s" % (resultsdir, outdir))
+    finally:
+        # Remove working directory and output directory
+        # even if an error occurred
+        shutil.rmtree(workdir)
+        shutil.rmtree(resultsdir)
 
 
 if __name__=='__main__':
