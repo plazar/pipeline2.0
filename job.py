@@ -199,7 +199,7 @@ class JobPool:
         db_conn = sqlite3.connect(config.bgs_db_file_path);
         db_conn.row_factory = sqlite3.Row
         db_cur = db_conn.cursor();
-        fin_file_query = "UPDATE restore_downloads SET status = 'Processed' WHERE filename = '%s'" % (job.datafiles[0])
+        fin_file_query = "UPDATE restore_downloads SET status = 'Processed' WHERE filename = '%s'" % (os.path.basename(job.datafiles[0]))
         db_cur.execute(fin_file_query)
         db_conn.commit()
         db_conn.close()            
