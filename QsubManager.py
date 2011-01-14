@@ -41,7 +41,7 @@ class Qsub(PipelineQueueManager):
             if batch[j]['Job_Name'][0].startswith(config.job_basename):
                 if batch[j]['Variable_List']['DATAFILES'][0] == filename_str:
                     return True,j
-        return False
+        return False, None
     
     @staticmethod
     def delete(jobid_str):
