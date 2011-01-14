@@ -172,6 +172,15 @@ class JobPool:
         if job.jobname+".fits" in self.datafiles:
             self.datafiles.remove(job.jobname+".fits")
 
+    #Removes a job from JobPool
+    def complete_job(self, job):
+        """Delete datafiles for PulsarSearchJob j. Update j's log.
+            Archive j's log.
+            remove from jobs and datafiles
+        """
+        job.log.addentry(LogEntry(qsubid=job.jobid,status="Processed", host=socket.gethostname(),info="Job was processed"))
+        self.delete_job(job)
+    
     #Returns a list of files that Downloader marked Finished:* in the qlite3db
     def get_datafiles_from_db(self):
         didnt_get_files = True
@@ -272,6 +281,7 @@ class JobPool:
                     except Exception,e:
                         jobpool_cout.outs("*\n*\n*Failed to update file status to Processed: "+ str(e) +"*\n*\n*", OutStream.ERROR)
                     #self.upload_results(job)
+                    self.complete_job(job)
 		    jobpool_cout.outs("Job Sucessfuly Completed: %s" % job.jobname)
 
 
