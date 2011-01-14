@@ -18,6 +18,7 @@ class ErrorMailer:
         self.client = smtplib.SMTP(mail_cfg.mailer_smtp_host,587)
         
     def send(self):
+	self.client.ehlo()
         self.client.starttls()
         self.client.login(mail_cfg.mailer_smtp_username,mail_cfg.mailer_smtp_password)
         self.client.sendmail(self.msg['From'], self.msg['To'], self.msg.as_string())
