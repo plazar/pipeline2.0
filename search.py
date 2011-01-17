@@ -10,6 +10,8 @@ import os
 import socket
 import tempfile
 import shutil
+import subprocess
+
 import config
 
 
@@ -120,7 +122,7 @@ def set_up():
 
     # Copy data files locally
     for fn in fns:
-        os.system("rsync -auvl %s %s" % (fn, workdir))
+        system_call("rsync -auvl %s %s" % (fn, workdir))
     fns = [os.path.join(workdir, os.path.split(fn)[-1]) for fn in fns]
     
     return fns, workdir, resultsdir, outdir
@@ -128,26 +130,38 @@ def set_up():
 
 def search(fns, workdir, resultsdir):
     # Search the data
+    print "Go-Go-Gadget pulsar search..."
     presto_search = config.init_presto_search()
     presto_search.main(fns, workdir, resultsdir)
+    
+    # Remove data, weights, scales and offsets from fits files
+    # and stash them in the results directory.
+    print "Removing data, weights, scales and offsets."
+    for fn in fns:
+        system_call("fitsdelcol %s[SUBINT] DATA DAT_WTS DAT_SCL DAT_OFFS" % fn)
+        system_call("rsync -auvl %s %s" % (fn, resultsdir))
 
 
 def copy_results(resultsdir, outdir):
     # Copy search results to outdir (only if no errors occurred)
-    if resultshost is not None:
-        os.system("ssh %s -- mkdir -m 750 -p %s" % \
+    print "Copying contents of local results directory to", outdir
+    if config.results_directory_host is not None:
+        system_call("ssh %s -- mkdir -m 750 -p %s" % \
                     (config.results_directory_host, outdir))
-        os.system("rsync -auvl %s/ %s:%s" % \
+        system_call("rsync -auvl --chmod=Dg+rX,Fg+r %s/ %s:%s" % \
                     (resultsdir, config.results_directory_host, outdir))
     else:
-        os.system("mkdir -m 750 -p %s" % outdir)
-        os.system("rsync -auvl %s/ %s" % (resultsdir, outdir))
+        system_call("mkdir -m 750 -p %s" % outdir)
+        system_call("rsync -auvl --chmod=Dg+rX,Fg+r %s/ %s" % (resultsdir, outdir))
 
 
 def clean_up(workdir, resultsdir):
+    print "Cleaning up..."
     if workdir is not None and os.path.isdir(workdir):
+        print "Removing working directory:", workdir
         shutil.rmtree(workdir)
     if resultsdir is not None and os.path.isdir(resultsdir):
+        print "Removing local results directory:", resultsdir
         shutil.rmtree(resultsdir)
     
 
