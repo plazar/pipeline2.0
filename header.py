@@ -12,25 +12,13 @@ import sys
 import re
 import warnings
 import types
-import atexit
 import optparse
 
-import database
+import upload
 import datafile
 
-# A global dictionary to keep track of database connections
-db_connections = {}
 
-
-@atexit.register # register this function to be executed at exit time
-def close_db_connections():
-    """A function to close database connections at exit time.
-    """
-    for db in db_connections.values():
-        db.close()
-
-
-class Header(object):
+class Header(upload.Uploadable):
     """PALFA Header object. 
     """
     def __init__(self, datafns, *args, **kwargs):
@@ -84,26 +72,6 @@ class Header(object):
             "@dec_deg=%.8f" % self.dec_deg
         return sprocstr
     
-    def __str__(self):
-        s = self.get_upload_sproc_call()
-        return s.replace('@', '\n    @')
-   
-    def upload(self, dbname='common', verbose=False):
-        if dbname not in db_connections:
-            db_connections[dbname] = database.Database(dbname)
-        db = db_connections[dbname]
-        query = self.get_upload_sproc_call()
-        db.cursor.execute(query)
-        result = db.cursor.fetchone()[0]
-        return result
-
-
-class HeaderUploadError(Exception):
-    """Error to throw when a diagnostic-specific problem 
-        is encountered.
-    """
-    pass
-
 
 def upload_header(fns, beamnum=None, verbose=False):
     if beamnum is not None:
@@ -128,7 +96,7 @@ def main():
     
 
 if __name__=='__main__':
-    parser = optparse.OptionParser(usage="%(prog) [OPTIONS] file1 [file2 ...]")
+    parser = optparse.OptionParser(usage="%prog [OPTIONS] file1 [file2 ...]")
     parser.add_option('-b', '--beamnum', dest='beamnum', type='int', \
                         help="Beam number is required for mulitplexed WAPP " \
                              "data. Beam number must be between 0 and 7, " \

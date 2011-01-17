@@ -8,33 +8,21 @@ Patrick Lazarus, Dec. 20th, 2010
 import re
 import sys
 import glob
-import atexit
 import os.path
 import tarfile
 import optparse
 import datetime
 import warnings
 
-import database
+import upload
 
 from formats import accelcands
 
 # get configurations from config file
 import config
 
-# A global dictionary to keep track of database connections
-db_connections = {}
 
-
-@atexit.register # register this function to be executed at exit time
-def close_db_connections():
-    """A function to close database connections at exit time.
-    """
-    for db in db_connections.values():
-        db.close()
-
-
-class Diagnostic(object):
+class Diagnostic(upload.Uploadable):
     """An abstract class to represent PALFA diagnostics.
     """
     # Define some class attributes
@@ -51,22 +39,9 @@ class Diagnostic(object):
         raise NotImplementedError("Method 'get_diagnostic(...)' " \
                                     "is not implemented for %s." % self.__class__.__name__)
 
-    def upload(self, dbname='common'):
-        if dbname not in db_connections:
-            db_connections[dbname] = database.Database(dbname)
-        db = db_connections[dbname]
-        query = self.get_upload_sproc_call()
-        db.cursor.execute(query)
-        result = db.cursor.fetchone()[0]
-        return result
-        
     def get_upload_sproc_call(self):
         raise NotImplementedError("Method 'get_upload_sproc_call(...)' " \
                                     "is not implemented for %s." % self.__class__.__name__)
-    
-    def __str__(self):
-        s = self.get_upload_sproc_call()
-        return s.replace('@', '\n    @')
 
 
 class FloatDiagnostic(Diagnostic):
@@ -286,13 +261,6 @@ class DiagnosticError(Exception):
     pass
 
 
-class DiagnosticUploadError(Exception):
-    """Error to throw when a diagnostic problem specifically 
-        concerning uploading is encountered.
-    """
-    pass
-
-
 def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False):
     """Upload diagnostic to common DB.
         
@@ -303,7 +271,7 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False):
             directory:
             verbose:
         Outputs:
-            None
+    
     """
     warnings.warn("Connecting to common-copy DB at Cornell for testing...")
     
@@ -334,7 +302,6 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False):
                 print "\tSuccess! (Return value: %d)" % result
         results.append(result)
     return results
-
 
 
 def main():

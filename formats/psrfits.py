@@ -54,7 +54,7 @@ class SpectraInfo:
                 raise ValueError("File '%s' does not appear to be PSRFITS!" % fn)
             
             # Open the PSRFITS file
-            hdus = pyfits.open(fn, mode='readonly')
+            hdus = pyfits.open(fn, mode='readonly', checksum=False)
             self.hdus = hdus
 
             if ii==0:
@@ -166,6 +166,8 @@ class SpectraInfo:
             # Identify the data column and the data type
             if 'DATA' not in subint_hdu.columns.names:
                 warnings.warn("Can't find the 'DATA' column!")
+                self.FITS_typecode = 0
+                self.data_col = 0
             else:
                 colnum = subint_hdu.columns.names.index('DATA')
                 if ii==0:
