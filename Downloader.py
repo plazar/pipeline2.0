@@ -148,6 +148,7 @@ class restore:
 #        else:
 #            return False
 
+    #TODO: Refactor this function and the helper functions
     def run(self):
         if self.name == False:
             dlm_cout.outs("Will not start a restore: have no name", OutStream.WARNING)
@@ -158,6 +159,7 @@ class restore:
         print self.values
         
         if self.values['dl_status'].split(":")[0] == "Finished":
+            #TODO: remove in refactored
             self.update_dl_status()
             return False
         elif self.values['dl_status'].split(":")[0] == "waiting_path":
@@ -165,6 +167,7 @@ class restore:
                 self.get_files()
                 self.create_dl_entries()
                 self.update_status({'dl_status': "Download Ready:_"})
+                #TODO: remove in refactored
                 self.update_dl_status()
         elif self.values['dl_status'].split(":")[0] == "Download Ready":
             if self.is_finished():
@@ -280,7 +283,7 @@ class restore:
                 query = "INSERT INTO restore_downloads (guid,filename,num_tries,status) VALUES ('%s','%s',%u,'%s')" % (self.name,filename,0,'New')
                 db_cur.execute(query)
                 db_conn.commit()
-    
+    #TODO: Refactor function and helpers
     def start_downloader(self):
         started_atleast_one = False
         for filename,filesize in self.files.items():
