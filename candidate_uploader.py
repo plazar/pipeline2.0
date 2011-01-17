@@ -124,7 +124,8 @@ class PeriodicityCandidateError(Exception):
     pass
 
 
-def upload_candidates(header_id, versionnum, directory, verbose=False):
+def upload_candidates(header_id, versionnum, directory, verbose=False, \
+                        dry_run=False):
     """Upload candidates to common DB.
 
         Inputs:
@@ -135,8 +136,14 @@ def upload_candidates(header_id, versionnum, directory, verbose=False):
             directory: The directory containing results from the pipeline.
             verbose: An optional boolean value that determines if information 
                         is printed to stdout.
+            dry_run: An optional boolean value. If True no connection to DB
+                        will be made and DB command will not be executed.
+                        (If verbose is True DB command will be printed 
+                        to stdout.)
         Ouputs:
-            None
+            cand_ids: List of candidate IDs corresponding to these candidates
+                        in the common DB. (Or a list of None values if
+                        dry_run is True).
     """
     # find *.accelcands file    
     candlists = glob.glob(os.path.join(directory, "*.accelcands"))
@@ -164,6 +171,7 @@ def upload_candidates(header_id, versionnum, directory, verbose=False):
     tar.extractall(path=tempdir)
     tar.close()
     # Loop over candidates that were folded
+    results = []
     for ii, c in enumerate(foldedcands):
         basefn = "%s_ACCEL_Cand_%d" % (c.accelfile.replace("ACCEL_", "Z"), \
                                     c.candnum)
@@ -179,20 +187,35 @@ def upload_candidates(header_id, versionnum, directory, verbose=False):
                                     pfd.bestdm, c.snr, c.ipow, c.cpow, \
                                     len(c.dmhits), c.numharm, versionnum, \
                                     c.sigma)
-        cand_id = cand.upload()
+        if dry_run:
+            cand.get_upload_sproc_call()
+            if verbose:
+                print cand
+            results.append(None)
+            cand_id = -1
+        else:
+            cand_id = cand.upload()
         
         pfdplot = PeriodicityCandidatePFD(cand_id, pfdfn)
-        pfdplot.upload()
-        
         pngplot = PeriodicityCandidatePNG(cand_id, pngfn)
-        pngplot.upload()
+        if dry_run:
+            pfdplot.get_upload_sproc_call()
+            pngplot.get_upload_sproc_call()
+            if verbose:
+                print pfdplot
+                print pngplot
+        else:
+            pfdplot.upload()
+            pngplot.upload()
+        
     shutil.rmtree(tempdir)
-
+    return results
 
 def main():
     try:
         upload_candidates(options.header_id, options.versionnum, \
-                            options.directory, options.verbose)
+                            options.directory, options.verbose, \
+                            options.dry_run)
     except upload.UploadError, e:
         traceback.print_exception(*sys.exc_info())
         sys.stderr.write("\nOriginal exception thrown:\n")
@@ -217,6 +240,12 @@ if __name__ == '__main__':
     parser.add_option('--verbose', dest='verbose', action='store_true', \
                         help="Print success/failure information to screen. " \
                              "(Default: do not print).", \
+                        default=False)
+    parser.add_option('-n', '--dry-run', dest='dry_run', action='store_true', \
+                        help="Perform a dry run. Do everything but connect to " \
+                             "DB and upload candidate info. If --verbose " \
+                             "is set, DB commands will be displayed on stdout. " \
+                             "(Default: Connect to DB and execute commands).", \
                         default=False)
     options, args = parser.parse_args()
     main()

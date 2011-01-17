@@ -73,26 +73,59 @@ class Header(upload.Uploadable):
         return sprocstr
     
 
-def upload_header(fns, beamnum=None, verbose=False):
+class HeaderError(Exception):
+    """Error to throw when a header-specific problem is encountered.
+    """
+    pass
+
+
+def upload_header(fns, beamnum=None, verbose=False, dry_run=False):
+    """Upload header to commonDB.
+
+        Inputs:
+            fns: list of filenames (include paths) of data to parse.
+            beamnum: ALFA beam number (an integer between 0 and 7).
+                        This is only required for multiplexed WAPP data files.
+            verbose: An optional boolean value that determines if information 
+                        is printed to stdout. (Default: don't print to stdout).
+            dry_run: An optional boolean value. If True no connection to DB
+                        will be made and DB command will not be executed.
+                        (If verbose is True DB command will be be printed 
+                        to stdout.)
+        Output:
+            header_id: The header ID corresponding to this beam's entry
+                        in the common DB. (Or None if dry_run is True).
+    """
     if beamnum is not None:
+        if not 0 <= beamnum <= 7:
+            raise HeaderError("Beam number must be between 0 and 7, inclusive!")
         header = Header(fns, beamnum=beamnum)
     else:
         header = Header(fns)
     # header.upload('common', verbose=verbose)
-    warnings.warn("Database is set to 'common-copy' for debugging.")
-    result = header.upload('common-copy')
-
-    if verbose:
-        # Check to see if upload worked
+    if dry_run:
+        header.get_upload_sproc_call()
+        if verbose:
+            print header
+        result = None
+    else:
+        result = header.upload()
         if result < 0:
-            print "An error was encountered! (Error code: %d)" % result
-        else:
+            raise HeaderError("An error was encountered! " \
+                                "(Error code: %d)" % result)
+
+        if verbose:
             print "Success! (Return value: %d)" % result
     return result
 
 
 def main():
-    upload_header(args, options.beamnum, options.verbose)
+    try:
+        upload_header(args, options.beamnum, options.verbose, options.dry_run)
+    except upload.UploadError, e:
+        traceback.print_exception(*sys.exc_info())
+        sys.stderr.write("\nOriginal exception thrown:\n")
+        traceback.print_exception(*e.orig_exc)
     
 
 if __name__=='__main__':
@@ -106,8 +139,11 @@ if __name__=='__main__':
                         help="Print success/failure information to screen. " \
                              "(Default: do not print).", \
                         default=False)
+    parser.add_option('-n', '--dry-run', dest='dry_run', action='store_true', \
+                        help="Perform a dry run. Do everything but connect to " \
+                             "DB and upload header info. If --verbose " \
+                             "is set, DB commands will be displayed on stdout. " \
+                             "(Default: Connect to DB and execute commands).", \
+                        default=False)
     options, args = parser.parse_args()
-    if options.beamnum is not None:
-        if not 0 <= options.beamnum <= 7:
-            raise ValueError("Beam number must be between 0 and 7, inclusive!")
     main()
