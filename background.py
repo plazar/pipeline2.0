@@ -29,7 +29,6 @@ def main():
     try:
         #initialize new JobPool object to manage search jobs in QSUB
         jobpool = job.JobPool()
-        jobpool.recover_from_qsub()
     except Exception, e:
 	print "Fatal occured: "+ str(e)
         traceback.print_exc()
@@ -46,8 +45,6 @@ def main():
         #rotation function changes/updates the states and submits jobs
         #that were created
         try:
-            jobpool.fetch_new_jobs()
-            jobpool.status()
             jobpool.rotate()
         except Exception, e:
             print "Error occured: %s" % str(e)
