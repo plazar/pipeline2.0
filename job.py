@@ -19,7 +19,7 @@ import datafile
 import config
 import dev
 
-
+"""
 from QsubManager import Qsub
 from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = Qsub
@@ -27,7 +27,7 @@ QueueManagerClass = Qsub
 from QTestManager import QTest
 from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = QTest
-"""
+
 
 from OutStream import OutStream as OutStream
 
@@ -190,7 +190,7 @@ class JobPool:
                 db_conn = sqlite3.connect(config.bgs_db_file_path);
                 db_conn.row_factory = sqlite3.Row
                 db_cur = db_conn.cursor();
-                fin_file_query = "SELECT * FROM restore_downloads WHERE status LIKE 'Finished:%'"
+                fin_file_query = "SELECT * FROM downloads WHERE status LIKE 'downloaded'"
                 db_cur.execute(fin_file_query)
                 row = db_cur.fetchone()
                 while row:
@@ -203,7 +203,20 @@ class JobPool:
                 return tmp_datafiles
             except Exception,e:
                 jobpool_cout.outs("Database error: %s. Retrying in 1 sec" % str(e), OutStream.ERROR)
-                    
+    
+    def created_jobs_for_files_DB(self):
+        files_with_no_jobs = self.query("SELECT * from downloads as d1 where d1.id not in (SELECT downloads.id FROM jobs, job_files, downloads WHERE jobs.id = job_files.job_id AND job_files.file_id = downloads.id) and d1.status = 'downloaded'")
+        for file_with_no_job in files_with_no_jobs:
+            self.create_job_entry(file_with_no_job)
+     
+    def create_job_entry(self,file_with_no_job):
+        tmp_job = PulsarSearchJob([file_with_no_job['filename']])
+        output_dir = tmp_job.get_output_dir()
+        job_id = self.query("INSERT INTO jobs (status,output_dir,created_at,updated_at) VALUES ('%s','%s','%s','%s')"\
+                                % ('new',output_dir,datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        self.query("INSERT INTO job_files (job_id,file_id,created_at,updated_at) VALUES (%u,%u,'%s','%s')"\
+                                            % (job_id,file_with_no_job['id'],datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        
     def update_db_file_processed(self, job):
         db_conn = sqlite3.connect(config.bgs_db_file_path);
         db_conn.row_factory = sqlite3.Row
@@ -255,36 +268,58 @@ class JobPool:
             If the job has terminated without errors then the processing is
             assumed to be completed successfuly and upload of the results is called upon the job
         '''
+        self.created_jobs_for_files_DB()
+        self.update_jobs_status_from_queue()
+        self.resubmit_failed_jobs()
+        
+            
+        
         jobpool_cout.outs("Rotating through: %s jobs." % str(len(self.jobs)))
         
-        for job in self.jobs[:]:
-            job.get_qsub_status()
-            numrunning, numqueued = self.get_qsub_status()
-            jobpool_cout.outs("Jobs Running: %s" % str(numrunning))
-            jobpool_cout.outs("Jobs Queued: %s" % str(numqueued))
-            
-            if  job.status == PulsarSearchJob.NEW_JOB and\
-             config.max_jobs_running > int(numrunning) + int(numqueued):
-                #the job is new and we allow more jobs for submission;
-                #see if the job can be started
-                self.attempt_to_start_job(job)
-            elif job.status == PulsarSearchJob.TERMINATED:
-                #check if the job terminated with errors
-                if job.queue_error() and\
-                config.max_jobs_running > int(numrunning) + int(numqueued):
-                    #if error occured try to restart the job
-                    self.attempt_to_start_job(job)
-                else:
-                    #if job terminated with no errors - upload the results
-                    try:
-                        self.update_db_file_processed(job)
-                    except Exception,e:
-                        jobpool_cout.outs("*\n*\n*Failed to update file status to Processed: "+ str(e) +"*\n*\n*", OutStream.ERROR)
-                    #self.upload_results(job)
-                    self.complete_job(job)
-		    jobpool_cout.outs("Job Sucessfuly Completed: %s" % job.jobname)
-
-
+    def update_jobs_status_from_queue(self):
+        #collect all non processed jobs from db linking to downloaded files
+        jobs = self.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
+        for job in jobs:
+            #check if Queue is processing a file for this job
+            if not QueueManagerClass.is_processing_file(job['filename']):
+                #if it is not processing, collect the last job submit 
+                last_job_submit = self.query("SELECT * FROM job_submits WHERE job_id=%u ORDER by id DESC LIMIT 1" % int(job['id']))
+                if len(last_job_submit) > 0:
+                    #if there was a submit check if the job terminated with an error
+                    if QueueManagerClass.error(last_job_submit[0]['queue_id']):
+                        #if the job terminated with an error, update it's status to failed
+                        self.query("UPDATE job SET status='failed' WHERE id=%u" % int(job['id']))
+                        #also update the last attempt
+                        self.query("UPDATE job_submits SET status='failed',details='%s',updated_at='%s' WHERE id=%u"\
+                                    % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
+                    else:
+                        #if the job terminated without an error, update it's status to processed
+                        self.query("UPDATE job SET status='processed' WHERE id=%u" % int(job['id']))
+                        #also update the last attempt
+                        self.query("UPDATE job_submits SET status='finished',details='%s',updated_at='%s' WHERE id=%u"\
+                                    % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
+                elif len(last_job_submit) == 0: 
+                    #the job was never submited, so we submit it
+                    queue_id = QueueManagerClass.submit(job['filename'], job['output_dir'])
+                    self.query("INSERT INTO job_submits (job_id,queue_id,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s')"\
+                                % (int(job['id']),queue_id,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            else:
+                #if queue is processing a file for this job update job's status
+                self.query("UPDATE job SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                
+    
+    def resubmit_failed_jobs(self):
+        failed_jobs = self.query("select *,(SELECT COUNT(*) FROM job_submits WHERE job_submits.job_id=jobs.id AND status='failed') as times_failed FROM jobs")
+        
+        for failed_job in failed_jobs:
+            if failed_job['times_failed'] < config.max_attempts:
+                queue_id = QueueManagerClass.submit(failed_job['filename'], failed_job['output_dir'])
+                self.query("INSERT INTO job_submits (job_id,queue_id,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s')"\
+                                % (int(failed_job['id']),queue_id,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            else:
+                print "Job failed too many times, will not resubmit"
+                
+        
     def attempt_to_start_job(self,job):
         if self.can_start_job(job):
             jobpool_cout.outs("Submitting the job: %s" % job.jobname)
@@ -325,6 +360,19 @@ class JobPool:
                         self.demand_file_list[d] += 1
                     else:
                         self.demand_file_list[d] = 1
+
+    def query(self,query_string):
+        db_conn = sqlite3.connect(config.bgs_db_file_path);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+        db_cur.execute(query_string)
+        if db_cur.lastrowid:
+            results = db_cur.lastrowid
+        else:
+            results = db_cur.fetchall()
+        db_conn.commit()
+        db_conn.close()
+        return results
 
     def get_qsub_status(self):
         """Connect to the PBS queue and return the number of
@@ -434,7 +482,7 @@ class PulsarSearchJob:
             self.logfilenm = os.path.join(config.log_dir,os.path.basename(self.jobname) + ".log")
         else:
             self.logfilenm = os.path.join('/home/snip3/dev/pythonapps/pipeline2.0',os.path.basename(self.jobname) + ".log")
-        self.log = JobLog(self.logfilenm, self)
+        #self.log = JobLog(self.logfilenm, self)
         self.status = self.NEW_JOB
 
 
