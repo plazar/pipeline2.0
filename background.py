@@ -46,10 +46,12 @@ def main():
         #that were created
         try:
             jobpool.rotate()
+            jobpool.status()
         except Exception, e:
             print "Error occured: %s" % str(e)
             traceback.print_exc()
-        time.sleep(config.bgs_sleep)
+        time.sleep(3)
+        #time.sleep(config.bgs_sleep)
             
     
         

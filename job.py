@@ -19,7 +19,7 @@ import datafile
 import config
 import dev
 
-"""
+
 from QsubManager import Qsub
 from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = Qsub
@@ -27,7 +27,7 @@ QueueManagerClass = Qsub
 from QTestManager import QTest
 from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = QTest
-
+"""
 
 from OutStream import OutStream as OutStream
 
@@ -244,7 +244,16 @@ class JobPool:
 
 
     def status(self):
-        jobpool_cout.outs("Jobs in the Pool: "+ str(len(self.jobs)))
+        running_jobs = self.query("SELECT * FROM jobs WHERE status='submitted'")
+        processed_jobs = self.query("SELECT * FROM jobs WHERE status='processed'")
+        new_jobs = self.query("SELECT * FROM jobs WHERE status='new'")
+        failed_jobs = self.query("SELECT * FROM jobs WHERE status='failed'")
+        
+        jobpool_cout.outs("\n\n================= Job Pool Status ==============")
+        jobpool_cout.outs("Num . of jobs   running: %u" % len(running_jobs))
+        jobpool_cout.outs("Num . of jobs processed: %u" % len(processed_jobs))
+        jobpool_cout.outs("Num . of jobs   waiting: %u" % len(new_jobs))
+        jobpool_cout.outs("Num . of jobs    failed: %u" % len(failed_jobs))
         #print "Jobs Running: "+
 
     def upload_results(self,job):
@@ -272,71 +281,52 @@ class JobPool:
         self.update_jobs_status_from_queue()
         self.resubmit_failed_jobs()
         
-            
-        
-        jobpool_cout.outs("Rotating through: %s jobs." % str(len(self.jobs)))
-        
     def update_jobs_status_from_queue(self):
         #collect all non processed jobs from db linking to downloaded files
-        jobs = self.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
+        jobs = self.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.status NOT LIKE 'failed' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
         for job in jobs:
             #check if Queue is processing a file for this job
-            if not QueueManagerClass.is_processing_file(job['filename']):
+            in_queue,queueidreported = QueueManagerClass.is_processing_file(job['filename'])
+            if not in_queue:
                 #if it is not processing, collect the last job submit 
                 last_job_submit = self.query("SELECT * FROM job_submits WHERE job_id=%u ORDER by id DESC LIMIT 1" % int(job['id']))
                 if len(last_job_submit) > 0:
                     #if there was a submit check if the job terminated with an error
                     if QueueManagerClass.error(last_job_submit[0]['queue_id']):
                         #if the job terminated with an error, update it's status to failed
-                        self.query("UPDATE job SET status='failed' WHERE id=%u" % int(job['id']))
+                        self.query("UPDATE jobs SET status='failed' WHERE id=%u" % int(job['id']))
                         #also update the last attempt
                         self.query("UPDATE job_submits SET status='failed',details='%s',updated_at='%s' WHERE id=%u"\
                                     % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
                     else:
                         #if the job terminated without an error, update it's status to processed
-                        self.query("UPDATE job SET status='processed' WHERE id=%u" % int(job['id']))
+                        self.query("UPDATE jobs SET status='processed' WHERE id=%u" % int(job['id']))
                         #also update the last attempt
                         self.query("UPDATE job_submits SET status='finished',details='%s',updated_at='%s' WHERE id=%u"\
                                     % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
-                elif len(last_job_submit) == 0: 
+                elif len(last_job_submit) == 0:
                     #the job was never submited, so we submit it
-                    queue_id = QueueManagerClass.submit(job['filename'], job['output_dir'])
-                    self.query("INSERT INTO job_submits (job_id,queue_id,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s')"\
-                                % (int(job['id']),queue_id,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                    running, queued = self.get_queue_status()
+                    if (running + queued) < config.max_jobs_running:
+                        queue_id = QueueManagerClass.submit([job['filename']], job['output_dir'])
+                        self.query("INSERT INTO job_submits (job_id,queue_id,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s')"\
+                                    % (int(job['id']),queue_id,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             else:
                 #if queue is processing a file for this job update job's status
-                self.query("UPDATE job SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
                 
     
     def resubmit_failed_jobs(self):
-        failed_jobs = self.query("select *,(SELECT COUNT(*) FROM job_submits WHERE job_submits.job_id=jobs.id AND status='failed') as times_failed FROM jobs")
-        
+        failed_jobs = self.query("select *,(SELECT COUNT(*) FROM job_submits WHERE job_submits.job_id=jobs.id AND status='failed') as times_failed FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
         for failed_job in failed_jobs:
-            if failed_job['times_failed'] < config.max_attempts:
-                queue_id = QueueManagerClass.submit(failed_job['filename'], failed_job['output_dir'])
-                self.query("INSERT INTO job_submits (job_id,queue_id,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s')"\
-                                % (int(failed_job['id']),queue_id,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-            else:
-                print "Job failed too many times, will not resubmit"
-                
-        
-    def attempt_to_start_job(self,job):
-        if self.can_start_job(job):
-            jobpool_cout.outs("Submitting the job: %s" % job.jobname)
-            job.submit()
-            job.status = PulsarSearchJob.RUNNING
-            job.log.addentry(LogEntry(qsubid=job.jobid, status="Submitted to queue", host=socket.gethostname(), \
-                                        info="Job ID: %s" % job.jobid.strip()))
-        else:
-            jobpool_cout.outs("Removing the job because of multiple fails: %s" % job.jobname, OutStream.WARNING)
-            self.delete_job(job)
-
-
-#        job.jobid = dev.get_fake_job_id()
-#        dev.write_fake_qsub_error(os.path.join("qsublog",config.job_basename+".e"+job.jobid.split(".")[0]))
-
-        #Change status of the job to Submited and log
-        
+            if int(failed_job['times_failed']) < config.max_attempts:
+                running, queued = self.get_queue_status()
+                if (running + queued) < config.max_jobs_running:
+                    print "Job failed: %u times" % int(failed_job['times_failed'])
+                    queue_id = QueueManagerClass.submit([failed_job['filename']], failed_job['output_dir'])
+                    self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(failed_job['id'])))
+                    self.query("INSERT INTO job_submits (job_id,queue_id,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s')"\
+                                    % (int(failed_job['id']),queue_id,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))               
 
     def update_demand_file_list(self):
         """Return a dictionary where the keys are the datafile names
@@ -374,7 +364,7 @@ class JobPool:
         db_conn.close()
         return results
 
-    def get_qsub_status(self):
+    def get_queue_status(self):
         """Connect to the PBS queue and return the number of
             survey jobs running and the number of jobs queued.
 
