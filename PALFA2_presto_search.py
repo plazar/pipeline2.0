@@ -431,7 +431,7 @@ def main(filenms, workdir, resultsdir):
     except:
         print "Search has been aborted due to errors encountered."
         print "See error output for more information."
-        sys.excepthook(*sys.exc_info())
+        raise
     finally:
         clean_up(job)
 

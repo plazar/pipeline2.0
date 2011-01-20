@@ -8,33 +8,21 @@ Patrick Lazarus, Dec. 20th, 2010
 import re
 import sys
 import glob
-import atexit
 import os.path
 import tarfile
 import optparse
 import datetime
 import warnings
 
-import database
+import upload
 
 from formats import accelcands
 
 # get configurations from config file
 import config
 
-# A global dictionary to keep track of database connections
-db_connections = {}
 
-
-@atexit.register # register this function to be executed at exit time
-def close_db_connections():
-    """A function to close database connections at exit time.
-    """
-    for db in db_connections.values():
-        db.close()
-
-
-class Diagnostic(object):
+class Diagnostic(upload.Uploadable):
     """An abstract class to represent PALFA diagnostics.
     """
     # Define some class attributes
@@ -51,22 +39,9 @@ class Diagnostic(object):
         raise NotImplementedError("Method 'get_diagnostic(...)' " \
                                     "is not implemented for %s." % self.__class__.__name__)
 
-    def upload(self, dbname='common'):
-        if dbname not in db_connections:
-            db_connections[dbname] = database.Database(dbname)
-        db = db_connections[dbname]
-        query = self.get_upload_sproc_call()
-        db.cursor.execute(query)
-        result = db.cursor.fetchone()[0]
-        return result
-        
     def get_upload_sproc_call(self):
         raise NotImplementedError("Method 'get_upload_sproc_call(...)' " \
                                     "is not implemented for %s." % self.__class__.__name__)
-    
-    def __str__(self):
-        s = self.get_upload_sproc_call()
-        return s.replace('@', '\n    @')
 
 
 class FloatDiagnostic(Diagnostic):
@@ -286,27 +261,30 @@ class DiagnosticError(Exception):
     pass
 
 
-class DiagnosticUploadError(Exception):
-    """Error to throw when a diagnostic problem specifically 
-        concerning uploading is encountered.
-    """
-    pass
-
-
-def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False):
+def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
+                        dry_run=False):
     """Upload diagnostic to common DB.
         
         Inputs:
-            obsname:
-            beamnum:
-            versionnum:
-            directory:
-            verbose:
+            obsname: Observation name in the format:
+                        {Project ID}.{Source name}.{MJD}.{Sequence number}
+            beamnum: ALFA beam number (an integer between 0 and 7).
+            versionnum: A combination of the githash values from 
+                        PRESTO and from the pipeline. 
+            directory: The directory containing results from the pipeline.
+            verbose: An optional boolean value that determines if information 
+                        is printed to stdout.
+            dry_run: An optional boolean value. If True no connection to DB
+                        will be made and DB command will not be executed.
+                        (If verbose is True DB command will be printed 
+                        to stdout.)
         Outputs:
-            None
+            diagnostic_ids: List of diagnostic IDs corresponding to these 
+                        diagnostics in the common DB. (Or a list of None values 
+                        if dry_run is True).
     """
-    warnings.warn("Connecting to common-copy DB at Cornell for testing...")
-    
+    if not 0 <= beamnum <= 7:
+        raise DiagnosticError("Beam number must be between 0 and 7, inclusive!")
     # Define a list of diagnostics to apply
     diagnostic_types = [RFIPercentageDiagnostic,
                         RFIPlotDiagnostic,
@@ -323,24 +301,32 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False):
         print "Working on %s" % diagnostic_type.name
         d = diagnostic_type(obsname, beamnum, \
                             versionnum, directory)
-        result = d.upload('common-copy')
-
-        if verbose:
-            # Check to see if upload worked
+        if dry_run:
+            d.get_upload_sproc_call()
+            if verbose:
+                print d
+            results.append(None)
+        else:
+            result = d.upload()
             if result < 0:
-                raise DiagnosticUploadError("An error was encountered! " \
-                                    "(Error code: %d)" % result)
-            else:
+                raise DiagnosticError("An error was encountered! " \
+                                        "(Error code: %d)" % result)
+            if verbose:
                 print "\tSuccess! (Return value: %d)" % result
-        results.append(result)
+            
+            results.append(result)
     return results
 
 
-
 def main():
-    upload_diagnostics(options.obsname, options.beamnum, \
-                        options.versionnum, options.directory, \
-                        options.verbose)
+    try:
+        upload_diagnostics(options.obsname, options.beamnum, \
+                            options.versionnum, options.directory, \
+                            options.verbose, options.dry_run)
+    except upload.UploadError, e:
+        traceback.print_exception(*sys.exc_info())
+        sys.stderr.write("\nOriginal exception thrown:\n")
+        traceback.print_exception(*e.orig_exc)
 
 
 if __name__ == '__main__':
@@ -367,6 +353,11 @@ if __name__ == '__main__':
                         help="Print success/failure information to screen. " \
                              "(Default: do not print).", \
                         default=False)
-
+    parser.add_option('-n', '--dry-run', dest='dry_run', action='store_true', \
+                        help="Perform a dry run. Do everything but connect to " \
+                             "DB and upload diagnostics info. If --verbose " \
+                             "is set, DB commands will be displayed on stdout. " \
+                             "(Default: Connect to DB and execute commands).", \
+                        default=False)
     options, args = parser.parse_args()
     main()

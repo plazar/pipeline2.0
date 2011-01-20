@@ -267,9 +267,6 @@ class PsrfitsData(Data):
         # Read information from files
         self.specinfo = psrfits.SpectraInfo(self.fns)
         self.original_file = os.path.split(sorted(self.specinfo.filenames)[0])[-1]
-        self.beam_id = self.specinfo.beam_id
-        if self.beam_id is None:
-            raise ValueError("Beam number not encoded in PSR fits header.")
         self.project_id = self.specinfo.project_id
         self.observers = self.specinfo.observer
         self.source_name = self.specinfo.source
@@ -292,7 +289,6 @@ class PsrfitsData(Data):
                                             'deg', 'deg', J2000=True)
         self.orig_galactic_longitude = float(l)
         self.orig_galactic_latitude = float(b)
-        self.get_correct_positions()
 
         self.file_size = int(sum([os.path.getsize(fn) for fn in fitsfns]))
         self.observation_time = self.specinfo.T
@@ -312,6 +308,10 @@ class WappPsrfitsData(PsrfitsData):
 
     def __init__(self, fitsfns):
         super(WappPsrfitsData, self).__init__(fitsfns)
+        self.beam_id = self.specinfo.beam_id
+        if self.beam_id is None:
+            raise ValueError("Beam number not encoded in PSR fits header.")
+        self.get_correct_positions()
         # Note Puerto Rico doesn't observe daylight savings time
         # so it is 4 hours behind UTC all year
         dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1
@@ -342,13 +342,15 @@ class WappPsrfitsData(PsrfitsData):
 class MockPsrfitsData(PsrfitsData):
     """PSR fits Data object for MockSpec data.
     """
-    filename_re = re.compile(r'^(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
+    filename_re = re.compile(r'^4bit-(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
                                 r'(?P<source>.*)\.b(?P<beam>[0-7])' \
-                                r's(?P<subband>[01])g0_4b.(?P<scan>\d{5})\.' \
-                                r'(?P=scan)\.fits')
+                                r's(?P<subband>[01])g0.(?P<scan>\d{5})\.fits')
 
     def __init__(self, fitsfns):
         super(MockPsrfitsData, self).__init__(fitsfns)
+        self.beam_id = self.specinfo.beam_id
+        if self.beam_id is None:
+            raise ValueError("Beam number not encoded in PSR fits header.")
         # Note Puerto Rico doesn't observe daylight savings time
         # so it is 4 hours behind UTC all year
         dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1
@@ -363,7 +365,7 @@ class MockPsrfitsData(PsrfitsData):
                                     str(self.scan_num)])
 
 
-class MergedMockPsrfitsData(MockPsrfitsData):
+class MergedMockPsrfitsData(PsrfitsData):
     """PSRFITS Data object for merged MockSpec data.
     """
     filename_re = re.compile(r'^4bit-(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
@@ -373,6 +375,20 @@ class MergedMockPsrfitsData(MockPsrfitsData):
 
     def __init__(self, fitsfns):
         super(MergedMockPsrfitsData, self).__init__(fitsfns)
+        # Note Puerto Rico doesn't observe daylight savings time
+        # so it is 4 hours behind UTC all year
+        dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1
+        self.start_ast = int((dayfrac*24-4)*3600)
+        self.start_ast %= 24*3600
+        self.num_ifs = 2
+        # Parse filename to get the scan number
+        m = self.fnmatch(fitsfns[0])
+        self.beam_id = int(m.groupdict()['beam'])
+        self.get_correct_positions()
+        self.scan_num = m.groupdict()['scan']
+        self.obs_name = '.'.join([self.project_id, self.source_name, \
+                                    str(int(self.timestamp_mjd)), \
+                                    str(self.scan_num)])
 
 
 
