@@ -19,7 +19,7 @@ log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
 #log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
 #log_archive = "C:/Reposotories/PALFA/pipeline2.0/log_archive"
 
-max_jobs_running = 3
+max_jobs_running = 50
 job_basename = "%s_batchjob" % survey
 sleep_time = 10*60 # time to sleep between submitting jobs (in seconds)
 max_attempts = 2 # Maximum number of times a job is attempted due to errors

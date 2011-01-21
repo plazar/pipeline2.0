@@ -211,11 +211,17 @@ class JobPool:
      
     def create_job_entry(self,file_with_no_job):
         tmp_job = PulsarSearchJob([file_with_no_job['filename']])
-        output_dir = tmp_job.get_output_dir()
+        try:
+            output_dir = tmp_job.get_output_dir()
+        except Exception, e:
+            jobpool_cout.outs("Error while reading %s. Job will not be created" % file_with_no_job['filename'])
+            return
         job_id = self.query("INSERT INTO jobs (status,output_dir,created_at,updated_at) VALUES ('%s','%s','%s','%s')"\
                                 % ('new',output_dir,datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         self.query("INSERT INTO job_files (job_id,file_id,created_at,updated_at) VALUES (%u,%u,'%s','%s')"\
                                             % (job_id,file_with_no_job['id'],datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        
+            
         
     def update_db_file_processed(self, job):
         db_conn = sqlite3.connect(config.bgs_db_file_path);
