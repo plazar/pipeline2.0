@@ -22,9 +22,9 @@ import datafile
 
 # Basic parameters
 # institution is one of: 'UBC', 'NRAOCV', 'McGill', 'Columbia', 'Cornell', 'UTB'
-# institution           = "NRAOCV" 
-# base_output_directory = "/home/fcardoso/results/PALFA"
-# db_pointing_file      = "/home/fcardoso/results/PALFA/PALFA_coords_table.txt"
+institution           = "NRAOCV" 
+base_output_directory = "/home/fcardoso/results/PALFA"
+db_pointing_file      = "/home/fcardoso/results/PALFA/PALFA_coords_table.txt"
 
 # The following determines if we'll dedisperse and fold using subbands.
 # In general, it is a very good idea to use them if there is enough scratch
@@ -57,13 +57,13 @@ hi_accel_flo            = 1.0  # Hz
 low_T_to_search         = 20.0 # sec
 
 # DDplan configurations
-lodm = 0            # pc cm-3
-hidm = 1000         # pc cm-3
-resolution = 0.1    # ms
-if use_subbands:
-    numsub = 32     # subbands
-else:
-    numsub = 0      # Defaults to number of channels
+# presto_search.lodm        = 0      # pc cm-3
+# presto_search.hidm        = 1000   # pc cm-3
+# presto_search.resolution  = 0.1    # ms
+# if presto_search.use_subbands:
+#     presto_search.numsub  = 96     # subbands
+# else:
+#     presto_search.numsub  = 0      # Defaults to number of channels
 
 # Sifting specific parameters (don't touch without good reason!)
 sifting.sigma_threshold = to_prepfold_sigma-1.0  # incoherent power threshold (sigma)

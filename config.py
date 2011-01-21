@@ -75,14 +75,16 @@ def init_presto_search():
     presto_search.low_T_to_search         = 20.0 # sec
 
     # DDplan configurations
-    presto_search.lodm        = 0      # pc cm-3
-    presto_search.hidm        = 1000   # pc cm-3
-    presto_search.resolution  = 0.1    # ms
-    # presto_search.resolution  = 1.0    # ms # Coarse resolution for debugging!
-    if presto_search.use_subbands:
-        presto_search.numsub  = 96     # subbands
-    else:
-        presto_search.numsub  = 0      # Defaults to number of channels
+    # The following configurations are for calculating dedispersion plans 
+    # on demand. Currently dedispersion plans for WAPP and Mock data 
+    # are hardcoded.
+    # presto_search.lodm        = 0      # pc cm-3
+    # presto_search.hidm        = 1000   # pc cm-3
+    # presto_search.resolution  = 0.1    # ms
+    # if presto_search.use_subbands:
+    #     presto_search.numsub  = 96     # subbands
+    # else:
+    #     presto_search.numsub  = 0      # Defaults to number of channels
 
     # Sifting specific parameters (don't touch without good reason!)
     presto_search.sifting.sigma_threshold = presto_search.to_prepfold_sigma-1.0  
