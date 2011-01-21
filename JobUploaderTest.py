@@ -1,24 +1,6 @@
-from JobUploader import *
-import time
-import exceptions
+from JobUploader import JobUploader
 
+upl = JobUploader()
+for job_row in upl.get_processed_jobs():
+    print "Job id:%s \nJob Status: %s \nJob Files: %s \nOutput Dir.: %s\n" % (job_row['id'],job_row['status'],", ".join(upl.get_jobs_files(job_row)), job_row['output_dir'] )
 
-class testJob(object):
-    def __init__(self):
-        self.status = 'NEW'
-        self.presto_output_dir = "/home/snip3/Downloads"
-        
-myJob = testJob()
-uploader = JobUploader(job=myJob,test=True)
-uploader.start()
-
-
-while uploader.is_alive():
-    print "Job Status: "+ str(myJob.status)
-    print "JobUploader Status: "+ uploader.get_status_str()
-    time.sleep(1)
-print uploader.output
-print uploader.exitcode
-
-print "Job Status: "+ str(myJob.status)
-print "JobUploader Status: "+ uploader.get_status_str()

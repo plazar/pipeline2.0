@@ -1,135 +1,56 @@
 from threading import Thread
 import subprocess
 import sys
-from job import PulsarSearchJob
 import exceptions
-from candidate_uploader import CandUploader
 import re
+import datetime
+import sqlite3
+import config
+import header
+from time import sleep
 
-class JobUploader(Thread):
-    UPLOAD_FAILED = 0
-    NEW = 1
-    STARTING_HEADERS_UPLOAD = 2
-    UPLOADING_HEADERS = 3
-    STARTING_CANDIDATES_UPLOAD = 4
-    UPLOADING_CANDIDATES = 5
-    STARTING_DIAGNOSTICS_UPLOAD = 6
-    UPLOADING_DIAGNOSTICS = 7
-    UPLOAD_COMPLETED = 8
+import header
 
-    STATUS_TRANSLATION = {
-    0:"UPLOAD_FAILED",
-    1:"NEW",
-    2:"STARTING_HEADERS_UPLOAD",
-    3:"UPLOADING_HEADERS",
-    4:"STARTING_CANDIDATES_UPLOAD",
-    5:"UPLOADING_CANDIDATES",
-    6:"STARTING_DIAGNOSTICS_UPLOAD",
-    7:"UPLOADING_DIAGNOSTICS",
-    8:"UPLOAD_COMPLETED"}
-
-    def __init__(self, job, test=False):
-        Thread.__init__(self)
-        self.output = ''
-        self.exitcode = ''
-        self.job = job
-        self.status = self.NEW
-        self.test=test
+class JobUploader():
+    
+    def __init__(self):
+        self.created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
     def run(self):
-
-        #upload header
-        self.job.status = PulsarSearchJob.UPLOAD_STARTED
-        self.status = self.STARTING_HEADERS_UPLOAD
-
-        if self.test:
-            cmd = subprocess.Popen("ping -c 3 google.ca",stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        else:
-            cmd = subprocess.Popen("python header_uploader.py",stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-
         while True:
-            line = cmd.stdout.readline()
-            self.exitcode = cmd.poll()
-            if (not line) and (self.exitcode is not None):
-                if self.exitcode != 0:
-                    self.job.status = PulsarSearchJob.UPLOAD_FAILED
-                break
-            else:
-                self.status = self.UPLOADING_HEADERS
-            self.output += line
-
-
-        
-        if self.test:
-            line = "Success! (Return value: 123)"
-        header_id = re.match("^Success! \(Return value: (?P<header_id>\d+)\)",line).groupdict()['header_id']
-        del(cmd)
-
-        if self.job.status == PulsarSearchJob.UPLOAD_FAILED:
-            sys.exit(self.job.status)
-        else:
-            self.status = self.STARTING_CANDIDATES_UPLOAD
-
-        try:
-            if self.test:
-                cand_upler = CandUploader(presto_jobs_output_dir=self.job.presto_output_dir)
-            else:
-                #cand_upler = CandUploader(presto_jobs_output_dir=self.job.presto_output_dir,db_name='palfa-common')
-                pass
-            self.status = self.UPLOADING_CANDIDATES
-            cand_upler.upload()
-        except Exception as e:
-            print str(e)
-            self.job.status = PulsarSearchJob.UPLOAD_FAILED
-            sys.exit(self.job.status)
-
+            sleep(15)
+    
+    
+    def upload_jobs_header(self,job_row):
+        file_names_stra = self.get_jobs_files(job_row)
+        if file_names_stra != list():
+            header.upload_header(fns=file_names_stra,verbose=True,dry_run=True)
             
-#        cmd = subprocess.Popen("ping -c 3 google.ca",stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-#
-#        while True:
-#            line = cmd.stdout.readline()
-#            self.exitcode = cmd.poll()
-#            if (not line) and (self.exitcode is not None):
-#                if self.exitcode != 0:
-#                    self.job.status = PulsarSearchJob.UPLOAD_FAILED
-#                break
-#            else:
-#                self.status = self.UPLOADING_CANDIDATES
-#            self.output += line
-#        del(cmd)
+    def get_processed_jobs(self):
+        return self.query("SELECT * FROM jobs WHERE status='processed'")
+        
+    def get_upload_attempts(self,job_row):
+        return self.query("SELECT * FROM job_uploads WHERE job_id = %u" % int(job_row['id']))
+            
+    def get_jobs_files(self,job_row):
+        file_rows = self.query("SELECT * FROM job_files,downloads WHERE job_files.job_id=%u AND downloads.id=job_files.file_id" % int(job_row['id']))
+        files_stra = list()
+        for file_row in file_rows:
+            files_stra.append(file_row['filename'])
+        return files_stra
 
-
-        if self.job.status == PulsarSearchJob.UPLOAD_FAILED:
-            sys.exit(self.job.status)
+    def query(self,query_string):
+        db_conn = sqlite3.connect(config.bgs_db_file_path);
+        db_conn.row_factory = sqlite3.Row
+        db_cur = db_conn.cursor();
+        db_cur.execute(query_string)
+        if db_cur.lastrowid:
+            results = db_cur.lastrowid
         else:
-            self.status = self.STARTING_DIAGNOSTICS_UPLOAD
-        cmd = subprocess.Popen("ping -c 3 google.ca",stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-
-        while True:
-            line = cmd.stdout.readline()
-            self.exitcode = cmd.poll()
-            if (not line) and (self.exitcode is not None):
-                if self.exitcode != 0:
-                    self.job.status = PulsarSearchJob.UPLOAD_FAILED
-                break
-            else:
-                self.status = self.UPLOADING_DIAGNOSTICS
-            self.output += line
-        del(cmd)
-
-        if self.job.status == PulsarSearchJob.UPLOAD_FAILED:
-            sys.exit(self.job.status)
-        else:
-            self.status = self.UPLOAD_COMPLETED
-            self.job.status = PulsarSearchJob.UPLOAD_COMPLETED
-
-    def get_status(self):
-        self.status = parse_for_status(self.output)
-        return self.status
-
-    def parse_for_status(self):
-        return self.UPLOADING
-
-    def get_status_str(self):
-        return self.STATUS_TRANSLATION[self.status]
+            results = db_cur.fetchall()
+        db_conn.commit()
+        db_conn.close()
+        return results
+            
+        
     
