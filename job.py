@@ -358,7 +358,15 @@ class JobPool:
                         self.demand_file_list[d] = 1
 
     def query(self,query_string):
-        db_conn = sqlite3.connect(config.bgs_db_file_path);
+        not_connected = True
+        while not_connected:
+            try:
+                db_conn = sqlite3.connect(config.bgs_db_file_path);
+                not_connected = False
+            except Exception, e:
+                jobpool_cout.outs("Couldn't connect to DB retrying in 1 sec.") 
+                time.sleep(1)
+                          
         db_conn.row_factory = sqlite3.Row
         db_cur = db_conn.cursor();
         db_cur.execute(query_string)

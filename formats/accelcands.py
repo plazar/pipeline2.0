@@ -131,7 +131,7 @@ def parse_candlist(candlistfn):
         Outputs:
             An AccelCandlist object
     """
-    if type(candlistfn) == types.StringType:
+    if type(candlistfn) == types.StringType or type(candlistfn) == types.UnicodeType:
         candlist = open(candlistfn, 'r')
         toclose = True
     else:
