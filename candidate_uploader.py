@@ -156,7 +156,7 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
     candlist = accelcands.parse_candlist(candlists[0])
     presto_search = config.init_presto_search()
     minsigma = presto_search.to_prepfold_sigma
-    foldedcands = [c for c in candlist if c.sigma >= minsigma]
+    foldedcands = [c for c in candlist if c.sigma > minsigma]
     foldedcands = foldedcands[:presto_search.max_cands_to_fold]
     foldedcands.sort(reverse=True) # Sort by descending sigma
     

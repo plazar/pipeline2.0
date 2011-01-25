@@ -272,7 +272,7 @@ class PsrfitsData(Data):
         self.source_name = self.specinfo.source
         self.center_freq = self.specinfo.fctr
         self.num_channels_per_record = self.specinfo.num_channels
-        self.channel_bandwidth = self.specinfo.df
+        self.channel_bandwidth = self.specinfo.df*100.0 # In kHz
         self.sample_time = self.specinfo.dt*1e6 # In microseconds
         self.sum_id = int(self.specinfo.summed_polns)
         self.timestamp_mjd = self.specinfo.start_MJD[0]
