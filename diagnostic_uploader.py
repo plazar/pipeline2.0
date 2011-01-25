@@ -219,7 +219,7 @@ class NumAboveThreshDiagnostic(FloatDiagnostic):
         candlist = accelcands.parse_candlist(candlists[0])
         presto_search = config.init_presto_search()
         self.value = len([c for c in candlist \
-                            if c.sigma >= presto_search.to_prepfold_sigma])
+                            if c.sigma > presto_search.to_prepfold_sigma])
 
 
 def find_in_tarballs(dir, matchfunc):
