@@ -298,7 +298,8 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
     results = []
     # Loop over diagnostics, adding missing values to the DB
     for diagnostic_type in diagnostic_types:
-        print "Working on %s" % diagnostic_type.name
+    	if verbose:
+        	print "Working on %s" % diagnostic_type.name
         d = diagnostic_type(obsname, beamnum, \
                             versionnum, directory)
         if dry_run:

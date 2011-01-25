@@ -210,14 +210,8 @@ class JobPool:
             self.create_job_entry(file_with_no_job)
      
     def create_job_entry(self,file_with_no_job):
-        tmp_job = PulsarSearchJob([file_with_no_job['filename']])
-        try:
-            output_dir = tmp_job.get_output_dir()
-        except Exception, e:
-            jobpool_cout.outs("Error while reading %s. Job will not be created" % file_with_no_job['filename'])
-            return
-        job_id = self.query("INSERT INTO jobs (status,output_dir,created_at,updated_at) VALUES ('%s','%s','%s','%s')"\
-                                % ('new',output_dir,datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        job_id = self.query("INSERT INTO jobs (status,created_at,updated_at) VALUES ('%s','%s','%s')"\
+                                % ('new',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         self.query("INSERT INTO job_files (job_id,file_id,created_at,updated_at) VALUES (%u,%u,'%s','%s')"\
                                             % (job_id,file_with_no_job['id'],datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         
@@ -300,23 +294,19 @@ class JobPool:
                     #if there was a submit check if the job terminated with an error
                     if QueueManagerClass.error(last_job_submit[0]['queue_id']):
                         #if the job terminated with an error, update it's status to failed
-                        self.query("UPDATE jobs SET status='failed' WHERE id=%u" % int(job['id']))
+                        self.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
                         #also update the last attempt
-                        self.query("UPDATE job_submits SET status='failed',details='%s',updated_at='%s' WHERE id=%u"\
-                                    % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
+                        self.query("UPDATE job_submits SET status='failed', details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
                     else:
                         #if the job terminated without an error, update it's status to processed
-                        self.query("UPDATE jobs SET status='processed' WHERE id=%u" % int(job['id']))
+                        self.query("UPDATE jobs SET status='processed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
                         #also update the last attempt
-                        self.query("UPDATE job_submits SET status='finished',details='%s',updated_at='%s' WHERE id=%u"\
-                                    % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
+                        self.query("UPDATE job_submits SET status='finished',details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
                 elif len(last_job_submit) == 0:
                     #the job was never submited, so we submit it
                     running, queued = self.get_queue_status()
                     if (running + queued) < config.max_jobs_running:
-                        queue_id = QueueManagerClass.submit([job['filename']], job['output_dir'])
-                        self.query("INSERT INTO job_submits (job_id,queue_id,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s')"\
-                                    % (int(job['id']),queue_id,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                        self.submit(job)
             else:
                 #if queue is processing a file for this job update job's status
                 self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
@@ -329,11 +319,24 @@ class JobPool:
                 running, queued = self.get_queue_status()
                 if (running + queued) < config.max_jobs_running:
                     print "Job failed: %u times" % int(failed_job['times_failed'])
-                    queue_id = QueueManagerClass.submit([failed_job['filename']], failed_job['output_dir'])
-                    self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(failed_job['id'])))
-                    self.query("INSERT INTO job_submits (job_id,queue_id,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s')"\
-                                    % (int(failed_job['id']),queue_id,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))               
+                    self.submit(failed_job)
 
+    def submit(self,job_row):
+        tmp_job = PulsarSearchJob([job_row['filename']])
+        try:
+            output_dir = tmp_job.get_output_dir()
+        except Exception, e:
+            jobpool_cout.outs("Error while reading %s. Job will not be submited" % file_with_no_job['filename'])
+            self.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
+          % (int(job_row['id']),'did_not_queue','could not get output dir','failed',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            self.query("UPDATE jobs SET status='failed',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
+            return
+            
+        queue_id = QueueManagerClass.submit([job_row['filename']], output_dir)
+        self.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
+          % (int(job_row['id']),queue_id,output_dir,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
+    
     def update_demand_file_list(self):
         """Return a dictionary where the keys are the datafile names
             and the values are the number of jobs that require that

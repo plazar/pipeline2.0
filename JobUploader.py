@@ -35,16 +35,14 @@ class JobUploader():
                 % (job_row['id'], 'new','Newly added upload',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             
     def check_new_uploads(self):
-        new_uploads = self.query("SELECT jobs.* FROM jobs,job_uploads WHERE job_uploads.status='new' AND jobs.id=job_uploads.job_id")
+        new_uploads = self.query("SELECT jobs.*,job_submits.output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='new' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
         for job_row in new_uploads:
             if self.header_dry_run(job_row):
                 print "Header check passed"
                 if self.candidates_dry_run(job_row):
                     print "Candidates check passed"
                     if self.diagnostics_dry_run(job_row):
-                       print "Diagnostics check passed" 
-                    else:
-                       print "Diagnostics check failed" 
+                       print "Diagnostics check passed"
     def upload_job(self,job_row):
         print "Header checked: %s" % str()
         print "Candidates checked: %s" % str()
@@ -60,7 +58,7 @@ class JobUploader():
             #try:
             try:
                 header.upload_header(fns=file_names_stra,dry_run=True)
-            except Exception, e:
+            except header.HeaderError, e:
                 self.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
                 % ('Header check failed: %s' % str(e).replace("'","").replace('"',''),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
                 return False
@@ -82,7 +80,7 @@ class JobUploader():
         
         try:
             candidate_uploader.upload_candidates(1, 'blewblahblah',  "/".join(moded_dir),dry_run=True)
-        except Exception, e:
+        except candidate_uploader.PeriodicityCandidateError, e:
             self.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
                 % ('Candidates check failed: %s' % str(e).replace("'","").replace('"',''),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
             return False
@@ -102,11 +100,10 @@ class JobUploader():
         print "obs_name: %s  beamnum: %s" % (obs_name,beamnum)
         try:
             diagnostic_uploader.upload_diagnostics(obs_name,beamnum, 'blewblahblah',  "/".join(moded_dir),dry_run=True)
-        except Exception, e:
+        except diagnostic_uploader.DiagnosticError, e:
             print str(e)
             self.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
                 % ('Diagnostics check failed: %s' % str(e).replace("'","").replace('"',''),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
-            print str(e)
             return False
         
         self.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
