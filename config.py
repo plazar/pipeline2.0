@@ -108,8 +108,8 @@ downloader_api_service_url = "http://arecibo.tc.cornell.edu/palfadataapi/dataflo
 downloader_api_username = "mcgill"
 downloader_api_password = "palfa@Mc61!!"
 #downloader_temp = "/data/alfa/test_pipeline" # When set to empty string will download to directory of the script
-downloader_temp = "" # When set to empty string will download to directory of the script
-downloader_space_to_use = 214748364800 #Size to use in bytes; Use 'None' to use all available space
+downloader_temp = "/data/alfa/test_pipeline" # When set to empty string will download to directory of the script
+downloader_space_to_use = 314748364800 #Size to use in bytes; Use 'None' to use all available space
 downloader_numofdownloads = 2
 downloader_numofrestores = 2
 downloader_numofretries = 3
@@ -128,4 +128,4 @@ downloader_numofretries = 3
 ################################################################
 bgs_sleep = 60 #sleep time for background script in seconds
 bgs_screen_output = True #Set to True if you want the script to output runtime information, False otherwise
-bgs_db_file_path = 'storage_db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
+bgs_db_file_path = '/data/alfa/test_pipeline/storage_db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script

@@ -18,7 +18,7 @@ import logging
 import datafile
 import config
 import dev
-
+import time
 
 from QsubManager import Qsub
 from PipelineQueueManager import PipelineQueueManager
@@ -326,7 +326,7 @@ class JobPool:
         try:
             output_dir = tmp_job.get_output_dir()
         except Exception, e:
-            jobpool_cout.outs("Error while reading %s. Job will not be submited" % file_with_no_job['filename'])
+            jobpool_cout.outs("Error while reading %s. Job will not be submited" % ", ".join(tmp_job.datafiles))
             self.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
           % (int(job_row['id']),'did_not_queue','could not get output dir','failed',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             self.query("UPDATE jobs SET status='failed',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
@@ -364,21 +364,24 @@ class JobPool:
         not_connected = True
         while not_connected:
             try:
-                db_conn = sqlite3.connect(config.bgs_db_file_path);
+                db_conn = sqlite3.connect(config.bgs_db_file_path,timeout=40.0);
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                db_cur.execute(query_string)
+                if db_cur.lastrowid:
+                    results = db_cur.lastrowid
+                else:
+                    results = db_cur.fetchall()
+                db_conn.commit()
+                db_conn.close()
                 not_connected = False
             except Exception, e:
-                jobpool_cout.outs("Couldn't connect to DB retrying in 1 sec.") 
+                try:
+                    db_conn.close()
+                except Exception, e:
+                    pass
+                jobpool_cout.outs("Couldn't connect to DB retrying in 1 sec.: %s" % str(e)) 
                 time.sleep(1)
-                          
-        db_conn.row_factory = sqlite3.Row
-        db_cur = db_conn.cursor();
-        db_cur.execute(query_string)
-        if db_cur.lastrowid:
-            results = db_cur.lastrowid
-        else:
-            results = db_cur.fetchall()
-        db_conn.commit()
-        db_conn.close()
         return results
 
     def get_queue_status(self):

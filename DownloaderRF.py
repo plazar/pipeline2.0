@@ -36,11 +36,10 @@ class DownloadModule:
         #if can create more restores then request new ones and add them to restores array
         while True:
             if self.can_request_more():
-                dlm_cout.outs("Would request more restores")
-                #self.restores.append(time.time())
-                #tmp_restore = restore(db_name=self.db_name,num_beams=1)
-                #if tmp_restore.request():
-                #    self.restores.append(tmp_restore)
+                dlm_cout.outs("Requesting restore")
+                tmp_restore = restore(db_name=self.db_name,num_beams=1)
+                if tmp_restore.request():
+                    self.restores.append(tmp_restore)
             for res in self.restores[:]:
                 if not res.run():
                     dlm_cout.outs(res.guid +' : Could not run the restore...removing. Files:'+ ", ".join(res.files.keys()) )
@@ -59,16 +58,27 @@ class DownloadModule:
         dlm_cout.outs("Recovered: %u restores" % len(self.restores))
         
     def query(self,query_string):
-        db_conn = sqlite3.connect(self.db_name);
-        db_conn.row_factory = sqlite3.Row
-        db_cur = db_conn.cursor();
-        db_cur.execute(query_string)
-        if db_cur.lastrowid:
-            results = db_cur.lastrowid
-        else:
-            results = db_cur.fetchall()
-        db_conn.commit()
-        db_conn.close()
+        not_connected = True
+        while not_connected:
+            try:
+                db_conn = sqlite3.connect(bgs_db_file_path,timeout=40.0)
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                db_cur.execute(query_string)
+                if db_cur.lastrowid:
+                    results = db_cur.lastrowid
+                else:
+                    results = db_cur.fetchall()
+                db_conn.commit()
+                db_conn.close()
+                not_connected = False
+            except Exception, e:
+                try:
+                    db_conn.close()
+                except Exception, e:
+                    pass
+                dlm_cout.outs("Couldn't connect to DB retrying in 1 sec.%s" % str(e)) 
+                time.sleep(1)
         return results
     
     def have_space(self):
@@ -245,16 +255,28 @@ class restore:
             return False
             
     def query(self,query_string):
-        db_conn = sqlite3.connect(self.db_name);
-        db_conn.row_factory = sqlite3.Row
-        db_cur = db_conn.cursor();
-        db_cur.execute(query_string)
-        if db_cur.lastrowid:
-            results = db_cur.lastrowid
-        else:
-            results = db_cur.fetchall()
-        db_conn.commit()
-        db_conn.close()
+        not_connected = True
+        while not_connected:
+            try:
+                db_conn = sqlite3.connect(bgs_db_file_path,timeout=40.0);
+                db_conn.row_factory = sqlite3.Row
+                db_cur = db_conn.cursor();
+                db_cur.execute(query_string)
+                if db_cur.lastrowid:
+                    results = db_cur.lastrowid
+                else:
+                    results = db_cur.fetchall()
+                db_conn.commit()
+                db_conn.close()
+                not_connected = False
+            except Exception, e:
+                try:
+                    db_conn.close()
+                except Exception, e:
+                    pass
+                    
+                dlm_cout.outs("Couldn't connect to DB retrying in 1 sec.: %s" % str(e)) 
+                time.sleep(1)
         return results
                 
     def get_files(self):
@@ -277,7 +299,7 @@ class restore:
                 login_response = ftp.login('palfadata','NAIC305m')
                 logged_in = True
                 if login_response != "230 User logged in.":
-                    dlm_cout.outs(self.guid +" Could not login with user: palfadata  password: NAIC305m")
+                    dlm_cout.outs(self.guid +" Could not login with user: palfadata  password: NAIC305m  Response: %s" % login_response)
                     return False
 
                 cwd_response = ftp.cwd(self.guid)
@@ -314,8 +336,8 @@ class restore:
             dl_check = self.query("SELECT * FROM downloads WHERE request_id=%s AND filename='%s'" % (self.values['id'],filename))
             
             if len(dl_check) == 0:
-                query = "INSERT INTO downloads (request_id,remote_filename,filename,status,created_at,updated_at) VALUES ('%s','%s','%s','%s','%s','%s')"\
-                        % (self.values['id'],filename,os.path.join(downloader_temp,filename),'New',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                query = "INSERT INTO downloads (request_id,remote_filename,filename,status,created_at,updated_at,size) VALUES ('%s','%s','%s','%s','%s','%s',%u)"\
+                        % (self.values['id'],filename,os.path.join(downloader_temp,filename),'New',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), int(filesize))
                 self.query(query)
             
     #TODO: Refactor function and helpers
@@ -357,10 +379,16 @@ class restore:
                     self.query("UPDATE downloads SET status = 'failed', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
                     % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),filename))
                 elif self.downloaders[filename].status == 'downloaded':
-                    self.query("UPDATE download_attempts SET status ='downloaded', details='%s', updated_at = '%s' WHERE id = %s"\
-                    % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.downloaders[filename].attempt_id))
-                    self.query("UPDATE downloads SET status = 'downloaded', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
-                    % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),filename))
+                    if self.downloaded_size_match(self.downloaders[filename].attempt_id):
+                        self.query("UPDATE download_attempts SET status ='downloaded', details='%s', updated_at = '%s' WHERE id = %s"\
+                        % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.downloaders[filename].attempt_id))
+                        self.query("UPDATE downloads SET status = 'downloaded', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
+                        % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),filename))
+                    else:
+                        self.query("UPDATE download_attempts SET status ='failed', details='%s', updated_at = '%s' WHERE id = %s"\
+                        % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.downloaders[filename].attempt_id))
+                        self.query("UPDATE downloads SET status = 'failed', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
+                        % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),filename))
                 del(self.downloaders[filename])
             else:
                 self.query("UPDATE download_attempts SET status ='downloading', details='%s', updated_at = '%s' WHERE id = %s"\
@@ -368,7 +396,17 @@ class restore:
                 self.query("UPDATE downloads SET status = 'downloading', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
                     % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),filename))
                     
-                
+    def downloaded_size_match(self,attempt_id):
+        attempt_row = self.query("SELECT * FROM download_attempts WHERE id=%u" % int(attempt_id))[0]
+        download = self.query("SELECT * FROM downloads WHERE id=%u" % int(attempt_row['download_id']))[0]
+        
+        if os.path.exists(download['filename']):
+            return (os.path.getsize(download['filename']) == int(download['size']))
+        else:
+            dlm_cout.outs("Does not exist: %s" % download['filename'])
+            return False
+        
+            
     def status(self):
         dls = self.query("SELECT * from downloads WHERE request_id = %s" % self.values['id'])
         print "Restore: %s" % self.guid
