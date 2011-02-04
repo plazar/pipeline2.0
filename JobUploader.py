@@ -9,6 +9,7 @@ import config
 import header
 from time import sleep
 import os
+import time
 
 import header
 import candidate_uploader
@@ -45,6 +46,8 @@ class JobUploader():
     
     def header_upload(self,job_row):
         file_names_stra = self.get_jobs_files(job_row)
+        file_names_stra = [os.path.join(job_row['output_dir'],os.path.basename(file_names_stra[0]))]
+        print file_names_stra
         last_upload_try_id = self.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
         if file_names_stra != list():
             try:
@@ -112,8 +115,8 @@ class JobUploader():
         
         if file_names_stra != list():
             try:
-                diagnostic_uploader.upload_diagnostics(obsname=obs_name,beamnum=beamnum, versionnum='blewblahblah',  directory="/".join(moded_dir),dry_run=True)
-            except header.HeaderError, e:
+                diagnostic_uploader.upload_diagnostics(obsname=obs_name,beamnum=beamnum, versionnum='blewblahblah',  directory="/".join(moded_dir))
+            except diagnostic.DiagnosticError, e:
                 print "Diagnostics Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
                 self.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
                 % ('Diagnostics check failed: %s' % str(e).replace("'","").replace('"',''),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
@@ -161,7 +164,20 @@ class JobUploader():
         
     def header_dry_run(self,job_row):
         file_names_stra = self.get_jobs_files(job_row)
+        moded_dir = job_row['output_dir'].split('/')
+        moded_dir[1] = 'data'
+        moded_dir = "/".join(moded_dir)
+        result_fits_file = os.path.join(moded_dir,os.path.basename(file_names_stra[0]))
         last_upload_try_id = self.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
+        if os.path.exists(result_fits_file):
+            file_names_stra = [result_fits_file]
+            print result_fits_file
+        else:
+            self.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
+                % ('Header check failed: No such fits file found in result directory: %s' % result_fits_file,datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+            return False
+            
+        print result_fits_file
         if file_names_stra != list():
             #try:
             try:
@@ -230,13 +246,22 @@ class JobUploader():
         for file_row in file_rows:
             files_stra.append(file_row['filename'])
         return files_stra
-
+    
+    
+    def clean(self):
+        #remove downloaded files
+        uploaded_jobs = self.query("SELECT jobs.*,job_submits.output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='uploaded' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
+        
+        for job_row in uploaded_jobs:
+            for file_path in self.get_jobs_files(job_row):
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+    
     def query(self,query_string):
         not_connected = True
         while not_connected:
             try:
-                db_conn = sqlite3.connect(config.bgs_db_file_path)
-                #db_conn = sqlite3.connect("upload_db")
+                db_conn = sqlite3.connect(config.bgs_db_file_path,timeout=40.0);
                 db_conn.row_factory = sqlite3.Row
                 db_cur = db_conn.cursor();
                 db_cur.execute(query_string)
@@ -246,9 +271,12 @@ class JobUploader():
                     results = db_cur.fetchall()
                 db_conn.commit()
                 db_conn.close()
-                
                 not_connected = False
             except Exception, e:
-                print "Couldn't connect to DB retrying in 1 sec." 
-                sleep(1)
+                try:
+                    db_conn.close()
+                except Exception, e:
+                    pass
+                print "Couldn't connect to DB retrying in 1 sec.: %s" % str(e) 
+                time.sleep(1)
         return results

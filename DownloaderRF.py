@@ -326,6 +326,8 @@ class restore:
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to CWD: "+ str(cwd), OutStream.WARNING)
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to List-Cmd: "+ str(list_cmd), OutStream.WARNING)
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to Get-All-Files'-Size: "+ str(got_all_files_size), OutStream.WARNING)
+                if(cwd == False):
+                    return False
                 sleep(2)
         self.query("UPDATE requests SET size = '%u'" % self.size)    
         ftp.close()
