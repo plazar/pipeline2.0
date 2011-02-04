@@ -474,7 +474,8 @@ def search_job(job):
         instance 'job'.
     """
     # Use whatever .zaplist is found in the current directory
-    default_zaplist = glob.glob("*.zaplist")[0]
+    zaplist = glob.glob("*.zaplist")[0]
+    print "Using %s as zaplist" % zaplist
 
     # rfifind the data file
     cmd = "rfifind %s -time %.17g -o %s %s" % \
@@ -551,7 +552,7 @@ def search_job(job):
                 cmd = "realfft %s"%datnm
                 job.FFT_time += timed_execute(cmd)
                 cmd = "zapbirds -zap -zapfile %s -baryv %.6g %s"%\
-                      (default_zaplist, job.baryv, fftnm)
+                      (zaplist, job.baryv, fftnm)
                 job.FFT_time += timed_execute(cmd)
                 cmd = "rednoise %s"%fftnm
                 job.FFT_time += timed_execute(cmd)

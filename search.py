@@ -12,6 +12,8 @@ import tempfile
 import shutil
 import subprocess
 
+import datafile
+
 import config
 
 
@@ -79,8 +81,6 @@ def init_workspace():
                         dir=config.base_working_directory)
     resultsdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_results_", \
                         dir=config.base_working_directory)
-    # Copy zaplist to working directory
-    shutil.copy(config.zaplist, workdir)
     return (workdir, resultsdir)
 
 
@@ -124,7 +124,7 @@ def set_up():
     for fn in fns:
         system_call("rsync -auvl %s %s" % (fn, workdir))
     fns = [os.path.join(workdir, os.path.split(fn)[-1]) for fn in fns]
-    
+
     return fns, workdir, resultsdir, outdir
 
 
@@ -140,6 +140,23 @@ def search(fns, workdir, resultsdir):
     for fn in fns:
         system_call("fitsdelcol %s[SUBINT] DATA DAT_WTS DAT_SCL DAT_OFFS" % fn)
         system_call("rsync -auvl %s %s" % (fn, resultsdir))
+
+
+def copy_zaplist(fns, workdir):
+    # Copy zaplist to working directory
+    data = datafile.autogen_dataobj(fns)
+
+    # First, try to find custom zaplist for this MJD
+    customzapfn = os.path.join(config.zaplistdir, "autozap_mjd%d.zaplist" % \
+                                                    int(data.timestamp_mjd))
+    if os.path.exists(customzapfn):
+        # Copy custom zaplist to workdir and rename to the expected zaplist fn
+        shutil.copy(customzapfn, workdir)
+        print "Copied custom zaplist: %s" % customzapfn
+    else:
+        # Copy default zaplist
+        shutil.copy(default_zaplist, workdir)
+        print "No custom zaplist found. Copied default zaplist: %s" % config.default_zaplist
 
 
 def copy_results(resultsdir, outdir):
@@ -170,6 +187,7 @@ def main():
     resultsdir = None
     try:
         fns, workdir, resultsdir, outdir = set_up()
+        copy_zaplist(fns, workdir)
         search(fns, workdir, resultsdir)
         copy_results(resultsdir, outdir)
     except:

@@ -13,7 +13,9 @@ results_directory_host = "lore2" # Set to None to not create
                                  # results dir and copy via ssh.
 base_results_directory = "/exports/data7/PALFA/test_new_pipeline/"
 base_working_directory = "/exports/scratch/PALFA/"    
-zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/PALFA.zaplist"
+default_zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/PALFA.zaplist"
+zaplistfn = "PALFA.zaplist"
+zaplistdir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/"
 log_dir = "/homes/borgii/snipka/dev/pipeline2.0/log/"
 log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
 #log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
