@@ -111,10 +111,19 @@ downloader_api_username = "mcgill"
 downloader_api_password = "palfa@Mc61!!"
 #downloader_temp = "/data/alfa/test_pipeline" # When set to empty string will download to directory of the script
 downloader_temp = "/data/alfa/test_pipeline" # When set to empty string will download to directory of the script
-downloader_space_to_use = 314748364800 #Size to use in bytes; Use 'None' to use all available space
+downloader_space_to_use = 228748364800#214748364800 #Size to use in bytes; Use 'None' to use all available space
 downloader_numofdownloads = 2
 downloader_numofrestores = 2
 downloader_numofretries = 3
+
+################################################################
+# Result Uploader Configuration
+#
+# 
+################################################################
+uploader_result_dir_overide = True
+uploader_result_dir = "/data/data7/PALFA/test_new_pipeline/"
+uploader_version_num = 'PRESTO:56b00442679f3c3edc36cbe322b2022eca53e459;PIPELINE:8512aac773bc1414f1dddd93397ca4aa5bb693a2'
 
 ################################################################
 # Mailer Configuration

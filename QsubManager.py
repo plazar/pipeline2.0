@@ -9,9 +9,9 @@ class Qsub(PipelineQueueManager):
     @staticmethod
     def submit(files_str_array, output_dir_str):
         """Must return a unique identifier for the job"""
-        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s search.py' % \
+        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -o %s search.py' % \
                             (','.join(files_str_array), output_dir_str, config.resource_list, \
-                                    config.job_basename, 'qsublog')
+                                    config.job_basename, 'qsublog', 'qsublog')
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
         jobid = pipe.communicate()[0]
         pipe.stdin.close()

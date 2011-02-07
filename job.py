@@ -20,6 +20,8 @@ import config
 import dev
 import time
 
+from mailer import ErrorMailer
+
 from QsubManager import Qsub
 from PipelineQueueManager import PipelineQueueManager
 QueueManagerClass = Qsub
@@ -241,20 +243,21 @@ class JobPool:
                     jobpool_cout.outs("Adding file:" + os.path.join(dirpath, fn))
         return tmdebug.outp_datafiles
 
-
-
-    def status(self):
+    def status(self,log=True):
         running_jobs = self.query("SELECT * FROM jobs WHERE status='submitted'")
         processed_jobs = self.query("SELECT * FROM jobs WHERE status='processed'")
         new_jobs = self.query("SELECT * FROM jobs WHERE status='new'")
         failed_jobs = self.query("SELECT * FROM jobs WHERE status='failed'")
         
-        jobpool_cout.outs("\n\n================= Job Pool Status ==============")
-        jobpool_cout.outs("Num . of jobs   running: %u" % len(running_jobs))
-        jobpool_cout.outs("Num . of jobs processed: %u" % len(processed_jobs))
-        jobpool_cout.outs("Num . of jobs   waiting: %u" % len(new_jobs))
-        jobpool_cout.outs("Num . of jobs    failed: %u" % len(failed_jobs))
-        #print "Jobs Running: "+
+        status_str= "\n\n================= Job Pool Status ==============\n"
+        status_str+="Num. of jobs   running: %u\n" % len(running_jobs)
+        status_str+="Num. of jobs processed: %u\n" % len(processed_jobs)
+        status_str+="Num. of jobs   waiting: %u\n" % len(new_jobs)
+        status_str+="Num. of jobs    failed: %u\n" % len(failed_jobs)
+        if log:
+            jobpool_cout.outs(status_str)
+        else:
+            print status_str
 
     def upload_results(self,job):
         """Upload results from PulsarSearchJob j to the database.
@@ -330,11 +333,16 @@ class JobPool:
             self.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
           % (int(job_row['id']),'did_not_queue','could not get output dir','failed',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             self.query("UPDATE jobs SET status='failed',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
+            try:
+                notification = ErrorMailer("Error while reading %s. Job will not be submited" % ", ".join(tmp_job.datafiles))
+                notification.send()
+            except Exception,e:
+                pass
             return
             
         queue_id = QueueManagerClass.submit([job_row['filename']], output_dir)
-        self.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
-          % (int(job_row['id']),queue_id,output_dir,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        self.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at,base_output_dir) VALUES (%u,'%s','%s','%s','%s','%s','%s')"\
+          % (int(job_row['id']),queue_id,output_dir,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),config.base_results_directory ))
         self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
     
     def update_demand_file_list(self):

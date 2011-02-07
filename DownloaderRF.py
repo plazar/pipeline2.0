@@ -49,7 +49,7 @@ class DownloadModule:
                     print ""
                 dlm_cout.outs("Number of restores: "+ str(len(self.restores)))
             print "\n\n"
-            sleep(5)
+            sleep(30)
             
     def recover(self):
         unfinished_requests = self.query("SELECT * FROM requests WHERE status NOT LIKE 'finished'")
@@ -312,10 +312,13 @@ class restore:
                 list_cmd = True
 
                 for file in files_in_res_dir:
-                    file_size = ftp.size(file)
-                    dlm_cout.outs(self.guid +" got file size for "+ file)
-                    self.size += file_size
-                    self.files[file] = file_size
+                    if not re.match('.*7\.w4bit\.fits',file):
+                        file_size = ftp.size(file)
+                        dlm_cout.outs(self.guid +" got file size for "+ file)
+                        self.size += file_size
+                        self.files[file] = file_size
+                    else:
+                        dlm_cout.outs(self.guid +" IGNORING: %s" % file)
                 got_all_files_size = True
 
                 no_connection = False
@@ -326,8 +329,11 @@ class restore:
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to CWD: "+ str(cwd), OutStream.WARNING)
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to List-Cmd: "+ str(list_cmd), OutStream.WARNING)
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to Get-All-Files'-Size: "+ str(got_all_files_size), OutStream.WARNING)
+                if connected and logged_in and not cwd:
+                    self.query("UPDATE requests SET status = 'finished',details='request directory not found',updated_at='%s' WHERE guid='%s'" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.guid))
+                    return False                    
                 sleep(2)
-        self.query("UPDATE requests SET size = '%u'" % self.size)    
+        self.query("UPDATE requests SET size = '%u' WHERE guid='%s'" % (self.size,self.guid))    
         ftp.close()
     
     def create_dl_entries(self):        
