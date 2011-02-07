@@ -14,7 +14,6 @@ results_directory_host = "lore2" # Set to None to not create
 base_results_directory = "/exports/data7/PALFA/test_new_pipeline/"
 base_working_directory = "/exports/scratch/PALFA/"    
 default_zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/PALFA.zaplist"
-zaplistfn = "PALFA.zaplist"
 zaplistdir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/"
 log_dir = "/homes/borgii/snipka/dev/pipeline2.0/log/"
 log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
