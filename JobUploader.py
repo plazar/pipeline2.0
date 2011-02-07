@@ -24,13 +24,10 @@ class JobUploader():
         self.created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
     def run(self):
-        print "Creating new upload entries"
         self.create_new_uploads()
         self.check_new_uploads()
         self.upload_checked()
-        #self.retry_failed_uploads()
-        #while True:
-        #    sleep(15)
+        time.sleep(300)
     
     def upload_checked(self):
         checked_uploads = self.query("SELECT jobs.*,job_submits.output_dir,job_submits.base_output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='checked' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
@@ -190,7 +187,8 @@ class JobUploader():
         return True
         
               
-    def create_new_uploads(self):
+    def create_new_uploads(self):        
+        print "Creating new upload entries..."
         jobs_with_no_uploads = self.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads)")
         for job_row in jobs_with_no_uploads:
             self.query("INSERT INTO job_uploads (job_id, status, details, created_at, updated_at) VALUES(%u,'%s','%s','%s','%s')"\
