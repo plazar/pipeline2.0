@@ -3,6 +3,7 @@ from PipelineQueueManager import PipelineQueueManager
 import PBSQuery
 import subprocess
 import os
+import time
 
 class Qsub(PipelineQueueManager):
     
@@ -50,6 +51,7 @@ class Qsub(PipelineQueueManager):
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
         response = pipe.communicate()[0]
         pipe.stdin.close()
+        time.sleep(3)
         batch = PBSQuery.PBSQuery().getjobs()
         if not (jobid_str in batch) or 'E' in batch[jobid_str]['job_state']:
             return True

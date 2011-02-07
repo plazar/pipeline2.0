@@ -1,7 +1,41 @@
 import os
+if os.path.exists('mail_cfg.py'):
+    import mail_cfg
+    try:
+        mail_cfg.mailer_enabled
+    except AttributeError:
+        exit("mail_cfg.py must contain a setting for mailer_enabled")
+        
+    try:
+        mail_cfg.mailer_smtp_host
+    except AttributeError:
+        exit( "mail_cfg.py must contain a setting for mailer_smtp_host")
+        
+    try:
+        mail_cfg.mailer_smtp_username
+    except AttributeError:
+        exit( "mail_cfg.py must contain a setting for mailer_smtp_username")
+        
+    try:
+        mail_cfg.mailer_smtp_password
+    except AttributeError:
+        exit( "mail_cfg.py must contain a setting for mailer_smtp_password")
+        
+    try:
+        mail_cfg.mailer_to
+    except AttributeError:
+        exit( "mail_cfg.py must contain a setting for mailer_to")
+        
+    try:
+        mail_cfg.mailer_from
+    except AttributeError:
+        exit( "mail_cfg.py must contain a setting for mailer_from")
+    
+else:
+    print "Please consult the mail_cfg_example.py for Mailer configuration.\n Then rename the file to mail_cfg.py once completed the configuration"
+
 import datetime
 import smtplib
-import mail_cfg
 from email.mime.text import MIMEText
 
 class ErrorMailer:
