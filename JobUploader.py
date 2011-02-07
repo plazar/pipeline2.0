@@ -9,6 +9,7 @@ import config
 import header
 from time import sleep
 import os
+import time
 
 import header
 import candidate_uploader
@@ -46,6 +47,7 @@ class JobUploader():
                        self.query("UPDATE job_uploads SET status='uploaded' WHERE id=%u" % last_upload_try_id)
                        self.clean_up(job_row)
     
+
     
     def header_upload(self,job_row,commit=False):
     	dry_run = not commit;
@@ -56,8 +58,7 @@ class JobUploader():
             check_or_upload='upload'
         
     	file_names_stra = self.get_jobs_files(job_row) 
-        
-        
+
         last_upload_try_id = self.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
         if file_names_stra != list():
             try:
@@ -141,8 +142,7 @@ class JobUploader():
         self.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
             % ('Candidates %s' % check_or_upload,datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
         return True
-         
-    
+
             
     def diagnostics_upload(self,job_row,commit=False):
         dry_run = not commit;
@@ -222,6 +222,7 @@ class JobUploader():
             #    print "Error Error!"
                 
         #header.upload_header(fns=file_names_stra)
+
                            
     def get_processed_jobs(self):
         return self.query("SELECT * FROM jobs WHERE status='processed'")
@@ -245,14 +246,22 @@ class JobUploader():
     
     def overide_base_results_directory(self,base_dir, filename,output_dir):
         return os.path.join(output_dir.replace(base_dir,config.uploader_result_dir),os.path.basename(filename))
-                
-            
+    
+    def clean(self):
+        #remove downloaded files
+        uploaded_jobs = self.query("SELECT jobs.*,job_submits.output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='uploaded' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
+        
+        for job_row in uploaded_jobs:
+            for file_path in self.get_jobs_files(job_row):
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+    
+
     def query(self,query_string):
         not_connected = True
         while not_connected:
             try:
-                db_conn = sqlite3.connect(config.bgs_db_file_path)
-                #db_conn = sqlite3.connect("upload_db")
+                db_conn = sqlite3.connect(config.bgs_db_file_path,timeout=40.0);
                 db_conn.row_factory = sqlite3.Row
                 db_cur = db_conn.cursor();
                 db_cur.execute(query_string)
@@ -262,9 +271,12 @@ class JobUploader():
                     results = db_cur.fetchall()
                 db_conn.commit()
                 db_conn.close()
-                
                 not_connected = False
             except Exception, e:
-                print "Couldn't connect to DB retrying in 1 sec." 
-                sleep(1)
+                try:
+                    db_conn.close()
+                except Exception, e:
+                    pass
+                print "Couldn't connect to DB retrying in 1 sec.: %s" % str(e) 
+                time.sleep(1)
         return results

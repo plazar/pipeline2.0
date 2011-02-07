@@ -332,6 +332,7 @@ class restore:
                 if connected and logged_in and not cwd:
                     self.query("UPDATE requests SET status = 'finished',details='request directory not found',updated_at='%s' WHERE guid='%s'" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.guid))
                     return False                    
+
                 sleep(2)
         self.query("UPDATE requests SET size = '%u' WHERE guid='%s'" % (self.size,self.guid))    
         ftp.close()
