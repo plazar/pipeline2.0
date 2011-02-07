@@ -1,45 +1,36 @@
-import os
-if os.path.exists('mail_cfg.py'):
-    import mail_cfg
-    try:
-        mail_cfg.mailer_enabled
-    except AttributeError:
-        exit("mail_cfg.py must contain a setting for mailer_enabled")
-        
-    try:
-        mail_cfg.mailer_smtp_host
-    except AttributeError:
-        exit( "mail_cfg.py must contain a setting for mailer_smtp_host")
-        
-    try:
-        mail_cfg.mailer_smtp_username
-    except AttributeError:
-        exit( "mail_cfg.py must contain a setting for mailer_smtp_username")
-        
-    try:
-        mail_cfg.mailer_smtp_password
-    except AttributeError:
-        exit( "mail_cfg.py must contain a setting for mailer_smtp_password")
-        
-    try:
-        mail_cfg.mailer_to
-    except AttributeError:
-        exit( "mail_cfg.py must contain a setting for mailer_to")
-        
-    try:
-        mail_cfg.mailer_from
-    except AttributeError:
-        exit( "mail_cfg.py must contain a setting for mailer_from")
-    
-else:
-    print "Please consult the mail_cfg_example.py for Mailer configuration.\n Then rename the file to mail_cfg.py once completed the configuration"
-
+import sys
 import datetime
 import smtplib
 from email.mime.text import MIMEText
 
+try:
+    import mail_cfg
+except ImportError:
+    sys.stderr.write("\nPipeline mailer requires mail_cfg.py to exist and be on PYTHONPATH.\n")
+    sys.stderr.write("Please consult the mail_cfg_example.py for Mailer configuration.\n")
+    sys.stderr.write("\nExiting...\n\n")
+    sys.exit(1)
+
+try:
+    mail_cfg.mailer_enabled
+    mail_cfg.mailer_smtp_host
+    mail_cfg.mailer_smtp_username
+    mail_cfg.mailer_smtp_password
+    mail_cfg.mailer_to
+    mail_cfg.mailer_from
+except AttributeError:
+    sys.stderr.write("\nPipeline mailer configuration is missing.\n")
+    sys.stderr.write("The following variables must be defined:\n")
+    sys.stderr.write("\tmailer_enabled - type: Boolean\n")
+    sys.stderr.write("\tmailer_smtp_host - type: String\n")
+    sys.stderr.write("\tmailer_smtp_username - type: String\n")
+    sys.stderr.write("\tmailer_smtp_password - type: String\n")
+    sys.stderr.write("\tmailer_to - type: String\n")
+    sys.stderr.write("\tmailer_from - type:String\n")
+    sys.stderr.write("\nExiting...\n\n")
+    sys.exit(1)
+
 class ErrorMailer:
-    
     def __init__(self,message):
         self.msg = MIMEText(message)
         self.msg['Subject'] = 'Pipeline notification at: '+ datetime.datetime.now().strftime("%a %d %b, %I:%M%P")

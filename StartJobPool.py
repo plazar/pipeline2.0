@@ -25,12 +25,13 @@ def main():
         #initialize new JobPool object to manage search jobs in QSUB
         jobpool = job.JobPool()
     except Exception, e:
-	print "Fatal occured: "+ str(e)
         try:
             notification = ErrorMailer('Could not initialize JobPool.\nFatal occured: %s' % str(e))
             notification.send()
-            exit("Could not initialize JobPool.")
-        except Exception,e:
+            sys.stderr.write("Fatal error occurred! Could not initialize JobPool\n")
+            traceback.print_exception(*sys.exc_info())
+            sys.exit(1)
+        except Exception:
             pass
         
 
@@ -44,8 +45,10 @@ def main():
             try:
                 notification = ErrorMailer('Fatal occured: %s' % str(e))
                 notification.send()
-                exit('Fatal occured: %s' % str(e))
-            except Exception,e:
+                sys.stderr.write("Fatal error occurred!\n")
+                traceback.print_exception(*sys.exc_info())
+                sys.exit(1)
+            except Exception:
                 pass
         time.sleep(config.bgs_sleep)       
 

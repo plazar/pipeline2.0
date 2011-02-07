@@ -386,7 +386,7 @@ class JobPool:
             except Exception, e:
                 try:
                     db_conn.close()
-                except Exception, e:
+                except Exception:
                     pass
                 jobpool_cout.outs("Couldn't connect to DB retrying in 1 sec.: %s" % str(e)) 
                 time.sleep(1)
