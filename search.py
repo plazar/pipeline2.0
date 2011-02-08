@@ -155,7 +155,7 @@ def copy_zaplist(fns, workdir):
         print "Copied custom zaplist: %s" % customzapfn
     else:
         # Copy default zaplist
-        shutil.copy(default_zaplist, workdir)
+        shutil.copy(config.default_zaplist, workdir)
         print "No custom zaplist found. Copied default zaplist: %s" % config.default_zaplist
 
 
