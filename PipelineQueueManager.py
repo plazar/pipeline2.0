@@ -1,37 +1,37 @@
 class PipelineQueueManager:
     
     @staticmethod
-    def submit(files_str_array, output_dir_str):
+    def submit(files_str_array=None, output_dir_str=None, imp_test=False):
         """Must return a unique identifier for the job"""
         raise NotImplementedError
     
     @staticmethod
-    def is_running(jobid_str):
+    def is_running(jobid_str=None, imp_test=False):
         """Must return True/False wheather the job is in the Queue or not
             respectively
         """
         raise NotImplementedError
 
     @staticmethod
-    def is_processing_file(filename_str):
+    def is_processing_file(filename_str=None, imp_test=False):
         """Must return True/False wheather the job is in the Queue or not
             respectively
         """
         raise NotImplementedError
     
     @staticmethod
-    def delete(jobid_str):
+    def delete(jobid_str=None, imp_test=False):
         """Must garantee the removal of the job from the Queue"""
         
         raise NotImplementedError
     
     @staticmethod
-    def status():
+    def status(imp_test=False):
         """Must return a tuple of number of jobs running and queued for the pipeline
         Note:
         """
         raise NotImplementedError
     
     @staticmethod
-    def error(jobid_str):
+    def error(jobid_str=None, imp_test=False):
         raise NotImplementedError

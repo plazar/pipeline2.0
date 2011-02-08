@@ -8,8 +8,12 @@ import time
 class Qsub(PipelineQueueManager):
     
     @staticmethod
-    def submit(files_str_array, output_dir_str):
+    def submit(files_str_array=None, output_dir_str=None, imp_test=False):
         """Must return a unique identifier for the job"""
+        
+        if imp_test:
+            return True
+        
         cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -o %s search.py' % \
                             (','.join(files_str_array), output_dir_str, config.resource_list, \
                                     config.job_basename, 'qsublog', 'qsublog')
@@ -21,10 +25,14 @@ class Qsub(PipelineQueueManager):
         return jobid.rstrip()
     
     @staticmethod
-    def is_running(jobid_str):
+    def is_running(jobid_str=None, imp_test=False):
         """Must return True/False wheather the job is in the Queue or not
             respectively
         """
+        
+        if imp_test:
+            return True
+        
         batch = PBSQuery.PBSQuery().getjobs()
         if jobid_str in batch:
             return True
@@ -32,10 +40,13 @@ class Qsub(PipelineQueueManager):
             return False
     
     @staticmethod
-    def is_processing_file(filename_str):
+    def is_processing_file(filename_str=None, imp_test=False):
         """Must return True/False wheather the job processing the input filename
             is running.
         """
+        
+        if imp_test:
+            return True
         
         batch = PBSQuery.PBSQuery().getjobs()
         for j in batch.keys():
@@ -45,8 +56,12 @@ class Qsub(PipelineQueueManager):
         return False, None
     
     @staticmethod
-    def delete(jobid_str):
+    def delete(jobid_str=None, imp_test=False):
         """Must garantee the removal of the job from the Queue"""
+        
+        if imp_test:
+            return True
+        
         cmd = "qdel %s" % jobid_str
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
         response = pipe.communicate()[0]
@@ -58,10 +73,14 @@ class Qsub(PipelineQueueManager):
         return False
     
     @staticmethod
-    def status():
+    def status(imp_test=False):
         """Must return a tuple of number of jobs running and queued for the pipeline
         Note:
         """
+        
+        if imp_test:
+            return True
+        
         numrunning = 0
         numqueued = 0
         batch = PBSQuery.PBSQuery().getjobs()
@@ -73,10 +92,14 @@ class Qsub(PipelineQueueManager):
                     numqueued += 1
         return (numrunning, numqueued)
     
-    @staticmethod
-    def error(jobid_str):
-        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])):
-            if os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])) > 0:
-                return True
-        else:
-            return False
+#    @staticmethod
+#    def error(jobid_str=None, imp_test=False):
+#        
+#        if imp_test:
+#            return True
+#        
+#        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])):
+#            if os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])) > 0:
+#                return True
+#        else:
+#            return False
