@@ -11,12 +11,13 @@ survey = "PALFA2.0"
 #base_results_directory = "/data/alfa/test_pipeline/results"
 results_directory_host = "lore2" # Set to None to not create 
                                  # results dir and copy via ssh.
-base_results_directory = "/exports/data7/PALFA/test_new_pipeline_clean/"
-base_working_directory = "/exports/scratch/PALFA/"
+base_results_directory = "/exports/data7/PALFA/test_new_pipeline/"
+base_working_directory = "/exports/scratch/PALFA/"    
 default_zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/PALFA.zaplist"
+zaplistfn = "PALFA.zaplist"
 zaplistdir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/"
-log_dir = "/homes/borgii/plazar/research/PALFA/pipeline2.0_clean/pipeline2.0/log/"
-log_archive = "/homes/borgii/plazar/research/PALFA/pipeline2.0_clean/pipeline2.0/log_archive/"
+log_dir = "/homes/borgii/snipka/dev/pipeline2.0/log/"
+log_archive = "/homes/borgii/snipka/dev/pipeline2.0/log_archive/"
 #log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
 #log_archive = "C:/Reposotories/PALFA/pipeline2.0/log_archive"
 
@@ -26,12 +27,12 @@ sleep_time = 10*60 # time to sleep between submitting jobs (in seconds)
 max_attempts = 2 # Maximum number of times a job is attempted due to errors
 #resource_list = "nodes=borg94:ppn=1:JumboFrame" # resource list for PBS's qsub
 resource_list = "nodes=P248:ppn=1" # resource list for PBS's qsub
-delete_rawdata = True
+delete_rawdata = False
 ################################################################
 # Configurations for raw data
 ################################################################
 #rawdata_directory = "/data/alfa/FTP"
-rawdata_directory = "/data/alfa/test_pipeline_clean/"
+rawdata_directory = "/data/alfa/test_pipeline"
 #rawdata_directory = "C:/Reposotories/PALFA/FTP"
 rawdata_re_pattern = r"^p2030.*b[0-7]s[0-1]g?.*\.fits$"
 
@@ -109,7 +110,7 @@ downloader_api_service_url = "http://arecibo.tc.cornell.edu/palfadataapi/dataflo
 downloader_api_username = "mcgill"
 downloader_api_password = "palfa@Mc61!!"
 #downloader_temp = "/data/alfa/test_pipeline" # When set to empty string will download to directory of the script
-downloader_temp = "/data/alfa/test_pipeline_clean/" # When set to empty string will download to directory of the script
+downloader_temp = "/data/alfa/test_pipeline" # When set to empty string will download to directory of the script
 downloader_space_to_use = 228748364800#214748364800 #Size to use in bytes; Use 'None' to use all available space
 downloader_numofdownloads = 2
 downloader_numofrestores = 2
@@ -121,7 +122,7 @@ downloader_numofretries = 3
 # 
 ################################################################
 uploader_result_dir_overide = True
-uploader_result_dir = "/data/data7/PALFA/test_new_pipeline_clean/"
+uploader_result_dir = "/data/data7/PALFA/test_new_pipeline/"
 uploader_version_num = 'PRESTO:56b00442679f3c3edc36cbe322b2022eca53e459;PIPELINE:8512aac773bc1414f1dddd93397ca4aa5bb693a2'
 
 ################################################################
@@ -138,4 +139,4 @@ uploader_version_num = 'PRESTO:56b00442679f3c3edc36cbe322b2022eca53e459;PIPELINE
 ################################################################
 bgs_sleep = 60 #sleep time for background script in seconds
 bgs_screen_output = True #Set to True if you want the script to output runtime information, False otherwise
-bgs_db_file_path = '/data/alfa/test_pipeline_clean/storage_db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
+bgs_db_file_path = '/data/alfa/test_pipeline/storage_db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
