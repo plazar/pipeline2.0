@@ -30,7 +30,7 @@ creates.append("CREATE TABLE job_files ( " \
 creates.append("CREATE TABLE job_submits ( " 
                     "created_at TEXT, " \
                     "details TEXT, " \
-                    "id INTEGER, " \
+                    "id INTEGER PRIMARY KEY, " \
                     "job_id INTEGER, " \
                     "queue_id TEXT, " \
                     "status TEXT, " \
