@@ -11,6 +11,7 @@ import re
 import sqlite3
 import datetime
 from M2Crypto import ftpslib
+from urllib2 import URLError
 
 from mailer import ErrorMailer
 
@@ -215,7 +216,11 @@ class restore:
 
     def request(self):
         dlm_cout.outs("Requesting Restore")
-        response = self.WebService.Restore(username=self.username,pw=self.password,number=self.num_beams,bits=4,fileType="wapp")
+        try:
+            response = self.WebService.Restore(username=self.username,pw=self.password,number=self.num_beams,bits=4,fileType="wapp")
+        except URLError, e:
+            dlm_cout.outs("There was a problem requesting the restore. Reson: %s" % str(e))
+            return False
         #response = '9818e194a5db4f4d90aa706826d69907'
         if response != "fail":
             self.guid = response
