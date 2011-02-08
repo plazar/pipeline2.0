@@ -6,34 +6,37 @@ Patrick Lazarus, June 7th, 2010
 """
 import re
 import os
-import os.path
-import subprocess
+import sys
 import time
 import socket
 import shutil
-import job
+import os.path
 import traceback
+import subprocess
 from mailer import ErrorMailer
+
 import config
 import dev
-from mailer import ErrorMailer 
+import job
 
 def main():
     global datafile_demand
-    
+
     try:
         #initialize new JobPool object to manage search jobs in QSUB
         jobpool = job.JobPool()
     except Exception, e:
         try:
-            notification = ErrorMailer('Could not initialize JobPool.\nFatal occured: %s' % str(e))
+            traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
+            msg = 'Could not initialize JobPool.\nFatal occured: %s' % str(e)
+            msg += '\n\nTraceback:\n' + traceback_string
+            notification = ErrorMailer(msg)
             notification.send()
             sys.stderr.write("Fatal error occurred! Could not initialize JobPool\n")
-            traceback.print_exception(*sys.exc_info())
+            sys.stderr.write(traceback_string)
             sys.exit(1)
         except Exception:
-            pass
-        
+            raise
 
     while True:
         #rotation function changes/updates the states and submits jobs
@@ -43,13 +46,16 @@ def main():
             jobpool.status()
         except Exception, e:
             try:
-                notification = ErrorMailer('Fatal occured: %s' % str(e))
+                traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
+                msg = 'Could not initialize JobPool.\nFatal occured: %s' % str(e)
+                msg += '\n\nTraceback:\n' + traceback_string
+                notification = ErrorMailer(msg)
                 notification.send()
                 sys.stderr.write("Fatal error occurred!\n")
-                traceback.print_exception(*sys.exc_info())
+                sys.stderr.write(traceback_string)
                 sys.exit(1)
             except Exception:
-                pass
+                raise
         time.sleep(config.bgs_sleep)       
 
 main()
