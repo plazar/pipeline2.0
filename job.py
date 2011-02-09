@@ -247,13 +247,15 @@ class JobPool:
         running_jobs = self.query("SELECT * FROM jobs WHERE status='submitted'")
         processed_jobs = self.query("SELECT * FROM jobs WHERE status='processed'")
         new_jobs = self.query("SELECT * FROM jobs WHERE status='new'")
-        failed_jobs = self.query("SELECT * FROM jobs WHERE status='failed'")
+        waiting_resubmit_jobs = self.query("SELECT * FROM jobs WHERE status='failed'")
+        failed_jobs = self.query("SELECT * FROM jobs WHERE status='terminal_failure'")
         
         status_str= "\n\n================= Job Pool Status ==============\n"
-        status_str+="Num. of jobs   running: %u\n" % len(running_jobs)
-        status_str+="Num. of jobs processed: %u\n" % len(processed_jobs)
-        status_str+="Num. of jobs   waiting: %u\n" % len(new_jobs)
-        status_str+="Num. of jobs    failed: %u\n" % len(failed_jobs)
+        status_str+="Num. of jobs       running: %u\n" % len(running_jobs)
+        status_str+="Num. of jobs     processed: %u\n" % len(processed_jobs)
+        status_str+="Num. of jobs       waiting: %u\n" % len(new_jobs)
+        status_str+="Num. of jobs waiting retry: %u\n" % len(waiting_resubmit_jobs)
+        status_str+="Num. of jobs        failed: %u\n" % len(failed_jobs)
         if log:
             jobpool_cout.outs(status_str)
         else:
@@ -286,7 +288,7 @@ class JobPool:
         
     def update_jobs_status_from_queue(self):
         #collect all non processed jobs from db linking to downloaded files
-        jobs = self.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.status NOT LIKE 'failed' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
+        jobs = self.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.status NOT LIKE 'failed' AND jobs.status NOT LIKE 'terminal_failure' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
         for job in jobs:
             #check if Queue is processing a file for this job
             in_queue,queueidreported = QueueManagerClass.is_processing_file(job['filename'])
@@ -297,7 +299,15 @@ class JobPool:
                     #if there was a submit check if the job terminated with an error
                     if QueueManagerClass.error(last_job_submit[0]['queue_id']):
                         #if the job terminated with an error, update it's status to failed
-                        self.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                        if self.get_submits_count_by_job_id(job['id']) < config.max_attempts:
+                            self.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                            if config.email_on_failures:
+                                self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'])
+                        else:
+                            self.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                            if config.email_on_terminal_failures:
+                                self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)
+                        
                         #also update the last attempt
                         self.query("UPDATE job_submits SET status='failed', details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
                     else:
@@ -313,17 +323,44 @@ class JobPool:
             else:
                 #if queue is processing a file for this job update job's status
                 self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+    
+    def mail_job_failure(self,job_id,queue_id,terminal=False):
+        stdout_log, stderr_log = QueueManagerClass.getLogs(queue_id)
+        if terminal:
+            email_content = "Terminal Job Failure\n JobId: %s\n Last Attempt queue_id: %s\n" % (job_id, queue_id)
+        else:
+            email_content = "Job Failure\n\nJobId: %s\n Last Attempt queue_id: %s\n" % (job_id, queue_id)
+            
+        email_content += "\nJob's Datafile(s):\n %s\n" % ("\n".join(self.get_jobs_files_by_job_id(job_id)))
+
+        email_content += "\nStandard Output Log:\n===================start==================\ %s \n====================end===================\
+        \n\nStandard Error Log:\n===================start================== %s \n====================end===================\n" % (stdout_log, stderr_log)
+
+        try:
+            mailer = ErrorMailer(email_content)
+            mailer.send()
+        except Exception, e:
+            pass
                 
+    def get_submits_count_by_job_id(self,job_id):
+        job_submits = self.query("SELECT * FROM job_submits WHERE job_id=%u" % int(job_id))
+        return len(job_submits)
+        
     
     def resubmit_failed_jobs(self):
-        failed_jobs = self.query("select *,(SELECT COUNT(*) FROM job_submits WHERE job_submits.job_id=jobs.id AND status='failed') as times_failed FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
+        failed_jobs = self.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
         for failed_job in failed_jobs:
-            if int(failed_job['times_failed']) < config.max_attempts:
-                running, queued = self.get_queue_status()
-                if (running + queued) < config.max_jobs_running:
-                    print "Job failed: %u times" % int(failed_job['times_failed'])
-                    self.submit(failed_job)
-
+            running, queued = self.get_queue_status()
+            if (running + queued) < config.max_jobs_running:
+                self.submit(failed_job)
+                
+    def get_jobs_files_by_job_id(self,job_id):
+        dls = self.query("SELECT * FROM jobs,downloads,job_files WHERE jobs.id=%u AND jobs.id=job_files.job_id AND downloads.id=job_files.file_id" %(int(job_id)))
+        files=list()
+        for dl in dls:
+            files.append(dl['filename'])
+        return files
+        
     def submit(self,job_row):
         tmp_job = PulsarSearchJob([job_row['filename']])
         try:
