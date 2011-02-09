@@ -301,10 +301,12 @@ class JobPool:
                         #if the job terminated with an error, update it's status to failed
                         if self.get_submits_count_by_job_id(job['id']) < config.max_attempts:
                             self.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
-                            self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'])
+                            if config.email_on_failures:
+                                self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'])
                         else:
                             self.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
-                            self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)
+                            if config.email_on_terminal_failures:
+                                self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)
                         
                         #also update the last attempt
                         self.query("UPDATE job_submits SET status='failed', details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
