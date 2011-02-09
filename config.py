@@ -142,3 +142,8 @@ bgs_screen_output = True #Set to True if you want the script to output runtime i
 bgs_db_file_path = '/data/alfa/test_pipeline/storage_db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
 email_on_failures = True
 email_on_terminal_failures = True
+
+from sanity_check import SanityCheck
+
+sanity = SanityCheck()
+sanity.run()
