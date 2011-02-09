@@ -28,11 +28,15 @@ def query(query_string):
     
 
 def main():
-    downloading = query("SELECT * FROM downloads, download_attempts WHERE download_attempts.status='downloading' AND downloads.id=download_attempts.download_id")
-    for download in downloading:
-        print "%s\t\t%s" % (download['remote_filename'],download['details'])
-    
-    print "\nTotal: %u" % len(downloading)
-    
+    ready_for_upload = query("SELECT * FROM job_uploads WHERE status='checked'")
+    waiting_check = query("SELECT * FROM job_uploads WHERE status='new'")
+    for ru in ready_for_upload:
+        print "%s\t%s" % (ru['job_id'],"Checked and ready for upload.")
+    for ru in ready_for_upload:
+        print "%s\t%s" % (ru['job_id'],"Processed and rady to be checked.")
+        
+    print "\nNum. jobs ready for    upload: %u" % len(ready_for_upload)
+    print "Num. jobs waiting for dry-run: %u" % len(waiting_check)
+
 if __name__ == "__main__":
     main()

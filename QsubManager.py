@@ -92,14 +92,34 @@ class Qsub(PipelineQueueManager):
                     numqueued += 1
         return (numrunning, numqueued)
     
-#    @staticmethod
-#    def error(jobid_str=None, imp_test=False):
-#        
-#        if imp_test:
-#            return True
-#        
-#        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])):
-#            if os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])) > 0:
-#                return True
-#        else:
-#            return False
+    @staticmethod
+    def error(jobid_str=None, imp_test=False):
+        
+        if imp_test:
+            return True
+        
+        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])):
+            if os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])) > 0:
+                return True
+        else:
+            return False
+
+    @staticmethod
+    def getLogs(jobid_str=None,imp_test=False):
+        
+        if imp_test:
+            return True
+        
+        stderr_log = ""
+        stdout_log = ""
+        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])):
+            err_f = open(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0]),'r')
+            stderr_log = err_f.read()
+            err_f.close()
+        
+        if os.path.exists(os.path.join("qsublog",config.job_basename+".o"+jobid_str.split(".")[0])):
+            out_f = open(os.path.join("qsublog",config.job_basename+".o"+jobid_str.split(".")[0]),'r')
+            stdout_log = out_f.read()
+            out_f.close()
+        
+        return (stdout_log, stderr_log)
