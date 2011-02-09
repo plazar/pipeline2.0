@@ -35,3 +35,10 @@ class PipelineQueueManager:
     @staticmethod
     def error(jobid_str=None, imp_test=False):
         raise NotImplementedError
+    
+    @staticmethod
+    def getLogs(jobid_str=None,imp_test=False):
+        """Must return a tuple, both must be strings from logs error and std out
+        of the queue manager for that jobid_str
+        """
+        raise NotImplementedError
