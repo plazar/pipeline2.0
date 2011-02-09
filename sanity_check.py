@@ -58,49 +58,51 @@ class SanityCheck:
                 self.report +="\n!!!ERROR!!!\tYou must implement '%s' class method in you QueueManager class." % name
                 
     def check_constants(self):
-        attributes=[
-            'institution',
-            'pipeline',
-            'survey',
-            'results_directory_host',
-            'base_results_directory',
-            'base_working_directory',
-            'default_zaplist',
-            'zaplistfn',
-            'zaplistdir',
-            'log_dir',
-            'log_archive',
-            'max_jobs_running',
-            'job_basename',
-            'sleep_time',
-            'max_attempts',
-            'resource_list',
-            'delete_rawdata',
-            'rawdata_directory',
-            'rawdata_re_pattern',
-            'downloader_api_service_url',
-            'downloader_api_username',
-            'downloader_api_password',
-            'downloader_temp',
-            'downloader_space_to_use',
-            'downloader_numofdownloads',
-            'downloader_numofrestores',
-            'downloader_numofretries',
-            'uploader_result_dir_overide',
-            'uploader_result_dir',
-            'uploader_version_num',
-            'bgs_sleep',
-            'bgs_screen_output',
-            'bgs_db_file_path',
-            'email_on_failures',
-            'email_on_terminal_failures'
-        ]
+        attributes={
+            'institution':str,
+            'pipeline':str,
+            'survey':str,
+            'results_directory_host':str,
+            'base_results_directory':str,
+            'base_working_directory':str,
+            'default_zaplist':str,
+            'zaplistfn':str,
+            'zaplistdir':str,
+            'log_dir':str,
+            'log_archive':str,
+            'max_jobs_running':int,
+            'job_basename':str,
+            'sleep_time':int,
+            'max_attempts':int,
+            'resource_list':str,
+            'delete_rawdata':bool,
+            'rawdata_directory':str,
+            'rawdata_re_pattern':str,
+            'downloader_api_service_url':str,
+            'downloader_api_username':str,
+            'downloader_api_password':str,
+            'downloader_temp':str,
+            'downloader_space_to_use':str,
+            'downloader_numofdownloads':int,
+            'downloader_numofrestores':int,
+            'downloader_numofretries':int,
+            'uploader_result_dir_overide':bool,
+            'uploader_result_dir':str,
+            'uploader_version_num':str,
+            'bgs_sleep':int,
+            'bgs_screen_output':bool,
+            'bgs_db_file_path':str,
+            'email_on_failures':bool,
+            'email_on_terminal_failures':bool
+        }
         
-        for attr in attributes:
+        for attr,thetype in attributes.items():
             try:
                 eval('config.%s'%attr)
+                if not isinstance(eval('config.%s'%attr),thetype):
+                    self.report += '\n!!!ERROR!!!\tconfig.%s supposed to be a %s'% (attr,str(thetype))
             except AttributeError,e:
-                self.report +="You have to define following constant in config.py: %s\n" % attr
+                self.report +="\n!!!ERROR!!!\tYou have to define following constant in config.py: %s\n" % attr
         
 if __name__ == "__main__":
     sanity = SanityCheck()
