@@ -15,7 +15,6 @@ class SanityCheck:
     def run(self):
         read_write_directories = {
         'config.base_results_directory':config.base_results_directory , 
-        'config.base_working_directory':config.base_working_directory ,
         'config.downloader_temp':config.downloader_temp,
         'config.bgs_db_file_path':config.bgs_db_file_path
         }
@@ -62,11 +61,9 @@ class SanityCheck:
             'institution':str,
             'pipeline':str,
             'survey':str,
-            'results_directory_host':str,
             'base_results_directory':str,
             'base_working_directory':str,
             'default_zaplist':str,
-            'zaplistfn':str,
             'zaplistdir':str,
             'log_dir':str,
             'log_archive':str,
@@ -82,7 +79,7 @@ class SanityCheck:
             'downloader_api_username':str,
             'downloader_api_password':str,
             'downloader_temp':str,
-            'downloader_space_to_use':str,
+            'downloader_space_to_use':int,
             'downloader_numofdownloads':int,
             'downloader_numofrestores':int,
             'downloader_numofretries':int,
