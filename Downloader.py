@@ -38,6 +38,8 @@ class DownloadModule:
     def run(self):
         #if can create more restores then request new ones and add them to restores array
         while True:
+            running_restores_count = 0
+            running_downloaders_count = 0
             if self.can_request_more():
                 dlm_cout.outs("Requesting restore")
                 tmp_restore = restore(db_name=self.db_name,num_beams=1)
@@ -45,12 +47,12 @@ class DownloadModule:
                     self.restores.append(tmp_restore)
             for res in self.restores[:]:
                 if not res.run():
-                    dlm_cout.outs(res.guid +' : Could not run the restore...removing. Files:'+ ", ".join(res.files.keys()) )
                     self.restores.remove(res)
                 else:
                     res.status()
-                    print ""
-                dlm_cout.outs("Number of restores: "+ str(len(self.restores)))
+                    running_restores_count += 1
+                    running_downloaders_count += 1
+            dlm_cout.outs("Number of running restores: %u"+ running_restores_count)
             print "\n\n"
             sleep(37)
             
@@ -84,8 +86,7 @@ class DownloadModule:
                 time.sleep(1)
         return results
     
-    def have_space(self):
-        
+    def have_space(self):        
         folder_size = 0
         for (path, dirs, files) in os.walk(downloader_temp):
           for file in files:
@@ -94,8 +95,7 @@ class DownloadModule:
                 folder_size += os.path.getsize(filename)
             except Exception, e:
                 dlm_cout.outs('There was an error while getting the file size: %s   Exception: %s' % (filename,str(e)) )
-        
-            
+                    
         if folder_size < downloader_space_to_use:
             dlm_cout.outs(str(folder_size) +" <? "+ str(downloader_space_to_use))
             dlm_cout.outs("Enough Space")
@@ -103,7 +103,6 @@ class DownloadModule:
         else:
             dlm_cout.outs("Not Enough Space")
             return False
-
 
     def can_request_more(self):
         if len(self.restores) >= downloader_numofrestores:
@@ -116,7 +115,6 @@ class DownloadModule:
                 total_size += int(request.values['size'])
         
         dlm_cout.outs("Total estimated size of currently running restores: %u" % total_size)
-        
         return ((self.get_available_space() - total_size) > 0)
 
     def get_available_space(self):
@@ -176,22 +174,11 @@ class restore:
         self.guid = guid
         if self.guid:
             self.update_from_db()
-#        return "5f1e39d373d24db49ead9602e6754c68";
-#        response = self.WebService.RestoreTest(username=self.username,pw=self.password,number=num_beams)
-#        if response != "fail":
-#            self.create_restore(response) #creates restore record in sqlite db with status waiting path
-#            self.restores[response] = False  #False means no downloader exist for this restore
-#            self.name = response
-#            return response
-#        else:
-#            return False
 
-    #TODO: Refactor this function and the helper functions
     def run(self):
         """If this doesn't have guid then we request it 
         """
         if self.guid == False:
-            dlm_cout.outs("Restore has no GUID, will requests a guid", OutStream.INFO)
             return self.request()
         
         self.update_from_db()
@@ -202,10 +189,8 @@ class restore:
             self.getLocation()
         elif self.values['status'] == "ready":
             if self.is_finished():
-                dlm_cout.outs("Restore %s is finished" % self.guid)
                 return False
             if self.files == dict():
-                dlm_cout.outs("Restore %s : getting files" % self.guid)
                 self.get_files()
             self.download()
         elif self.values['status'] == "finished" or self.values['status'] == "failed":  
@@ -219,7 +204,7 @@ class restore:
         try:
             response = self.WebService.Restore(username=self.username,pw=self.password,number=self.num_beams,bits=4,fileType="wapp")
         except URLError, e:
-            dlm_cout.outs("There was a problem requesting the restore. Reson: %s" % str(e))
+            dlm_cout.outs("There was a problem requesting the restore. Reason: %s" % str(e))
             return False
         #response = '9818e194a5db4f4d90aa706826d69907'
         if response != "fail":
@@ -227,7 +212,6 @@ class restore:
             if self.get_by_guid(self.guid) != list():
                 dlm_cout.outs("The record with GUID = '%s' allready exists" % (self.guid))
             else:
-                dlm_cout.outs("Creating DB Entry for GUID = %s" % (response))
                 insert_query = "INSERT INTO requests (guid, created_at, updated_at, status, details) VALUES ('%s','%s', '%s', '%s','%s')" % \
                                     (self.guid, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), \
                                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'waiting', 'Newly created restore request')
@@ -255,10 +239,8 @@ class restore:
         response = self.WebService.Location(username=self.username,pw=self.password, guid=self.guid)
         if response == "done":
             self.query("UPDATE requests SET status = 'ready' WHERE guid ='%s'" % (self.guid))
-            dlm_cout.outs("Files are ready for restore: %s" % (self.guid))
             return True
         else:
-            dlm_cout.outs("Files are not ready for: %s " % (self.guid));
             return False
             
     def query(self,query_string):
@@ -287,7 +269,6 @@ class restore:
         return results
                 
     def get_files(self):
-        dlm_cout.outs("Getting files list for restore: %s" % (self.guid))
         connected = False
         logged_in = False
         cwd = False
@@ -306,13 +287,13 @@ class restore:
                 login_response = ftp.login('palfadata','NAIC305m')
                 logged_in = True
                 if login_response != "230 User logged in.":
-                    dlm_cout.outs(self.guid +" Could not login with user: palfadata  password: NAIC305m  Response: %s" % login_response)
+                    #dlm_cout.outs(self.guid +" Could not login with user: palfadata  password: NAIC305m  Response: %s" % login_response)
                     return False
 
                 cwd_response = ftp.cwd(self.guid)
                 cwd = True
                 if cwd_response != "250 CWD command successful.":
-                    dlm_cout.outs(self.guid+" Restore Directory not found", OutStream.WARNING)
+                    #dlm_cout.outs(self.guid+" Restore Directory not found", OutStream.WARNING)
                     return False
 
                 files_in_res_dir = ftp.nlst()
@@ -350,10 +331,8 @@ class restore:
         ftp.close()
     
     def create_dl_entries(self):        
-        for filename,filesize in self.files.items():
-            
-            dl_check = self.query("SELECT * FROM downloads WHERE request_id=%s AND filename='%s'" % (self.values['id'],filename))
-            
+        for filename,filesize in self.files.items():            
+            dl_check = self.query("SELECT * FROM downloads WHERE request_id=%s AND filename='%s'" % (self.values['id'],filename))            
             if len(dl_check) == 0:
                 query = "INSERT INTO downloads (request_id,remote_filename,filename,status,created_at,updated_at,size) VALUES ('%s','%s','%s','%s','%s','%s',%u)"\
                         % (self.values['id'],filename,os.path.join(downloader_temp,filename),'New',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), int(filesize))
@@ -386,8 +365,6 @@ class restore:
                     self.downloaders[dl_entry['remote_filename']] = downloader(self.guid,dl_entry['remote_filename'],id)
                     #run downloader thread
                     self.downloaders[dl_entry['remote_filename']].start()
-                else:
-                    dlm_cout.outs("Maximum number of attempts for this download is reached.")
         
         #update download status and remove dead downloaders
         for filename in self.downloaders.keys():
@@ -429,8 +406,9 @@ class restore:
     def status(self):
         dls = self.query("SELECT * from downloads WHERE request_id = %s" % self.values['id'])
         print "Restore: %s" % self.guid
+        print "\t\tDownloading: "
         for dl in dls:
-            print dl
+            print "\t\t %s \t[%s]" % (dl['remote_filename'],str(dl['size']))
 
     def is_finished(self):
         all_downloads = self.query("SELECT * FROM downloads WHERE request_id = %s" % self.values['id'])
@@ -562,12 +540,13 @@ class downloader(Thread):
                 if cwd_response != "250 CWD command successful.":
                     dl_cout.outs("Restore Directory not found", OutStream.ERROR)
                     self.status = 'failed'
-                    self.details = 'Directory change failed %s' % str(self.file_name) 
+                    self.details = 'Directory change failed %s' % str(self.file_name)
+                    
                 not_logged_in = False
             except Exception , e:
                 #self.update_status({'dl_status':"Failed: '"+ self.file_name +"' -- "+ str(e)})
                 #self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
-                dl_cout.outs("Could not connect to host. Waiting 1 sec: %s " % (self.file_name) )
+                dl_cout.outs("Could not connect to host. Reason: %s. Waiting 1 sec: %s " % (self.file_name,str(e)) )
                 sleep(1)
         
         try:
