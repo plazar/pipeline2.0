@@ -139,3 +139,5 @@ uploader_version_num = 'PRESTO:56b00442679f3c3edc36cbe322b2022eca53e459;PIPELINE
 bgs_sleep = 60 #sleep time for background script in seconds
 bgs_screen_output = True #Set to True if you want the script to output runtime information, False otherwise
 bgs_db_file_path = '/data/alfa/test_pipeline_clean/storage_db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
+email_on_failures = True
+email_on_terminal_failures = True
