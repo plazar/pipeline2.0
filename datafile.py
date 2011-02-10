@@ -28,7 +28,7 @@ date_re = re.compile(r'^(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})$')
 time_re = re.compile(r'^(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})$')
 
 
-def autogen_dataobj(fns, *args, **kwargs):
+def autogen_dataobj(fns, verbose=False, *args, **kwargs):
     """Automatically generate a Data object.
         More specifically: Given a list of filenames
         find out which subclass of Data is appropriate
@@ -38,7 +38,8 @@ def autogen_dataobj(fns, *args, **kwargs):
         obj = eval(objname)
         if type(obj)==types.TypeType and issubclass(obj, Data):
             if obj.is_correct_filetype(fns):
-                print "Using %s" % objname
+                if verbose:
+                    print "Using %s" % objname
                 data = obj(fns, *args, **kwargs)
                 break
     if 'data' not in dir():
