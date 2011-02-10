@@ -333,8 +333,7 @@ class JobPool:
             
         email_content += "\nJob's Datafile(s):\n %s\n" % ("\n".join(self.get_jobs_files_by_job_id(job_id)))
 
-        email_content += "\nStandard Output Log:\n===================start==================\ %s \n====================end===================\
-        \n\nStandard Error Log:\n===================start================== %s \n====================end===================\n" % (stdout_log, stderr_log)
+        email_content += "\n\nStandard Error Log:\n===================start==================\n %s \n====================end===================\n" % stderr_log
 
         try:
             mailer = ErrorMailer(email_content)
