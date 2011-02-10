@@ -10,6 +10,7 @@ import header
 from time import sleep
 import os
 import time
+import warnings
 
 import header
 import candidate_uploader
@@ -17,6 +18,12 @@ import diagnostic_uploader
 import upload
 
 from mailer import ErrorMailer
+
+
+# Suppress warnings produced by uploaders
+# (typically because data, weights, scales, offsets are missing 
+#       from PSRFITS files)
+warnings.simplefilter("ignore")
 
 class JobUploader():
     
