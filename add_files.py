@@ -74,7 +74,6 @@ def main(argv):
         if file_path not in db_files:
             
             try:
-                PulsarSearchJob([file_path]).get_output_dir()
                 print "Adding: %s " % file_path
                 try:
                     result = create_download(file_path)

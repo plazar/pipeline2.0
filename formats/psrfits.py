@@ -22,11 +22,8 @@ date_obs_re = re.compile(r"^(?P<year>[0-9]{4})-(?P<month>[0-9]{2})-" \
                             "(?P<min>[0-9]{2}):(?P<sec>[0-9]{2}" \
                             "(?:\.[0-9]+)?)$")
 
-# Default global debugging mode
-debug = True 
-
 class SpectraInfo:
-    def __init__(self, filenames):
+    def __init__(self, filenames, verbose=False):
         self.filenames = filenames
         self.num_files = len(filenames)
         self.N = 0
@@ -48,7 +45,7 @@ class SpectraInfo:
         self.need_flipband = False
 
         for ii, fn in enumerate(filenames):
-            if debug:
+            if verbose:
                 print "Reading '%s'" % fn
             if not is_PSRFITS(fn):
                 raise ValueError("File '%s' does not appear to be PSRFITS!" % fn)

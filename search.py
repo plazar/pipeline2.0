@@ -113,12 +113,7 @@ def set_up():
    
     print "Local working directory:", workdir
     print "Local results directory:", resultsdir
-    resultshost = config.results_directory_host
-    if resultshost is not None:
-        print "When finished results will be copied to: %s:%s" % \
-                    (resultshost, outdir)
-    else:
-        print "When finished results will be copied to: %s" % outdir
+    print "When finished results will be copied to: %s" % outdir
 
     # Copy data files locally
     for fn in fns:
@@ -155,21 +150,15 @@ def copy_zaplist(fns, workdir):
         print "Copied custom zaplist: %s" % customzapfn
     else:
         # Copy default zaplist
-        shutil.copy(default_zaplist, workdir)
+        shutil.copy(config.default_zaplist, workdir)
         print "No custom zaplist found. Copied default zaplist: %s" % config.default_zaplist
 
 
 def copy_results(resultsdir, outdir):
     # Copy search results to outdir (only if no errors occurred)
     print "Copying contents of local results directory to", outdir
-    if config.results_directory_host is not None:
-        system_call("ssh %s -- mkdir -m 750 -p %s" % \
-                    (config.results_directory_host, outdir))
-        system_call("rsync -auvl --chmod=Dg+rX,Fg+r %s/ %s:%s" % \
-                    (resultsdir, config.results_directory_host, outdir))
-    else:
-        system_call("mkdir -m 750 -p %s" % outdir)
-        system_call("rsync -auvl --chmod=Dg+rX,Fg+r %s/ %s" % (resultsdir, outdir))
+    system_call("mkdir -m 750 -p %s" % outdir)
+    system_call("rsync -auvl --chmod=Dg+rX,Fg+r %s/ %s" % (resultsdir, outdir))
 
 
 def clean_up(workdir, resultsdir):
@@ -192,7 +181,8 @@ def main():
         copy_results(resultsdir, outdir)
     except:
         # Some error was encountered
-        # Simply re-raise the error so it gets reported in the error logs
+        sys.stderr.write("\nErrors! Job ran on %s\n\n" % socket.gethostname())
+        # Now, simply re-raise the error so it gets reported in the error logs
         raise
     finally:
         # Remove working directory and output directory

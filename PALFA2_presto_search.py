@@ -429,8 +429,10 @@ def main(filenms, workdir, resultsdir):
     try:
         search_job(job)
     except:
-        print "Search has been aborted due to errors encountered."
-        print "See error output for more information."
+        print "***********************ERRORS!************************"
+        print "  Search has been aborted due to errors encountered."
+        print "  See error output for more information."
+        print "******************************************************"
         raise
     finally:
         clean_up(job)
@@ -695,7 +697,7 @@ def clean_up(job):
     
     # Copy all the important stuff to the output directory
     resultglobs = ["*rfifind.[bimors]*", 
-                    "*.ps.gz", "*.tgz", "*.png"]
+                    "*.ps.gz", "*.tgz", "*.png", "*.zaplist"]
     for resultglob in resultglobs:
             for file in glob.glob(resultglob):
                 shutil.copy(file, job.outputdir)
