@@ -143,7 +143,12 @@ bgs_db_file_path = '/data/alfa/test_pipeline/storage_db' #path to sqlite3 databa
 email_on_failures = True
 email_on_terminal_failures = True
 
-from sanity_check import SanityCheck
 
-sanity = SanityCheck()
-sanity.run()
+try:
+    from sanity_check import SanityCheck
+
+    sanity = SanityCheck()
+    sanity.run()
+except Exception,e:
+    print str(e)
+    

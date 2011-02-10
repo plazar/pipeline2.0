@@ -4,6 +4,12 @@ import time
 import os
 
 creates = []
+
+
+creates.append("CREATE TABLE pipeline ( " \
+                    "exit_downloader INTEGER NOT NULL DEFAULT (0), " \
+                    "exit_jobpool INTEGER NOT NULL DEFAULT (0), " \
+                    "exit_uploader INTEGER NOT NULL DEFAULT (0))")
 creates.append("CREATE TABLE download_attempts ( " \
                     "download_id INTEGER, " \
                     "created_at TEXT, " \

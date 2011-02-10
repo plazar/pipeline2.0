@@ -47,9 +47,10 @@ class SanityCheck:
             raise Exception(self.report)
         
     def check_queuemanager(self):
+            from PipelineQueueManager import PipelineQueueManager
             import job
             try:
-                for name,func in job.PipelineQueueManager.__dict__.items():
+                for name,func in PipelineQueueManager.__dict__.items():
                     if name[:2] != "__":
                         exec_string = "job.QueueManagerClass.%s(imp_test=True)" % name
                         eval(exec_string)
@@ -82,7 +83,7 @@ class SanityCheck:
             'downloader_api_username':str,
             'downloader_api_password':str,
             'downloader_temp':str,
-            'downloader_space_to_use':str,
+            'downloader_space_to_use':int,
             'downloader_numofdownloads':int,
             'downloader_numofrestores':int,
             'downloader_numofretries':int,

@@ -1,4 +1,4 @@
-import config
+
 from PipelineQueueManager import PipelineQueueManager
 import PBSQuery
 import subprocess
@@ -7,10 +7,12 @@ import time
 
 class Qsub(PipelineQueueManager):
     
+    
+    
     @staticmethod
     def submit(files_str_array=None, output_dir_str=None, imp_test=False):
         """Must return a unique identifier for the job"""
-        
+        import config
         if imp_test:
             return True
         
@@ -44,7 +46,7 @@ class Qsub(PipelineQueueManager):
         """Must return True/False wheather the job processing the input filename
             is running.
         """
-        
+        import config
         if imp_test:
             return True
         
@@ -77,7 +79,7 @@ class Qsub(PipelineQueueManager):
         """Must return a tuple of number of jobs running and queued for the pipeline
         Note:
         """
-        
+        import config
         if imp_test:
             return True
         
@@ -94,7 +96,7 @@ class Qsub(PipelineQueueManager):
     
     @staticmethod
     def error(jobid_str=None, imp_test=False):
-        
+        import config
         if imp_test:
             return True
         
@@ -106,7 +108,7 @@ class Qsub(PipelineQueueManager):
 
     @staticmethod
     def getLogs(jobid_str=None,imp_test=False):
-        
+        import config
         if imp_test:
             return True
         

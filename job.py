@@ -16,15 +16,17 @@ import pprint
 
 import logging
 import datafile
+from QsubManager import Qsub
+from PipelineQueueManager import PipelineQueueManager
+QueueManagerClass = Qsub
+
 import config
 import dev
 import time
 
 from mailer import ErrorMailer
 
-from QsubManager import Qsub
-from PipelineQueueManager import PipelineQueueManager
-QueueManagerClass = Qsub
+
 """
 from QTestManager import QTest
 from PipelineQueueManager import PipelineQueueManager
@@ -45,6 +47,12 @@ class JobPool:
         self.demand_file_list = {}
         self.merged_dict = {}
 
+    def shutdown(self):
+        result = self.query("SELECT exit_jobpool FROM pipeline")
+        if int(result['exit_jobpool']) == 1:
+            return True
+        else:
+            return False
     
     #Creates PulsarSearchJob(s) from datafiles added to the list -> self.datafiles    
     def create_jobs_from_datafiles(self,files_in = None):
@@ -305,6 +313,8 @@ class JobPool:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'])
                         else:
                             self.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                            if config.delete_rawdata:
+                                self.delete_jobs_files_by_job_id(job['id'])
                             if config.email_on_terminal_failures:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)
                         
@@ -324,10 +334,20 @@ class JobPool:
                 #if queue is processing a file for this job update job's status
                 self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
     
+    def delete_jobs_files_by_job_id(self,job_id):
+        files = self.query("SELECT * FROM job_files,downloads where job_files.job_id=%u AND job_files.file_id=downloads.id" % (job_id))
+        for file_row in files:
+            if os.path.exists(file_row['filename']):
+                if os.path.isfile(file_row['filename']):
+                    try:
+                        os.remove(file_row['filename'])
+                    except:
+                        pass
+    
     def mail_job_failure(self,job_id,queue_id,terminal=False):
         stdout_log, stderr_log = QueueManagerClass.getLogs(queue_id)
         if terminal:
-            email_content = "Terminal Job Failure\n JobId: %s\n Last Attempt queue_id: %s\n" % (job_id, queue_id)
+            email_content = "Terminal Job Failure. Job will not be retried. File(s) used by this job were deleted.\n JobId: %s\n Last Attempt queue_id: %s\n" % (job_id, queue_id)
         else:
             email_content = "Job Failure\n\nJobId: %s\n Last Attempt queue_id: %s\n" % (job_id, queue_id)
             
