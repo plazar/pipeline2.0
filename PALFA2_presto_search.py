@@ -429,8 +429,10 @@ def main(filenms, workdir, resultsdir):
     try:
         search_job(job)
     except:
-        print "Search has been aborted due to errors encountered."
-        print "See error output for more information."
+        print "***********************ERRORS!************************"
+        print "  Search has been aborted due to errors encountered."
+        print "  See error output for more information."
+        print "******************************************************"
         raise
     finally:
         clean_up(job)
