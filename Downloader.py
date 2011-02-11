@@ -66,36 +66,6 @@ class DownloadModule:
             self.restores.append(restore(num_beams=1,guid=request['guid']))
         dlm_cout.outs("Recovered: %u restores" % len(self.restores))
         
-<<<<<<< HEAD:Downloader.py
-    def query(self,query_string):
-        not_connected = True
-        counter = 0 
-        while not_connected:
-            try:
-                db_conn = sqlite3.connect(bgs_db_file_path,timeout=40.0)
-                db_conn.row_factory = sqlite3.Row
-                db_cur = db_conn.cursor();
-                db_cur.execute(query_string)
-                if db_cur.lastrowid:
-                    results = db_cur.lastrowid
-                else:
-                    results = db_cur.fetchall()
-                db_conn.commit()
-                db_conn.close()
-                not_connected = False
-            except Exception, e:
-                try:
-                    db_conn.close()
-                except Exception, e:
-                    pass
-                if counter > 59:
-                    dlm_cout.outs("Couldn't connect to DB retrying in 1 sec.%s" % str(e)) 
-                time.sleep(1)
-                counter += 1
-        return results
-    
-=======
->>>>>>> a3f23dd42802c8bd9bf39aa9b85b171bd3cacce0:Downloader.py
     def have_space(self):        
         folder_size = 0
         for (path, dirs, files) in os.walk(downloader_temp):
@@ -105,14 +75,8 @@ class DownloadModule:
                 folder_size += os.path.getsize(filename)
             except Exception, e:
                 dlm_cout.outs('There was an error while getting the file size: %s   Exception: %s' % (filename,str(e)) )
-                    
-<<<<<<< HEAD:Downloader.py
+
         if folder_size < downloader_space_to_use:
-=======
-        if folder_size < downloader_space_to_use:
-            dlm_cout.outs(str(folder_size) +" <? "+ str(downloader_space_to_use))
-            dlm_cout.outs("Enough Space")
->>>>>>> a3f23dd42802c8bd9bf39aa9b85b171bd3cacce0:Downloader.py
             return True
         else:
             return False
@@ -231,36 +195,6 @@ class restore:
         else:
             return False
             
-<<<<<<< HEAD:Downloader.py
-    def query(self,query_string):
-        not_connected = True
-        counter=0
-        while not_connected:
-            try:
-                db_conn = sqlite3.connect(bgs_db_file_path,timeout=40.0);
-                db_conn.row_factory = sqlite3.Row
-                db_cur = db_conn.cursor();
-                db_cur.execute(query_string)
-                if db_cur.lastrowid:
-                    results = db_cur.lastrowid
-                else:
-                    results = db_cur.fetchall()
-                db_conn.commit()
-                db_conn.close()
-                not_connected = False
-            except Exception, e:
-                try:
-                    db_conn.close()
-                except Exception, e:
-                    pass
-                if counter > 59:    
-                    dlm_cout.outs("Couldn't connect to DB retrying in 1 sec.: %s" % str(e)) 
-                time.sleep(1)
-                counter+=1
-        return results
-                
-=======
->>>>>>> a3f23dd42802c8bd9bf39aa9b85b171bd3cacce0:Downloader.py
     def get_files(self):
         connected = False
         logged_in = False
@@ -317,16 +251,10 @@ class restore:
                         notification.send()
                     except Exception,e:
                         pass
-<<<<<<< HEAD:Downloader.py
-                    return False
-                sleep(2)
-        self.query("UPDATE requests SET size = '%u' WHERE guid='%s'" % (self.size,self.guid))    
-=======
                     return False                    
 
                 time.sleep(2)
-        jobtracker.query("UPDATE requests SET size = '%u' WHERE guid='%s'" % (self.size,self.guid))    
->>>>>>> a3f23dd42802c8bd9bf39aa9b85b171bd3cacce0:Downloader.py
+        jobtracker.query("UPDATE requests SET size = '%u' WHERE guid='%s'" % (self.size,self.guid))
         ftp.close()
     
     def create_dl_entries(self):        
@@ -435,30 +363,6 @@ class restore:
                     % (jobtracker.nowstr(),self.values['id']) )
         return True
 
-<<<<<<< HEAD:Downloader.py
-    def get_tries(self,filename):
-        db_conn = sqlite3.connect(self.db_name);
-        db_conn.row_factory = sqlite3.Row
-        db_cur = db_conn.cursor();
-        query = "SELECT * FROM restore_downloads WHERE guid = '%s' AND filename = '%s' LIMIT 1" % (self.name,filename)
-        db_cur.execute(query)
-        row = db_cur.fetchone()
-        db_conn.close()
-        return row['num_tries']
-        
-    def update_dl_status(self):
-        db_conn = sqlite3.connect(self.db_name);
-        db_conn.row_factory = sqlite3.Row
-        db_cur = db_conn.cursor();
-
-        for filename,dl_instance in self.downloaders.items():
-            query = "UPDATE restore_downloads SET status = '%s' WHERE guid = '%s' and filename = '%s'" % (dl_instance.status.replace("'","").replace('"',''),self.name,filename)
-            db_cur.execute(query)
-            db_conn.commit()
-        db_conn.close()
-
-=======
->>>>>>> a3f23dd42802c8bd9bf39aa9b85b171bd3cacce0:Downloader.py
     def update_from_db(self):
         self.values = self.get_by_guid(self.guid)
 
