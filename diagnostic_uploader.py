@@ -222,6 +222,25 @@ class NumAboveThreshDiagnostic(FloatDiagnostic):
                             if c.sigma > presto_search.to_prepfold_sigma])
 
 
+class ZaplistUsed(PlotDiagnostic):
+    name = "Zaplist used"
+    description = "The list of frequencies and ranges zapped from the " \
+                    "power spectrum before searching this beam. (A text file)."
+
+    def get_diagnostic(self):
+        # find the *.zaplist file
+        zaps = glob.glob(os.path.join(self.directory, '*.zaplist'))
+
+        if len(zaps) != 1:
+            raise DiagnosticError("Wrong number of zaplists found (%d)!" % \
+                                len(zaps))
+        else:
+            self.value = os.path.split(zaps[0])[-1]
+            zap_file = open(zaps[0], 'rb')
+            self.filedata = zap_file.read()
+            zap_file.close()
+
+
 def find_in_tarballs(dir, matchfunc):
     """Find all tarballs in the given directory and search
         for a filename (inside the tarballs) for which

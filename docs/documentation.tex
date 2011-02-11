@@ -75,7 +75,7 @@ An overview of the pipeline.
 \subsubsection{Job Pooler}
 \subsubsection{Uploader}
 \paragraph{Diagnostics}
-Diagnostics stored in the common database are split into two types: Numeric values and binary data.
+Diagnostics stored in the common database are split into two types: Numeric values and binary data. Some of the ``binary data" diagnostics are actually plain text files.
 
 The following per-beam diagnostics are uploaded to the common database:
 \begin{itemize}
@@ -99,6 +99,9 @@ The following per-beam diagnostics are uploaded to the common database:
 
     \item \textit{Accelcands list} (Binary data) \hfill \\
         The combined and sifted list of candidates produced by accelsearch.
+    
+    \item \textit{Zaplist used} (Binary data) \hfill \\
+        The list of frequencies and ranges zapped from the power spectrum before searching this beam.
 \end{itemize}
 
 
