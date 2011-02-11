@@ -5,18 +5,31 @@ import exceptions
 import re
 import datetime
 import sqlite3
-import config
+
+
+from master_config import bgs_screen_output\
+                        , email_on_failures\
+                        , email_on_terminal_failures\
+                        , delete_rawdata\
+                        , bgs_db_file_path\
+                        , base_results_directory
+
+from uploader_config import uploader_result_dir_overide\
+                            , uploader_result_dir\
+                            , uploader_version_num
+
 import header
 from time import sleep
 import os
 import time
 
+
 import header
 import candidate_uploader
 import diagnostic_uploader
 import upload
-
 from mailer import ErrorMailer
+
 
 class JobUploader():
     
@@ -105,8 +118,8 @@ class JobUploader():
         else:
             check_or_upload='upload'
         
-        if(config.uploader_result_dir_overide):
-            moded_dir = job_row['output_dir'].replace(job_row['base_output_dir'],config.uploader_result_dir)
+        if(uploader_result_dir_overide):
+            moded_dir = job_row['output_dir'].replace(job_row['base_output_dir'],uploader_result_dir)
         else:
             moded_dir = job_row['output_dir']
             
@@ -114,7 +127,7 @@ class JobUploader():
         
         
         try:
-            candidate_uploader.upload_candidates(header_id=header_id, versionnum=config.uploader_version_num,  directory=moded_dir,dry_run=dry_run)
+            candidate_uploader.upload_candidates(header_id=header_id, versionnum=uploader_version_num,  directory=moded_dir,dry_run=dry_run)
         except candidate_uploader.PeriodicityCandidateError, e:
             print "Candidates Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             self.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
@@ -149,8 +162,8 @@ class JobUploader():
         else:
             check_or_upload='upload'
         
-        if(config.uploader_result_dir_overide):
-            moded_dir = job_row['output_dir'].replace(job_row['base_output_dir'],config.uploader_result_dir)
+        if(uploader_result_dir_overide):
+            moded_dir = job_row['output_dir'].replace(job_row['base_output_dir'],uploader_result_dir)
         else:
             moded_dir = job_row['output_dir']
         
@@ -160,7 +173,7 @@ class JobUploader():
         print "obs_name: %s  beamnum: %s" % (obs_name,beamnum)
         
         try:
-            diagnostic_uploader.upload_diagnostics(obsname=obs_name,beamnum=beamnum, versionnum=config.uploader_version_num,  directory=moded_dir,dry_run=dry_run)
+            diagnostic_uploader.upload_diagnostics(obsname=obs_name,beamnum=beamnum, versionnum=uploader_version_num,  directory=moded_dir,dry_run=dry_run)
         except header.DiagnosticError, e:
             print "Diagnostics Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             self.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
@@ -232,7 +245,7 @@ class JobUploader():
         file_rows = self.query("SELECT * FROM job_files,downloads WHERE job_files.job_id=%u AND downloads.id=job_files.file_id" % int(job_row['id']))
         files_stra = list()
         for file_row in file_rows:
-            if(config.uploader_result_dir_overide):
+            if(uploader_result_dir_overide):
                 if(job_row['base_output_dir']):
                     overriden = self.overide_base_results_directory(job_row['base_output_dir'],file_row['filename'],job_row['output_dir'])
                     if (os.path.exists(overriden)):
@@ -243,7 +256,7 @@ class JobUploader():
         return files_stra
     
     def overide_base_results_directory(self,base_dir, filename,output_dir):
-        return os.path.join(output_dir.replace(base_dir,config.uploader_result_dir),os.path.basename(filename))
+        return os.path.join(output_dir.replace(base_dir,uploader_result_dir),os.path.basename(filename))
     
     def clean(self):
         #remove downloaded files
@@ -259,7 +272,7 @@ class JobUploader():
         not_connected = True
         while not_connected:
             try:
-                db_conn = sqlite3.connect(config.bgs_db_file_path,timeout=40.0);
+                db_conn = sqlite3.connect(bgs_db_file_path,timeout=40.0);
                 db_conn.row_factory = sqlite3.Row
                 db_cur = db_conn.cursor();
                 db_cur.execute(query_string)

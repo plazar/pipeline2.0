@@ -8,25 +8,25 @@ survey = "PALFA2.0"
 ################################################################
 # Configurations for processing
 ################################################################
-base_results_directory = "/data/data7/PALFA/test_new_pipeline_clean/"
+base_results_directory = "/data/data7/PALFA/test_new_pipelinedew/"
 base_working_directory = "/exports/scratch/PALFA/"
 default_zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/PALFA.zaplist"
 zaplistdir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/"
 
-max_jobs_running = 50
-job_basename = "%s_batchjob" % survey
+
+
 sleep_time = 10*60 # time to sleep between submitting jobs (in seconds)
-max_attempts = 2 # Maximum number of times a job is attempted due to errors
+job_basename = "%s_batchjob" % survey
 #resource_list = "nodes=borg94:ppn=1:JumboFrame" # resource list for PBS's qsub
 resource_list = "nodes=P248:ppn=1" # resource list for PBS's qsub
 delete_rawdata = True
+
 ################################################################
 # Configurations for raw data
 ################################################################
-#rawdata_directory = "/data/alfa/FTP"
-rawdata_directory = "/data/alfa/test_pipeline_clean/"
 #rawdata_directory = "C:/Reposotories/PALFA/FTP"
 rawdata_re_pattern = r"^p2030.*b[0-7]s[0-1]g?.*\.fits$"
+
 
 ################################################################
 # Import presto_search module and set parameters
@@ -94,14 +94,7 @@ def init_presto_search():
 
 
 
-################################################################
-# Result Uploader Configuration
-#
-# 
-################################################################
-uploader_result_dir_overide = True
-uploader_result_dir = "/data/data7/PALFA/test_new_pipeline_clean/"
-uploader_version_num = 'PRESTO:56b00442679f3c3edc36cbe322b2022eca53e459;PIPELINE:8512aac773bc1414f1dddd93397ca4aa5bb693a2'
+
 
 ################################################################
 # Mailer Configuration
@@ -115,7 +108,6 @@ uploader_version_num = 'PRESTO:56b00442679f3c3edc36cbe322b2022eca53e459;PIPELINE
 ################################################################
 # Background Script Configuration
 ################################################################
-bgs_sleep = 60 #sleep time for background script in seconds
 bgs_screen_output = True #Set to True if you want the script to output runtime information, False otherwise
 bgs_db_file_path = '/data/alfa/test_pipeline_clean/storage_db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
 email_on_failures = True
@@ -123,11 +115,7 @@ email_on_terminal_failures = True
 
 
 #this try clause is temporary and should be removed on production environment
-try:
-    from sanity_check import SanityCheck
-
-    sanity = SanityCheck()
-    sanity.run()
-except Exception,e:
-    print str(e)
+import sanity_check
+sanity = sanity_check.SanityCheck()
+sanity.run(__name__)
 

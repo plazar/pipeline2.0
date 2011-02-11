@@ -12,13 +12,13 @@ class Qsub(PipelineQueueManager):
     @staticmethod
     def submit(files_str_array=None, output_dir_str=None, imp_test=False):
         """Must return a unique identifier for the job"""
-        import config
+        import master_config
         if imp_test:
             return True
         
         cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -o %s search.py' % \
-                            (','.join(files_str_array), output_dir_str, config.resource_list, \
-                                    config.job_basename, 'qsublog', 'qsublog')
+                            (','.join(files_str_array), output_dir_str, master_config.resource_list, \
+                                    master_config.job_basename, 'qsublog', 'qsublog')
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
         jobid = pipe.communicate()[0]
         pipe.stdin.close()
@@ -46,13 +46,13 @@ class Qsub(PipelineQueueManager):
         """Must return True/False wheather the job processing the input filename
             is running.
         """
-        import config
+        import master_config
         if imp_test:
             return True
         
         batch = PBSQuery.PBSQuery().getjobs()
         for j in batch.keys():
-            if batch[j]['Job_Name'][0].startswith(config.job_basename):
+            if batch[j]['Job_Name'][0].startswith(master_config.job_basename):
                 if batch[j]['Variable_List']['DATAFILES'][0] == filename_str:
                     return True,j
         return False, None
@@ -79,7 +79,7 @@ class Qsub(PipelineQueueManager):
         """Must return a tuple of number of jobs running and queued for the pipeline
         Note:
         """
-        import config
+        import master_config
         if imp_test:
             return True
         
@@ -87,7 +87,7 @@ class Qsub(PipelineQueueManager):
         numqueued = 0
         batch = PBSQuery.PBSQuery().getjobs()
         for j in batch.keys():
-            if batch[j]['Job_Name'][0].startswith(config.job_basename):
+            if batch[j]['Job_Name'][0].startswith(master_config.job_basename):
                 if 'R' in batch[j]['job_state']:
                     numrunning += 1
                 elif 'Q' in batch[j]['job_state']:
@@ -96,32 +96,35 @@ class Qsub(PipelineQueueManager):
     
     @staticmethod
     def error(jobid_str=None, imp_test=False):
-        import config
+        import master_config
         if imp_test:
             return True
         
-        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])):
-            if os.path.getsize(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])) > 0:
+        if os.path.exists(os.path.join("qsublog",master_config.job_basename+".e"+jobid_str.split(".")[0])):
+            if os.path.getsize(os.path.join("qsublog",master_config.job_basename+".e"+jobid_str.split(".")[0])) > 0:
                 return True
         else:
             return False
 
-    @staticmethod
-    def getLogs(jobid_str=None,imp_test=False):
-        import config
-        if imp_test:
-            return True
-        
-        stderr_log = ""
-        stdout_log = ""
-        if os.path.exists(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0])):
-            err_f = open(os.path.join("qsublog",config.job_basename+".e"+jobid_str.split(".")[0]),'r')
-            stderr_log = err_f.read()
-            err_f.close()
-        
-        if os.path.exists(os.path.join("qsublog",config.job_basename+".o"+jobid_str.split(".")[0])):
-            out_f = open(os.path.join("qsublog",config.job_basename+".o"+jobid_str.split(".")[0]),'r')
-            stdout_log = out_f.read()
-            out_f.close()
-        
-        return (stdout_log, stderr_log)
+#    @staticmethod
+#    def getLogs(jobid_str=None,imp_test=False):
+#        import master_config
+#        if imp_test:
+#            return True
+#        
+#        stderr_log = ""
+#        stdout_log = ""
+#        if os.path.exists(os.path.join("qsublog",master_config.job_basename+".e"+jobid_str.split(".")[0])):
+#            err_f = open(os.path.join("qsublog",master_config.job_basename+".e"+jobid_str.split(".")[0]),'r')
+#            stderr_log = "Error Log file path: %s\n" % os.path.join("qsublog",master_config.job_basename+".e"+jobid_str.split(".")[0])
+#            stderr_log += err_f.read()
+#            
+#            err_f.close()
+#        
+#        if os.path.exists(os.path.join("qsublog",master_config.job_basename+".o"+jobid_str.split(".")[0])):
+#            #out_f = open(os.path.join("qsublog",config.job_basename+".o"+jobid_str.split(".")[0]),'r')
+#            
+#            stdout_log = "Output Log file path: %s\n" % os.path.join("qsublog",master_config.job_basename+".o"+jobid_str.split(".")[0])
+#            out_f.close()
+#        
+#        return (stdout_log, stderr_log)

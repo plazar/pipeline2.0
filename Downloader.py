@@ -15,10 +15,21 @@ from urllib2 import URLError
 
 from mailer import ErrorMailer
 
-from config import downloader_temp, rawdata_directory, downloader_api_password, \
-    downloader_api_service_url, downloader_space_to_use, downloader_numofdownloads,\
-    downloader_numofrestores,downloader_api_username, downloader_numofretries, \
-    bgs_db_file_path, bgs_screen_output
+from downloader_config import downloader_api_username\
+                            , downloader_api_password\
+                            , downloader_temp\
+                            , downloader_space_to_use\
+                            , downloader_numofrestores\
+                            , downloader_api_service_url\
+                            , downloader_numofretries\
+                            , downloader_numofdownloads
+                            
+from master_config import bgs_screen_output\
+                        , email_on_failures\
+                        , email_on_terminal_failures\
+                        , delete_rawdata\
+                        , bgs_db_file_path\
+                        , base_results_directory
 
 from OutStream import OutStream as OutStream
 dlm_cout = OutStream("Download Module","downloader.log",bgs_screen_output)
@@ -64,6 +75,7 @@ class DownloadModule:
         
     def query(self,query_string):
         not_connected = True
+        counter = 0 
         while not_connected:
             try:
                 db_conn = sqlite3.connect(bgs_db_file_path,timeout=40.0)
@@ -82,8 +94,10 @@ class DownloadModule:
                     db_conn.close()
                 except Exception, e:
                     pass
-                dlm_cout.outs("Couldn't connect to DB retrying in 1 sec.%s" % str(e)) 
+                if counter > 59:
+                    dlm_cout.outs("Couldn't connect to DB retrying in 1 sec.%s" % str(e)) 
                 time.sleep(1)
+                counter += 1
         return results
     
     def have_space(self):        
@@ -97,11 +111,8 @@ class DownloadModule:
                 dlm_cout.outs('There was an error while getting the file size: %s   Exception: %s' % (filename,str(e)) )
                     
         if folder_size < downloader_space_to_use:
-            dlm_cout.outs(str(folder_size) +" <? "+ str(downloader_space_to_use))
-            dlm_cout.outs("Enough Space")
             return True
         else:
-            dlm_cout.outs("Not Enough Space")
             return False
 
     def can_request_more(self):
@@ -196,7 +207,6 @@ class restore:
         elif self.values['status'] == "finished" or self.values['status'] == "failed":  
             dlm_cout.outs("Restore: %s is %s" % (self.guid,self.values['status']))
             return False
-
         return True
 
     def request(self):
@@ -229,8 +239,7 @@ class restore:
             atleast_one = False
             for filename in self.downloaders:
                 if self.downloaders[filename].is_alive():
-                    atleast_one = True
-        
+                    atleast_one = True        
         return atleast_one
         
     
@@ -245,6 +254,7 @@ class restore:
             
     def query(self,query_string):
         not_connected = True
+        counter=0
         while not_connected:
             try:
                 db_conn = sqlite3.connect(bgs_db_file_path,timeout=40.0);
@@ -263,9 +273,10 @@ class restore:
                     db_conn.close()
                 except Exception, e:
                     pass
-                    
-                dlm_cout.outs("Couldn't connect to DB retrying in 1 sec.: %s" % str(e)) 
+                if counter > 59:    
+                    dlm_cout.outs("Couldn't connect to DB retrying in 1 sec.: %s" % str(e)) 
                 time.sleep(1)
+                counter+=1
         return results
                 
     def get_files(self):
@@ -274,8 +285,8 @@ class restore:
         cwd = False
         list_cmd = False
         got_all_files_size = False
-
         no_connection = True
+        
         while no_connection:
             try:
                 ftp = ftpslib.FTP_TLS()
@@ -295,10 +306,10 @@ class restore:
                 if cwd_response != "250 CWD command successful.":
                     #dlm_cout.outs(self.guid+" Restore Directory not found", OutStream.WARNING)
                     return False
-
+                
                 files_in_res_dir = ftp.nlst()
                 list_cmd = True
-
+                
                 for file in files_in_res_dir:
                     if not re.match('.*7\.w4bit\.fits',file):
                         file_size = ftp.size(file)
@@ -307,8 +318,8 @@ class restore:
                         self.files[file] = file_size
                     else:
                         dlm_cout.outs(self.guid +" IGNORING: %s" % file)
+                        
                 got_all_files_size = True
-
                 no_connection = False
             except Exception, e:
                 dlm_cout.outs(self.guid +" FTP-Connection Error: "+ str(e) +"Wating for retry...2 seconds", OutStream.WARNING)
@@ -324,8 +335,7 @@ class restore:
                         notification.send()
                     except Exception,e:
                         pass
-                    return False                    
-
+                    return False
                 sleep(2)
         self.query("UPDATE requests SET size = '%u' WHERE guid='%s'" % (self.size,self.guid))    
         ftp.close()
@@ -436,7 +446,6 @@ class restore:
                     % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.values['id']) )
         return True
 
-
     def get_tries(self,filename):
         db_conn = sqlite3.connect(self.db_name);
         db_conn.row_factory = sqlite3.Row
@@ -447,15 +456,6 @@ class restore:
         db_conn.close()
         return row['num_tries']
         
-    
-#        self.downloader=downloader(self.name,self.db_name)
-#        self.update_status({'dl_status':self.downloader.status})
-#        if self.downloader.file_name:
-#            self.update_status({'filename':self.downloader.file_name})
-#        self.inc_tries()
-#        self.downloader.start()
-
-    
     def update_dl_status(self):
         db_conn = sqlite3.connect(self.db_name);
         db_conn.row_factory = sqlite3.Row
@@ -494,8 +494,6 @@ class restore:
 class downloader(Thread):
 
     def __init__(self,restore_dir ,filename,attempt_id = None):
-#        self.local_drive_avail()
-#        exit("end")
         dl_cout.outs("Initializing Downloader for: %s" % restore_dir)
         Thread.__init__(self)
         self.block = {}
@@ -512,13 +510,6 @@ class downloader(Thread):
         self.file_dir = None
         self.start_time = 0
         self.end_time = 0
-#        self.db_conn = sqlite3.connect(db_name,timeout=1);
-#        self.db_conn.row_factory = sqlite3.Row
-#        self.db_cur = self.db_conn.cursor();
-        
-        
-        
-
         self.total_size_got = 0
         self.file_size = 0
         
@@ -541,7 +532,6 @@ class downloader(Thread):
                     dl_cout.outs("Restore Directory not found", OutStream.ERROR)
                     self.status = 'failed'
                     self.details = 'Directory change failed %s' % str(self.file_name)
-                    
                 not_logged_in = False
             except Exception , e:
                 #self.update_status({'dl_status':"Failed: '"+ self.file_name +"' -- "+ str(e)})
@@ -569,10 +559,8 @@ class downloader(Thread):
             retr_response = str(self.ftp.retrbinary("RETR "+self.file_name, self.write))
             self.end_time = time.time()
             time_took = self.end_time - self.start_time
-            
             self.finished('downloaded',str(self.total_size_got) +" bytes -- Completed in: "+\
             self.prntime(time_took))
-            
         except Exception , e:
             self.finished('failed','Failed: in Downloader.run() %s' % str(e))
         
@@ -605,7 +593,6 @@ class downloader(Thread):
         self.ftp.close()
 
     def status(self):
-        #TODO: print download status
         print "File: "+self.file_name
         print "Downloaded: "+ str(self.total_size_got)
         print ""

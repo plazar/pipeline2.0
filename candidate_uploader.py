@@ -23,7 +23,7 @@ import upload
 from formats import accelcands
 
 # get configurations from config file
-import config
+from master_config import institution, pipeline,init_presto_search
 
 
 class PeridocityCandidate(upload.Uploadable):
@@ -76,8 +76,8 @@ class PeridocityCandidate(upload.Uploadable):
             "@incoherent_power=%.12g, " % self.incoherent_power + \
             "@num_hits=%d, " % self.num_hits + \
             "@num_harmonics=%d, " % self.num_harmonics + \
-            "@institution='%s', " % config.institution + \
-            "@pipeline='%s', " % config.pipeline + \
+            "@institution='%s', " % institution + \
+            "@pipeline='%s', " % pipeline + \
             "@version_number='%s', " % self.versionnum + \
             "@proc_date='%s', " % datetime.date.today().strftime("%Y-%m-%d") + \
             "@presto_sigma=%.12g" % self.sigma
@@ -154,7 +154,7 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
 
     # Get list of candidates from *.accelcands file
     candlist = accelcands.parse_candlist(candlists[0])
-    presto_search = config.init_presto_search()
+    presto_search = init_presto_search()
     minsigma = presto_search.to_prepfold_sigma
     foldedcands = [c for c in candlist if c.sigma > minsigma]
     foldedcands = foldedcands[:presto_search.max_cands_to_fold]

@@ -19,7 +19,7 @@ import upload
 from formats import accelcands
 
 # get configurations from config file
-import config
+from master_config import institution, pipeline,init_presto_search
 
 
 class Diagnostic(upload.Uploadable):
@@ -56,8 +56,8 @@ class FloatDiagnostic(Diagnostic):
         sprocstr = "EXEC spDiagnosticAdder " \
             "@obs_name='%s', " % self.obs_name + \
             "@beam_id=%d, " % self.beam_id + \
-            "@instit='%s', " % config.institution + \
-            "@pipeline='%s', " % config.pipeline + \
+            "@instit='%s', " % institution + \
+            "@pipeline='%s', " % pipeline + \
             "@version_number='%s', " % self.version_number + \
             "@diagnostic_type_name='%s', " % self.name + \
             "@diagnostic_type_description='%s', " % self.description + \
@@ -78,8 +78,8 @@ class PlotDiagnostic(Diagnostic):
         sprocstr = "EXEC spDiagnosticPlotAdder " \
             "@obs_name='%s', " % self.obs_name + \
             "@beam_id=%d, " % self.beam_id + \
-            "@instit='%s', " % config.institution + \
-            "@pipeline='%s', " % config.pipeline + \
+            "@instit='%s', " % institution + \
+            "@pipeline='%s', " % pipeline + \
             "@version_number='%s', " % self.version_number + \
             "@diagnostic_plot_type_name='%s', " % self.name + \
             "@diagnostic_plot_type_description='%s', " % self.description + \
@@ -217,7 +217,7 @@ class NumAboveThreshDiagnostic(FloatDiagnostic):
             raise DiagnosticError("Wrong number of candidate lists found (%d)!" % \
                                     len(candlists))
         candlist = accelcands.parse_candlist(candlists[0])
-        presto_search = config.init_presto_search()
+        presto_search = init_presto_search()
         self.value = len([c for c in candlist \
                             if c.sigma > presto_search.to_prepfold_sigma])
 

@@ -13,17 +13,22 @@ import socket
 import subprocess
 import shutil
 import pprint
-
 import logging
 import datafile
-from QsubManager import Qsub
-from PipelineQueueManager import PipelineQueueManager
-QueueManagerClass = Qsub
 
-import config
-import dev
+from master_config import bgs_screen_output\
+                        , email_on_failures\
+                        , email_on_terminal_failures\
+                        , delete_rawdata\
+                        , bgs_db_file_path\
+                        , base_results_directory
+
+from processor_config import rawdata_directory\
+                            , max_jobs_running\
+                            , max_attempts\
+                            , QueueManagerClass
+
 import time
-
 from mailer import ErrorMailer
 
 
@@ -35,8 +40,8 @@ QueueManagerClass = QTest
 
 from OutStream import OutStream as OutStream
 
-jobpool_cout = OutStream("JobPool","background.log",config.bgs_screen_output)
-job_cout = OutStream("Job","background.log",config.bgs_screen_output)
+jobpool_cout = OutStream("JobPool","background.log",bgs_screen_output)
+job_cout = OutStream("Job","background.log",bgs_screen_output)
 
 from mailer import ErrorMailer
 
@@ -53,31 +58,6 @@ class JobPool:
             return True
         else:
             return False
-    
-    #Creates PulsarSearchJob(s) from datafiles added to the list -> self.datafiles    
-    def create_jobs_from_datafiles(self,files_in = None):
-        """Given a list of datafiles, group them into jobs.
-            For each job return a PulsarSearchJob object.
-        """
-        if not files_in:
-            return
-
-        #group files for preproccessing (merging)
-        files_in = self.group_files(files_in)
-        #merge files before submitting a job
-        files_in = self.merge_files(files_in)
-
-        # For PALFA2.0 each observation is contained within a single file.
-        for datafile in (files_in):
-            try:
-                out_str =  "DEBUG: [datafile] when creating PulsarSearchJob", [datafile]
-                jobpool_cout.outs(out_str, OutStream.DEBUG)
-                p_searchjob = PulsarSearchJob([datafile])
-                if  isinstance(p_searchjob, PulsarSearchJob):
-                    self.datafiles.append(datafile)
-                    self.jobs.append(p_searchjob)
-            except Exception,e:
-                jobpool_cout.outs("Error occured while creating a SearchJob: "+str(e))
         
     def group_files(self, files_in):
         """Given a list of datafiles, group files that need to be merged before
@@ -144,52 +124,6 @@ class JobPool:
                 files_out.append(item)
         return files_out
 
-    def is_in_demand(self,job):
-        """Check if the datafiles used for PulsarSearchJob j are
-            required for any other jobs. If so, return True,
-            otherwise return False.
-        """
-        self.update_demand_file_list() #update demanded file list
-        in_demand = False
-        for datafile in job.datafiles:
-            if datafile in self.demand_file_list:
-                if self.demand_file_list[datafile] > 0:
-                    in_demand = True
-                    break
-        return in_demand
-
-    #Removes a job from JobPool
-    def delete_job(self, job):
-        """Delete datafiles for PulsarSearchJob j. Update j's log.
-            Archive j's log.
-            remove from jobs and datafiles
-        """
-        job.log.addentry(LogEntry(qsubid=job.jobid,status="Deleted", host=socket.gethostname(),info="Job was deleted"))
-        if config.delete_rawdata:
-            if not self.is_in_demand(job):                
-                # Delete data files
-                for d in job.datafiles:
-                    jobpool_cout.outs("Deleting datafile: " + str(d))
-                    os.remove(d)
-                # Archive log file
-                if os.path.exists(os.path.join(config.log_archive,os.path.basename(job.logfilenm))):
-                    os.remove(os.path.join(config.log_archive,os.path.basename(job.logfilenm)))
-                shutil.move(job.logfilenm, config.log_archive)
-
-        if job in self.jobs:
-            self.jobs.remove(job)
-
-        if job.jobname+".fits" in self.datafiles:
-            self.datafiles.remove(job.jobname+".fits")
-
-    #Removes a job from JobPool
-    def complete_job(self, job):
-        """Delete datafiles for PulsarSearchJob j. Update j's log.
-            Archive j's log.
-            remove from jobs and datafiles
-        """
-        job.log.addentry(LogEntry(qsubid=job.jobid,status="Processed", host=socket.gethostname(),info="Job was processed"))
-        self.delete_job(job)
     
     #Returns a list of files that Downloader marked Finished:* in the qlite3db
     def get_datafiles_from_db(self):
@@ -197,7 +131,7 @@ class JobPool:
         tmp_datafiles = []
         while didnt_get_files:
             try:
-                db_conn = sqlite3.connect(config.bgs_db_file_path);
+                db_conn = sqlite3.connect(bgs_db_file_path);
                 db_conn.row_factory = sqlite3.Row
                 db_cur = db_conn.cursor();
                 fin_file_query = "SELECT * FROM downloads WHERE status LIKE 'downloaded'"
@@ -205,7 +139,7 @@ class JobPool:
                 row = db_cur.fetchone()
                 while row:
                     #print row['filename'] +" "+ row['status']
-                    tmp_datafiles.append(os.path.join(config.rawdata_directory,row['filename']))
+                    tmp_datafiles.append(os.path.join(rawdata_directory,row['filename']))
                     row = db_cur.fetchone()                
                 didnt_get_files = False
 		for file in tmp_datafiles:
@@ -214,7 +148,7 @@ class JobPool:
             except Exception,e:
                 jobpool_cout.outs("Database error: %s. Retrying in 1 sec" % str(e), OutStream.ERROR)
     
-    def created_jobs_for_files_DB(self):
+    def create_jobs_for_files_DB(self):
         files_with_no_jobs = self.query("SELECT * from downloads as d1 where d1.id not in (SELECT downloads.id FROM jobs, job_files, downloads WHERE jobs.id = job_files.job_id AND job_files.file_id = downloads.id) and d1.status = 'downloaded'")
         for file_with_no_job in files_with_no_jobs:
             self.create_job_entry(file_with_no_job)
@@ -225,31 +159,6 @@ class JobPool:
         self.query("INSERT INTO job_files (job_id,file_id,created_at,updated_at) VALUES (%u,%u,'%s','%s')"\
                                             % (job_id,file_with_no_job['id'],datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         
-            
-        
-    def update_db_file_processed(self, job):
-        db_conn = sqlite3.connect(config.bgs_db_file_path);
-        db_conn.row_factory = sqlite3.Row
-        db_cur = db_conn.cursor();
-        fin_file_query = "UPDATE restore_downloads SET status = 'Processed' WHERE filename = '%s'" % (os.path.basename(job.datafiles[0]))
-        db_cur.execute(fin_file_query)
-        db_conn.commit()
-        db_conn.close()            
-
-    def get_datafiles(self):
-        """Return a list of data files found in:
-                config.rawdata_directory and its subdirectories
-            matching the regular expression pattern:
-                config.rawdata_re_pattern
-            Now using get_datafiles_from_db
-       """
-        tmp_datafiles = []
-        for (dirpath, dirnames, filenames) in os.walk(config.rawdata_directory):
-            for fn in filenames:
-                if re.match(config.rawdata_re_pattern, fn) is not None:
-                    tmp_datafiles.append(os.path.join(dirpath, fn))
-                    jobpool_cout.outs("Adding file:" + os.path.join(dirpath, fn))
-        return tmdebug.outp_datafiles
 
     def status(self,log=True):
         running_jobs = self.query("SELECT * FROM jobs WHERE status='submitted'")
@@ -257,10 +166,12 @@ class JobPool:
         new_jobs = self.query("SELECT * FROM jobs WHERE status='new'")
         waiting_resubmit_jobs = self.query("SELECT * FROM jobs WHERE status='failed'")
         failed_jobs = self.query("SELECT * FROM jobs WHERE status='terminal_failure'")
+        uploaded_jobs = self.query("SELECT * FROM job_uploads WHERE status='uploaded'")
         
         status_str= "\n\n================= Job Pool Status ==============\n"
         status_str+="Num. of jobs       running: %u\n" % len(running_jobs)
         status_str+="Num. of jobs     processed: %u\n" % len(processed_jobs)
+        status_str+="Num. of jobs      uploaded: %u\n" % len(uploaded_jobs)
         status_str+="Num. of jobs       waiting: %u\n" % len(new_jobs)
         status_str+="Num. of jobs waiting retry: %u\n" % len(waiting_resubmit_jobs)
         status_str+="Num. of jobs        failed: %u\n" % len(failed_jobs)
@@ -268,12 +179,6 @@ class JobPool:
             jobpool_cout.outs(status_str)
         else:
             print status_str
-
-    def upload_results(self,job):
-        """Upload results from PulsarSearchJob j to the database.
-            Update j's log.
-        """
-        raise NotImplementedError("upload_results() isn't implemented.")
 
     #Progresess and reports status of the JobPool and Jobs that are being run
     #or created for submitting to QSUB
@@ -290,7 +195,7 @@ class JobPool:
             If the job has terminated without errors then the processing is
             assumed to be completed successfuly and upload of the results is called upon the job
         '''
-        self.created_jobs_for_files_DB()
+        self.create_jobs_for_files_DB()
         self.update_jobs_status_from_queue()
         self.resubmit_failed_jobs()
         
@@ -307,15 +212,15 @@ class JobPool:
                     #if there was a submit check if the job terminated with an error
                     if QueueManagerClass.error(last_job_submit[0]['queue_id']):
                         #if the job terminated with an error, update it's status to failed
-                        if self.get_submits_count_by_job_id(job['id']) < config.max_attempts:
+                        if self.get_submits_count_by_job_id(job['id']) < max_attempts:
                             self.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
-                            if config.email_on_failures:
+                            if email_on_failures:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'])
                         else:
                             self.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
-                            if config.delete_rawdata:
+                            if delete_rawdata:
                                 self.delete_jobs_files_by_job_id(job['id'])
-                            if config.email_on_terminal_failures:
+                            if email_on_terminal_failures:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)
                         
                         #also update the last attempt
@@ -328,7 +233,7 @@ class JobPool:
                 elif len(last_job_submit) == 0:
                     #the job was never submited, so we submit it
                     running, queued = self.get_queue_status()
-                    if (running + queued) < config.max_jobs_running:
+                    if (running + queued) < max_jobs_running:
                         self.submit(job)
             else:
                 #if queue is processing a file for this job update job's status
@@ -354,6 +259,7 @@ class JobPool:
         email_content += "\nJob's Datafile(s):\n %s\n" % ("\n".join(self.get_jobs_files_by_job_id(job_id)))
 
         email_content += "\n\nStandard Error Log:\n===================start==================\n %s \n====================end===================\n" % stderr_log
+        email_content += "\n\n%s" % stdout_log
 
         try:
             mailer = ErrorMailer(email_content)
@@ -370,7 +276,7 @@ class JobPool:
         failed_jobs = self.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
         for failed_job in failed_jobs:
             running, queued = self.get_queue_status()
-            if (running + queued) < config.max_jobs_running:
+            if (running + queued) < max_jobs_running:
                 self.submit(failed_job)
                 
     def get_jobs_files_by_job_id(self,job_id):
@@ -395,40 +301,19 @@ class JobPool:
             except Exception,e:
                 pass
             return
-            
+                
         queue_id = QueueManagerClass.submit([job_row['filename']], output_dir)
+        job_cout.outs("Submitted job to process %s. Returned Queued iD: %s" % (job_row['filename'],queue_id))
         self.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at,base_output_dir) VALUES (%u,'%s','%s','%s','%s','%s','%s')"\
-          % (int(job_row['id']),queue_id,output_dir,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),config.base_results_directory ))
+          % (int(job_row['id']),queue_id,output_dir,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),base_results_directory ))
         self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
-    
-    def update_demand_file_list(self):
-        """Return a dictionary where the keys are the datafile names
-            and the values are the number of jobs that require that
-            particular file.
-
-            This info will ensure we don't delete data files that are
-            being used by multiple jobs before _all_ the jobs are
-            finished.
-        """
-        self.demand_file_list = {}
-        for job in self.jobs:
-            status, jobid = job.get_log_status()
-            if (status in ['submitted to queue', 'processing in progress', \
-                            'processing successful', 'new job']) or \
-                            ((status == 'processing failed') and \
-                            (job.count_status(status) < config.max_attempts)):
-                # Data files are still in demand
-                for d in job.datafiles:
-                    if d in self.demand_file_list.keys():
-                        self.demand_file_list[d] += 1
-                    else:
-                        self.demand_file_list[d] = 1
 
     def query(self,query_string):
         not_connected = True
+        counter = 0
         while not_connected:
             try:
-                db_conn = sqlite3.connect(config.bgs_db_file_path,timeout=40.0);
+                db_conn = sqlite3.connect(bgs_db_file_path,timeout=40.0);
                 db_conn.row_factory = sqlite3.Row
                 db_cur = db_conn.cursor();
                 db_cur.execute(query_string)
@@ -444,8 +329,10 @@ class JobPool:
                     db_conn.close()
                 except Exception:
                     pass
-                jobpool_cout.outs("Couldn't connect to DB retrying in 1 sec.: %s" % str(e)) 
+                if counter > 59:
+                    jobpool_cout.outs("Couldn't connect to DB retrying in 1 sec.: %s" % str(e)) 
                 time.sleep(1)
+                counter += 1
         return results
 
     def get_queue_status(self):
@@ -457,74 +344,7 @@ class JobPool:
         """
         
         return QueueManagerClass.status()
-        
-
-#TODO: recreate search jobs from qsub
-    def recover_from_qsub(self, testing=False):
-        jobpool_cout.outs("Starting Queue Manager Recovering process.")
-        datafiles = self.get_datafiles_from_db()
-        
-        for datafile in datafiles:
-            is_processing, jobid = QueueManagerClass.is_processing_file(datafile)
-            if is_processing:
-                tmp_job = PulsarSearchJob([datafile],testing)
-                tmp_job.status = PulsarSearchJob.RUNNING
-                tmp_job.jobid = jobid
-                self.jobs.append(tmp_job)
-                self.datafiles.append(datafile)
-                jobpool_cout.outs("Recovered a Search Job %s for: %s" % (jobid,datafile))
-        
-        jobpool_cout.outs("Job Recovered from Queue Manager: %s" % str(len(self.jobs)))
-
-    #def qsub_status(self, job):
-    def check_for_qsub_job_errors(self, job):
-        """Check if qsub job terminated with an error.
-            Return True if the job terminated with the error, False otherwise.
-        """
-        
-        if QueueManagerClass.error(job.jobid):
-            job.log.addentry(LogEntry(qsubid=job.jobid, status="Processing failed", host=socket.gethostname(), \
-                info="Job ID: %s" % job.jobid.strip()))
-            return True
-        else:
-            return False
     
-
-    #Determines if the Job should be restarted
-    #returns Tdebug.outrue or False
-    def can_start_job(self, job):
-        #TODO: is this needed. We can change check_for_qsub_job_errors to use filename instead of jobid
-        if(job.count_status("deleted") > 0):
-            return False
-
-        log_status, job.jobid = job.get_log_status()
-        self.check_for_qsub_job_errors(job)
-        numfails = job.count_status("processing failed")
-        if (numfails > config.max_attempts):
-            return False
-
-        return True
-
-    #Fetchs new jobs from datafiles. Only adds jobs for files that are not already
-    #being used by another job
-    def fetch_new_jobs(self):
-        files_to_x_check = self.get_datafiles_from_db()
-        for file in self.datafiles:
-            if file in files_to_x_check:
-                files_to_x_check.remove(file)
-
-        for file in files_to_x_check:
-	        try:
-	            tmp_job = PulsarSearchJob([file])
-	            if not self.can_start_job(tmp_job):
-                        jobpool_cout.outs("Removing file: %s" % file)
-	                self.delete_job(tmp_job)
-	                files_to_x_check.remove(file)
-	            else:
-                        jobpool_cout.outs("Will not remove file because i can restart the job: %s" % file)
-	        except Exception, e:
-                    jobpool_cout.outs("Error while creating a PulsarSearchJob: %s" % str(e))
-        self.create_jobs_from_datafiles(files_to_x_check)
 
 
 #The following class represents a search job that is either waiting to be submitted
@@ -551,12 +371,6 @@ class PulsarSearchJob:
         else:
             self.jobname = datafiles[0]
         self.jobid = None
-        #self.logfilenm = self.jobname + ".log"
-        if not testing:
-            self.logfilenm = os.path.join(config.log_dir,os.path.basename(self.jobname) + ".log")
-        else:
-            self.logfilenm = os.path.join('/home/snip3/dev/pythonapps/pipeline2.0',os.path.basename(self.jobname) + ".log")
-        #self.log = JobLog(self.logfilenm, self)
         self.status = self.NEW_JOB
 
 
@@ -579,51 +393,9 @@ class PulsarSearchJob:
         beam_num = data.beam_id
         obs_name = data.obs_name
         proc_date=datetime.datetime.now().strftime('%y%m%d')
-        presto_outdir = os.path.join(config.base_results_directory, str(mjd), \
+        presto_outdir = os.path.join(base_results_directory, str(mjd), \
                                         str(obs_name), str(beam_num), proc_date)
-        
-        # Directory should be made by rsync when results are 
-        # copied by PALFA2_presto_search.py -PL Dec. 26, 2010
-        # try:
-        #     os.makedirs(presto_out_dir)
-        # except OSError:
-        #     if not os.path.exists(presto_out_dir):
-        #         raise "Could not create directory: %s" % presto_out_dir
-        
         return presto_outdir
-
-    #Submit a search job to QSUB
-    def submit(self):
-        """Submit PulsarSearchJob job to the queue. Update job's log.
-        """
-        self.jobid = QueueManagerClass.submit(self.datafiles, self.get_output_dir())
-    
-    def delete(self):
-        """Remove PulsarSearchJob job from the queue.
-        """
-        if self.jobid:
-            if QueueManagerClass.delete(self.jobid):
-                self.jobid = None
-                return True
-        return False
-       
-        
-    def get_log_status(self):
-        """Get and return the status of the most recent log entry.
-        """
-        self.log = JobLog(self.logfilenm, self)
-        return self.log.logentries[-1].status.lower() , self.log.logentries[-1].qsubid
-
-    def count_status(self, status):
-        """Count and return the number of times the job has reported
-            'status' in its log.
-        """
-        self.log = JobLog(self.logfilenm, self)
-        count = 0
-        for entry in self.log.logentries:
-            if entry.status.lower() == status.lower():
-                count += 1
-        return count
 
     def get_jobname(self):
         """Based on data files determine the job's name and return it.
@@ -636,133 +408,3 @@ class PulsarSearchJob:
             raise ValueError("First data file is not a FITS file!" \
                              "\n(%s)" % datafile0)
         return jobname
-    
-    def get_qsub_status(self):
-        """Updates job's status according to the PBSQuery
-            batch job status.
-        """
-        if self.jobid == None:
-            return
-        
-        if QueueManagerClass.is_running(self.jobid):
-            self.status = PulsarSearchJob.RUNNING
-        else:
-            self.status = PulsarSearchJob.TERMINATED
-        
-        return self.status
-    
-    def queue_error(self):
-        """Check if queued job terminated with an error.
-            Return True if the job terminated with the error, False otherwise.
-        """
-        if QueueManagerClass.error(self.jobid):
-            self.log.addentry(LogEntry(qsubid=self.jobid, status="Processing failed", host=socket.gethostname(), \
-                info="Job ID: %s" % self.jobid.strip()))
-            return True
-        else:
-            return False
-        
-       
-
-
-class JobLog:
-    """A object for reading/writing logfiles for search jobs.
-    """
-    def __init__(self, logfn, job):
-        self.logfn = logfn
-        self.job = job # PulsarSearchJob object that this log belongs to
-        self.logfmt_re = re.compile("^(?P<date>.*) -- (?P<qsubid>.*) -- (?P<status>.*) -- " \
-                                    "(?P<host>.*) -- (?P<info>.*)$")
-        if os.path.exists(self.logfn):
-            # Read the logfile
-            self.logentries = self.read()
-        else:
-            # Create the log file
-            entry = LogEntry(qsubid = job.jobid,status="New job", host=socket.gethostname(), \
-                             info="Datafiles: %s" % self.job.datafiles)
-            self.addentry(entry)
-            self.logentries = [entry]
-        self.lastupdate = os.path.getmtime(self.logfn)
-
-    def parse_logline(self, logline):
-        """Parse a line from a log and return a LogEntry object.
-        """
-        m = self.logfmt_re.match(logline)
-        return LogEntry( ** m.groupdict())
-
-    def read(self):
-        """Open the log file, parse it and return a list
-            of entries.
-            
-            Notes: '#' defines a comment.
-                   Each entry should have the following format:
-                   'datetime' -- 'qsubid' -- 'status' -- 'hostname' -- 'additional info'
-        """
-        logfile = open(self.logfn)
-        lines = [line.partition("#")[0] for line in logfile.readlines()]
-        logfile.close()
-        lines = [line for line in lines if line.strip()] # remove empty lines
-
-        # Check that all lines have the correct format:
-        for line in lines:
-            if self.logfmt_re.match(line) is None:
-                raise ValueError("Log file line doesn't have correct format" \
-                                 "\n(%s)!" % line)
-        logentries = [self.parse_logline(line) for line in lines]
-        return logentries
-
-    def update(self):
-        """Check if log has been modified since it was last read.
-            If so, read the log file.
-        """
-        mtime = os.path.getmtime(self.logfn)
-        if self.lastupdate < mtime:
-            # Log has been modified recently
-            self.logentries = self.read_log()
-            self.lastupdate = mtime
-        else:
-            # Everything is up to date. Do nothing.
-            pass
-
-    def addentry(self, entry):
-        """Open the log file and add 'entry', a LogEntry object.
-        """
-        logfile = open(self.logfn, 'a')
-        logfile.write(str(entry) + "\n")
-        logfile.close()
-
-
-class LogEntry:
-    """An object for describing entries in a JobLog object.
-    """
-    def __init__(self, qsubid, status, host, info="", date=datetime.datetime.now().isoformat(' ')):
-        self.status = status
-        self.qsubid = qsubid
-        self.host = host
-        self.info = info
-        self.date = date
-
-    def __str__(self):
-        return "%s -- %s -- %s -- %s -- %s" % (self.date, self.qsubid, self.status, self.host, \
-                                         self.info)
-
-"""
-Mapping of status to action:
-
-Submitted to queue -> Do nothing
-Processing in progress -> Do nothing
-Processing successful -> Upload/tidy results, delete file, archive log
-Processing failed -> if attempts<thresh: resubmit, if attempts>=thresh: delete file, archive log
-"""
-
-#helper function
-def get_jobname(datafiles):
-    """Based on data files determine the job's name and return it.
-    """
-    datafile0 = datafiles[0]
-    if datafile0.endswith(".fits"):
-        jobname = datafile0[:-5]
-    else:
-        raise ValueError("First data file is not a FITS file!" \
-                         "\n(%s)" % datafile0)
-    return jobname
