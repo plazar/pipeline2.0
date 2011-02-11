@@ -207,9 +207,9 @@ class JobPool:
      
     def create_job_entry(self,file_with_no_job):
         job_id = jobtracker.query("INSERT INTO jobs (status,created_at,updated_at) VALUES ('%s','%s','%s')"\
-                                % ('new',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                                % ('new',jobtracker.nowstr(),jobtracker.nowstr()))
         jobtracker.query("INSERT INTO job_files (job_id,file_id,created_at,updated_at) VALUES (%u,%u,'%s','%s')"\
-                                            % (job_id,file_with_no_job['id'],datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                                            % (job_id,file_with_no_job['id'],jobtracker.nowstr(),jobtracker.nowstr()))
         
             
     def get_datafiles(self):
@@ -284,21 +284,21 @@ class JobPool:
                     if QueueManagerClass.error(last_job_submit[0]['queue_id']):
                         #if the job terminated with an error, update it's status to failed
                         if self.get_submits_count_by_job_id(job['id']) < config.max_attempts:
-                            jobtracker.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                            jobtracker.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job['id'])))
                             if config.email_on_failures:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'])
                         else:
-                            jobtracker.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                            jobtracker.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job['id'])))
                             if config.email_on_terminal_failures:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)
                         
                         #also update the last attempt
-                        jobtracker.query("UPDATE job_submits SET status='failed', details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
+                        jobtracker.query("UPDATE job_submits SET status='failed', details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",jobtracker.nowstr(),int(last_job_submit[0]['id'])))
                     else:
                         #if the job terminated without an error, update it's status to processed
-                        jobtracker.query("UPDATE jobs SET status='processed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                        jobtracker.query("UPDATE jobs SET status='processed', updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job['id'])))
                         #also update the last attempt
-                        jobtracker.query("UPDATE job_submits SET status='finished',details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
+                        jobtracker.query("UPDATE job_submits SET status='finished',details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",jobtracker.nowstr(),int(last_job_submit[0]['id'])))
                 elif len(last_job_submit) == 0:
                     #the job was never submited, so we submit it
                     running, queued = self.get_queue_status()
@@ -306,7 +306,7 @@ class JobPool:
                         self.submit(job)
             else:
                 #if queue is processing a file for this job update job's status
-                jobtracker.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                jobtracker.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job['id'])))
     
     def mail_job_failure(self,job_id,queue_id,terminal=False):
         stdout_log, stderr_log = QueueManagerClass.getLogs(queue_id)
@@ -351,8 +351,8 @@ class JobPool:
         except Exception, e:
             jobpool_cout.outs("Error while reading %s. Job will not be submited" % ", ".join(tmp_job.datafiles))
             jobtracker.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
-          % (int(job_row['id']),'did_not_queue','could not get output dir','failed',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-            jobtracker.query("UPDATE jobs SET status='failed',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
+          % (int(job_row['id']),'did_not_queue','could not get output dir','failed',jobtracker.nowstr(),jobtracker.nowstr()))
+            jobtracker.query("UPDATE jobs SET status='failed',updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job_row['id'])))
             try:
                 notification = ErrorMailer("Error while reading %s. Job will not be submited" % ", ".join(tmp_job.datafiles))
                 notification.send()
@@ -362,8 +362,8 @@ class JobPool:
             
         queue_id = QueueManagerClass.submit([job_row['filename']], output_dir)
         jobtracker.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at,base_output_dir) VALUES (%u,'%s','%s','%s','%s','%s','%s')"\
-          % (int(job_row['id']),queue_id,output_dir,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),config.base_results_directory ))
-        jobtracker.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
+          % (int(job_row['id']),queue_id,output_dir,'running',jobtracker.nowstr(),jobtracker.nowstr(),config.base_results_directory ))
+        jobtracker.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job_row['id'])))
     
     def update_demand_file_list(self):
         """Return a dictionary where the keys are the datafile names
@@ -514,7 +514,7 @@ class PulsarSearchJob:
         data = datafile.autogen_dataobj(self.datafiles)
         if not isinstance(data, datafile.PsrfitsData):
             job_cout.outs("Data must be of PSRFITS format.",OutStream.ERROR)
-            raise Exception("Data must be of PSRFITS format.")
+            raise TypeError("Data must be of PSRFITS format.")
         mjd = int(data.timestamp_mjd)
         beam_num = data.beam_id
         obs_name = data.obs_name

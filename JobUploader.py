@@ -3,7 +3,6 @@ import subprocess
 import sys
 import exceptions
 import re
-import datetime
 import os
 import time
 import warnings
@@ -21,13 +20,16 @@ import header
 # Suppress warnings produced by uploaders
 # (typically because data, weights, scales, offsets are missing 
 #       from PSRFITS files)
-warnings.simplefilter("ignore")
+warnings.filterwarnings("ignore", message="Can't find the 'DATA' column!")
+warnings.filterwarnings("ignore", message="Can't find the channel weights column, 'DAT_WTS'!")
+warnings.filterwarnings("ignore", message="Can't find the channel offsets column, 'DAT_OFFS'!")
+warnings.filterwarnings("ignore", message="Can't find the channel scalings column, 'DAT_SCL'!")
 
 class JobUploader():
     
     def __init__(self):
-        self.created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+        self.created_at = jobtracker.nowstr()
+
     def run(self):
         self.create_new_uploads()
         self.check_new_uploads()
@@ -68,7 +70,7 @@ class JobUploader():
             except header.HeaderError, e:
                 print "Header Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
                 jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
-                % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+                % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), last_upload_try_id))
                 try:
                     notification = ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
                     notification.send()
@@ -77,7 +79,7 @@ class JobUploader():
                 return False
             except upload.UploadError, e:
                 print "Header Uploader error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
-                jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Header uploader error (probable connection issues)',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+                jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Header uploader error (probable connection issues)',jobtracker.nowstr(), last_upload_try_id))
                 try:
                     notification = ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
                     notification.send()
@@ -86,7 +88,7 @@ class JobUploader():
                 return False
             
             jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
-                % ('Header %s' % check_or_upload ,datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+                % ('Header %s' % check_or_upload ,jobtracker.nowstr(), last_upload_try_id))
                 
             if(dry_run):
                 print "Header check success for jobs.id: %u \tjob_uploads.id:%u" % (int(job_row['id']), int(last_upload_try_id))
@@ -99,7 +101,7 @@ class JobUploader():
         else:
             print "No files were found in database for jobs.id: %u \tjob_uploads.id:%u" % (int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
-                % ('No files were found in database for this job',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+                % ('No files were found in database for this job',jobtracker.nowstr(), last_upload_try_id))
             return False 
     
     def candidates_upload(self,job_row,header_id=0,commit=False):
@@ -123,7 +125,7 @@ class JobUploader():
         except candidate_uploader.PeriodicityCandidateError, e:
             print "Candidates Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
-            % ('Candidates %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+            % ('Candidates %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')),jobtracker.nowstr(), last_upload_try_id))
             try:
                 notification = ErrorMailer('Candidates %s failed: %s' % (check_or_upload,str(e)))
                 notification.send()
@@ -132,7 +134,7 @@ class JobUploader():
             return False
         except upload.UploadError, e:
             print "Candidates Uploader error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
-            jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Candidates uploader error (probable connection issues)',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+            jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Candidates uploader error (probable connection issues)',jobtracker.nowstr(), last_upload_try_id))
             try:
                 notification = ErrorMailer('Candidates %s failed: %s' % (check_or_upload,str(e)))
                 notification.send()
@@ -142,7 +144,7 @@ class JobUploader():
 
         print "Candidates %s success for jobs.id: %u \tjob_uploads.id:%u" % (check_or_upload,int(job_row['id']), int(last_upload_try_id))
         jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
-            % ('Candidates %s' % check_or_upload,datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+            % ('Candidates %s' % check_or_upload,jobtracker.nowstr(), last_upload_try_id))
         return True
 
             
@@ -169,7 +171,7 @@ class JobUploader():
         except header.DiagnosticError, e:
             print "Diagnostics Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
-            % ('Diagnostics %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+            % ('Diagnostics %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')),jobtracker.nowstr(), last_upload_try_id))
             try:
                 notification = ErrorMailer('Diagnostics %s failed: %s' % (check_or_upload,str(e)))
                 notification.send()
@@ -178,7 +180,7 @@ class JobUploader():
             return False
         except upload.UploadError, e:
             print "Diagnostics Uploader error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
-            jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Diagnostics uploader error (probable connection issues)',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+            jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Diagnostics uploader error (probable connection issues)',jobtracker.nowstr(), last_upload_try_id))
             try:
                 notification = ErrorMailer('Diagnostics %s failed: %s' % (check_or_upload,str(e)))
                 notification.send()
@@ -188,7 +190,7 @@ class JobUploader():
 
         print "Diagnostics %s success for jobs.id: %u \tjob_uploads.id:%u" % (check_or_upload,int(job_row['id']), int(last_upload_try_id))
         jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
-            % ('Diagnostics %s' % check_or_upload ,datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_upload_try_id))
+            % ('Diagnostics %s' % check_or_upload ,jobtracker.nowstr(), last_upload_try_id))
         return True
         
               
@@ -197,7 +199,7 @@ class JobUploader():
         jobs_with_no_uploads = jobtracker.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads)")
         for job_row in jobs_with_no_uploads:
             jobtracker.query("INSERT INTO job_uploads (job_id, status, details, created_at, updated_at) VALUES(%u,'%s','%s','%s','%s')"\
-                % (job_row['id'], 'new','Newly added upload',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                % (job_row['id'], 'new','Newly added upload',jobtracker.nowstr(),jobtracker.nowstr()))
             
     def check_new_uploads(self):
         new_uploads = jobtracker.query("SELECT jobs.*,job_submits.output_dir,job_submits.base_output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='new' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")

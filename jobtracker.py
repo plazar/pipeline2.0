@@ -1,7 +1,12 @@
 import sqlite3
 import time
+import datetime
 
 import config
+
+
+def nowstr():
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def query(query_string, fetchone=False):
     not_connected = True

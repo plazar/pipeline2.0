@@ -1,12 +1,10 @@
 import os.path
-import logging
 import sys
 import os
 import threading 
 import shutil
 import time
 import re
-import datetime
 import urllib2 
 
 import suds.client
@@ -129,7 +127,7 @@ class restore:
             return self.request()
         
         self.update_from_db()
-        print self.values
+        # print self.values
         
         if self.values['status'] == "waiting":
             #TODO: remove in refactored
@@ -160,8 +158,8 @@ class restore:
                 dlm_cout.outs("The record with GUID = '%s' allready exists" % (self.guid))
             else:
                 insert_query = "INSERT INTO requests (guid, created_at, updated_at, status, details) VALUES ('%s','%s', '%s', '%s','%s')" % \
-                                    (self.guid, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), \
-                                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'waiting', 'Newly created restore request')
+                                    (self.guid, jobtracker.nowstr(), \
+                                    jobtracker.nowstr(), 'waiting', 'Newly created restore request')
                 dlm_cout.outs(insert_query, OutStream.OutStream.DEBUG)
                 jobtracker.query(insert_query)
                 return response
@@ -240,7 +238,7 @@ class restore:
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to List-Cmd: "+ str(list_cmd), OutStream.OutStream.WARNING)
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to Get-All-Files'-Size: "+ str(got_all_files_size), OutStream.OutStream.WARNING)
                 if connected and logged_in and not cwd:
-                    jobtracker.query("UPDATE requests SET status = 'finished',details='request directory not found',updated_at='%s' WHERE guid='%s'" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.guid))
+                    jobtracker.query("UPDATE requests SET status = 'finished',details='request directory not found',updated_at='%s' WHERE guid='%s'" % (jobtracker.nowstr(),self.guid))
                     try:
                         notification = mailer.ErrorMailer('The restore APi reported the restores to be ready. However the restore directory does not exist on the FTP.\n Restore GUID: %s' % self.guid)
                         notification.send()
@@ -257,7 +255,7 @@ class restore:
             dl_check = jobtracker.query("SELECT * FROM downloads WHERE request_id=%s AND filename='%s'" % (self.values['id'],filename))            
             if len(dl_check) == 0:
                 query = "INSERT INTO downloads (request_id,remote_filename,filename,status,created_at,updated_at,size) VALUES ('%s','%s','%s','%s','%s','%s',%u)"\
-                        % (self.values['id'],filename,os.path.join(config.downloader_temp,filename),'New',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), int(filesize))
+                        % (self.values['id'],filename,os.path.join(config.downloader_temp,filename),'New',jobtracker.nowstr(),jobtracker.nowstr(), int(filesize))
                 jobtracker.query(query)
             
     #TODO: Refactor function and helpers
@@ -282,7 +280,7 @@ class restore:
                 if config.downloader_numofretries > this_download_attempts_count:
                     #create an attempt entry and downloader refering to this attempt by id
                     id = jobtracker.query("INSERT INTO download_attempts (download_id,created_at,updated_at) VALUES  ('%s','%s','%s')" % \
-                    (dl_entry['id'],datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") ))
+                    (dl_entry['id'],jobtracker.nowstr(), jobtracker.nowstr() ))
                     #created downloader thread
                     self.downloaders[dl_entry['remote_filename']] = downloader(self.guid,dl_entry['remote_filename'],id)
                     #run downloader thread
@@ -293,26 +291,26 @@ class restore:
             if not self.downloaders[filename].is_alive():
                 if self.downloaders[filename].status == 'failed':
                     jobtracker.query("UPDATE download_attempts SET status ='failed', details='%s', updated_at = '%s' WHERE id = %s"\
-                    % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.downloaders[filename].attempt_id))
+                    % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),self.downloaders[filename].attempt_id))
                     jobtracker.query("UPDATE downloads SET status = 'failed', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
-                    % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),filename))
+                    % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),filename))
                 elif self.downloaders[filename].status == 'downloaded':
                     if self.downloaded_size_match(self.downloaders[filename].attempt_id):
                         jobtracker.query("UPDATE download_attempts SET status ='downloaded', details='%s', updated_at = '%s' WHERE id = %s"\
-                        % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.downloaders[filename].attempt_id))
+                        % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),self.downloaders[filename].attempt_id))
                         jobtracker.query("UPDATE downloads SET status = 'downloaded', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
-                        % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),filename))
+                        % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),filename))
                     else:
                         jobtracker.query("UPDATE download_attempts SET status ='failed', details='%s', updated_at = '%s' WHERE id = %s"\
-                        % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.downloaders[filename].attempt_id))
+                        % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),self.downloaders[filename].attempt_id))
                         jobtracker.query("UPDATE downloads SET status = 'failed', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
-                        % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),filename))
+                        % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),filename))
                 del(self.downloaders[filename])
             else:
                 jobtracker.query("UPDATE download_attempts SET status ='downloading', details='%s', updated_at = '%s' WHERE id = %s"\
-                    % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.downloaders[filename].attempt_id))
+                    % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),self.downloaders[filename].attempt_id))
                 jobtracker.query("UPDATE downloads SET status = 'downloading', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
-                    % (self.downloaders[filename].details.replace("'","").replace('"',""),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),filename))
+                    % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),filename))
                     
     def downloaded_size_match(self,attempt_id):
         attempt_row = jobtracker.query("SELECT * FROM download_attempts WHERE id=%u" % int(attempt_id))[0]
@@ -346,7 +344,7 @@ class restore:
         
         if len(all_downloads) == len(finished_downloads):
             jobtracker.query("UPDATE requests SET status ='finished', updated_at='%s' WHERE id = %s"\
-                    % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.values['id']))
+                    % (jobtracker.nowstr(), self.values['id']))
             return True
         
         for failed_download in failed_downloads:
@@ -355,7 +353,7 @@ class restore:
                 return False
         
         jobtracker.query("UPDATE requests SET status ='finished', updated_at='%s' WHERE id=%s"\
-                    % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),self.values['id']) )
+                    % (jobtracker.nowstr(),self.values['id']) )
         return True
 
     def update_from_db(self):
