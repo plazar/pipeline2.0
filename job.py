@@ -122,7 +122,7 @@ class JobPool:
             except Exception,e:
                 jobpool_cout.outs("Database error: %s. Retrying in 1 sec" % str(e), OutStream.ERROR)    
 
-    def created_jobs_for_files_DB(self):
+    def create_jobs_for_files_DB(self):
         files_with_no_jobs = jobtracker.query("SELECT * from downloads as d1 where d1.id not in (SELECT downloads.id FROM jobs, job_files, downloads WHERE jobs.id = job_files.job_id AND job_files.file_id = downloads.id) and d1.status = 'downloaded'")
         for file_with_no_job in files_with_no_jobs:
             self.create_job_entry(file_with_no_job)
@@ -170,10 +170,11 @@ class JobPool:
         self.create_jobs_for_files_DB()
         self.update_jobs_status_from_queue()
         self.resubmit_failed_jobs()
+        self.submit_new_jobs()
         
     def update_jobs_status_from_queue(self):
         #collect all non processed jobs from db linking to downloaded files
-        jobs = jobtracker.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.status NOT LIKE 'failed' AND jobs.status NOT LIKE 'terminal_failure' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
+        jobs = jobtracker.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.status NOT LIKE 'new' AND jobs.status NOT LIKE 'failed' AND jobs.status NOT LIKE 'terminal_failure' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
         for job in jobs:
             #check if Queue is processing a file for this job
             in_queue,queueidreported = QueueManagerClass.is_processing_file(job['filename'])
@@ -199,11 +200,6 @@ class JobPool:
                         jobtracker.query("UPDATE jobs SET status='processed', updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job['id'])))
                         #also update the last attempt
                         jobtracker.query("UPDATE job_submits SET status='finished',details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",jobtracker.nowstr(),int(last_job_submit[0]['id'])))
-                elif len(last_job_submit) == 0:
-                    #the job was never submited, so we submit it
-                    running, queued = self.get_queue_status()
-                    if (running + queued) < max_jobs_running:
-                        self.submit(job)
             else:
                 #if queue is processing a file for this job update job's status
                 jobtracker.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job['id'])))
@@ -237,6 +233,13 @@ class JobPool:
     def get_submits_count_by_job_id(self,job_id):
         job_submits = jobtracker.query("SELECT * FROM job_submits WHERE job_id=%u" % int(job_id))
         return len(job_submits)
+    
+    def submit_new_jobs(self):
+        new_jobs = jobtracker.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='new'")
+        for new_job in new_jobs:
+            running, queued = self.get_queue_status()
+            if (running + queued) < max_jobs_running:
+                self.submit(new_job)
         
     def resubmit_failed_jobs(self):
         failed_jobs = jobtracker.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
