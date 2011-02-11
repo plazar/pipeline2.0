@@ -68,13 +68,56 @@ An overview of the pipeline.
     \item Automatic (configurable) deletion of data files (upon success or terminal failure)
 \end{itemize}
 
+
 \subsection{Components}
+\subsubsection{Job-tracking Database}
 \subsubsection{Downloader}
 \subsubsection{Job Pooler}
 \subsubsection{Uploader}
+\paragraph{Diagnostics}
+Diagnostics stored in the common database are split into two types: Numeric values and binary data.
+
+The following per-beam diagnostics are uploaded to the common database:
+\begin{itemize}
+    \item \textit{RFI mask percentage} (Numeric value) \hfill \\
+        Percentage of data masked due to RFI.
+
+    \item \textit{Num cands folded} (Numeric Value) \hfill \\
+        The number of candidates folded.
+
+    \item \textit{Num cands produced} (Numeric Value) \hfill \\
+        The total number of candidates produced, including those with sigma lower than the folding threshold.
+
+    \item \textit{Min sigma folded} (Numeric value) \hfill \\
+        The smallest sigma value of all folded candidates from this beam.
+
+    \item \textit{Num cands above threshold} (Numeric value) \hfill \\
+        The number of candidates produced (but not necessarily folded) that are above the desired sigma threshold.
+    
+    \item \textit{RFIfind png} (Binary data) \hfill \\
+        Output image produced by rfifind in png format.
+
+    \item \textit{Accelcands list} (Binary data) \hfill \\
+        The combined and sifted list of candidates produced by accelsearch.
+\end{itemize}
+
 
 \section{Reference}
 \subsection{Executables}
+\paragraph{\texttt{StartDownloader.py}}
+A script to start the downloader background process.
+
+usage: \texttt{StartDownloader.py}
+
+\paragraph{\texttt{StartJobPool.py}}
+A script to start the job pooler background process.
+
+usage: \texttt{StartJobPool.py}
+
+\paragraph{\texttt{StartJobUploader.py}}
+A script to start the results uploader background process.
+
+usage: \texttt{StartJobUploader.py}
 
 \subsection{Generic Queue Manager Interface}
 
