@@ -1,0 +1,126 @@
+\documentstyle[12pt]{article}
+
+\begin{document}
+
+\title{PALFA Pipeline2.0 Documentation}
+\author{Patrick Lazarus, ... \\
+        plazar@physics.mcgill.ca}
+\date{\today}
+
+\maketitle
+
+\begin{abstract}
+\end{abstract}
+
+\section{Installation}
+\subsection{Dependencies}
+
+\subsection{Getting Started}
+Here we will present basic step-by-step instructions for setting up the pipeline.
+
+\begin{description}
+    \item[Step 1] Create a directory where you want the pipeline to be installed.
+
+    \item[Step 2] Download the pipeline source files. This should be done by cloning the git repository on github.com: https://github.com/plazar/pipeline2.0.
+
+        \smallskip
+
+        \texttt{\$ git clone git://github.com/plazar/pipeline2.0.git}
+
+        \smallskip
+        
+        \textit{NOTE: This will create a sub-directory called ``pipeline2.0".} 
+
+    \item[Step 3] Add the pipeline directory to your PYTHONPATH environment variable. 
+
+    \item[Step 4] Create configuration files using the examples provided. Modify the settings so they are appropriate for your system. Run the \texttt{sanity\_check.py} script to ensure all your configurations have the correct types, the neccessary directories exist and you have the correct privileges for files that must be read/written. 
+
+    \item[Step 5] Set up the database. This is done using the \texttt{create\_database.py} script. 
+
+    \item[Step 6] Start the downloader using \texttt{StartDownloader.py}.
+        
+        \smallskip
+        
+        \textit{NOTE: The downloader does not need to be run on the same computer as the job pooler. However, the directory where the downloader saves files must be accessible from the computer where the job pooler is being run.}
+        
+        \smallskip
+        
+        Alternatively, it is possible to add files to the job-tracker database without using the downloader. To do this use \texttt{add\_files.py}. Be sure to set the \texttt{delete\_rawdata} configuration to \texttt{False} if you do not want raw data files to be deleted when the pipeline no longer requires them. 
+
+    \item[Step 7] Start the job pooler using \texttt{StartJobPool.py}. The job pooler will start submitting jobs when data files are finished downloading. 
+
+    \item[Step 8] Start the uploader using \texttt{StartJobUploader.py}. The uploader will upload results to the common database when jobs are successfully processed.
+\end{description}
+
+
+\section{The Pipeline}
+An overview of the pipeline.
+
+\subsection{Features}
+\begin{itemize}
+    \item Sanity check of configurations
+    \item Dynamic zapping
+    \item Automatic download of data files
+    \item File size checks when downloading
+    \item Error emails
+    \item Automatic (configurable) retry of failed jobs
+    \item Check of results before uploading
+    \item Automatic (configurable) deletion of data files (upon success or terminal failure)
+\end{itemize}
+
+
+\subsection{Components}
+\subsubsection{Job-tracking Database}
+\subsubsection{Downloader}
+\subsubsection{Job Pooler}
+\subsubsection{Uploader}
+\paragraph{Diagnostics}
+Diagnostics stored in the common database are split into two types: Numeric values and binary data.
+
+The following per-beam diagnostics are uploaded to the common database:
+\begin{itemize}
+    \item \textit{RFI mask percentage} (Numeric value) \hfill \\
+        Percentage of data masked due to RFI.
+
+    \item \textit{Num cands folded} (Numeric Value) \hfill \\
+        The number of candidates folded.
+
+    \item \textit{Num cands produced} (Numeric Value) \hfill \\
+        The total number of candidates produced, including those with sigma lower than the folding threshold.
+
+    \item \textit{Min sigma folded} (Numeric value) \hfill \\
+        The smallest sigma value of all folded candidates from this beam.
+
+    \item \textit{Num cands above threshold} (Numeric value) \hfill \\
+        The number of candidates produced (but not necessarily folded) that are above the desired sigma threshold.
+    
+    \item \textit{RFIfind png} (Binary data) \hfill \\
+        Output image produced by rfifind in png format.
+
+    \item \textit{Accelcands list} (Binary data) \hfill \\
+        The combined and sifted list of candidates produced by accelsearch.
+\end{itemize}
+
+
+\section{Reference}
+\subsection{Executables}
+\paragraph{\texttt{StartDownloader.py}}
+A script to start the downloader background process.
+
+usage: \texttt{StartDownloader.py}
+
+\paragraph{\texttt{StartJobPool.py}}
+A script to start the job pooler background process.
+
+usage: \texttt{StartJobPool.py}
+
+\paragraph{\texttt{StartJobUploader.py}}
+A script to start the results uploader background process.
+
+usage: \texttt{StartJobUploader.py}
+
+\subsection{Generic Queue Manager Interface}
+
+\subsection{Configurations}
+
+\end{document}

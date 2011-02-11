@@ -1,3 +1,3 @@
-from JobUploader import JobUploader
-upl = JobUploader()
+import JobUploader
+upl = JobUploader.JobUploader()
 upl.run()

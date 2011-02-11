@@ -1,35 +1,9 @@
 import os.path
-import config
-import sqlite3
 import sys
 import os
-from job import PulsarSearchJob
 import datetime
-import time
 
-def query(query_string):
-    not_connected = True
-    while not_connected:
-        try:
-            db_conn = sqlite3.connect(config.bgs_db_file_path,timeout=40.0);
-            db_conn.row_factory = sqlite3.Row
-            db_cur = db_conn.cursor();
-            db_cur.execute(query_string)
-            if db_cur.lastrowid:
-                results = db_cur.lastrowid
-            else:
-                results = db_cur.fetchall()
-            db_conn.commit()
-            db_conn.close()
-            not_connected = False
-        except Exception, e:
-            try:
-                db_conn.close()
-            except Exception, e:
-                pass
-            print "Couldn't connect to DB retrying in 1 sec.: %s" % str(e) 
-            time.sleep(1)
-    return results
+import jobtracker
 
 def get_files(dir_in):
     files = list()
@@ -41,7 +15,7 @@ def get_files(dir_in):
 
 def get_downloads():
     files = list()
-    downloads = query("SELECT * FROM downloads")
+    downloads = jobtracker.query("SELECT * FROM downloads")
     for download in downloads:
         files.append(download['filename'])
     return files
@@ -51,7 +25,7 @@ def create_download(file_path):
     filesize = os.path.getsize(file_path)
     in_query = "INSERT INTO downloads (remote_filename,filename,status,created_at,updated_at,size,details) VALUES ('%s','%s','%s','%s','%s',%u,'%s')"\
                         % (filename,file_path,'downloaded',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), int(filesize),"Manually added via add_files.py")
-    return query(in_query)
+    return jobtracker.query(in_query)
         
 def usage():
     exit( "\nUsage: python add_files.py [directory to pick up file from]\n")
