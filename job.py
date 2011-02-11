@@ -8,18 +8,16 @@ import os
 import re
 import os.path
 import datetime
-import sqlite3
 import socket
 import subprocess
 import shutil
 import pprint
-
 import logging
-import datafile
-import config
-import dev
-import time
 
+import datafile
+import dev
+import config
+import jobtracker
 from mailer import ErrorMailer
 
 from QsubManager import Qsub
@@ -189,12 +187,8 @@ class JobPool:
         tmp_datafiles = []
         while didnt_get_files:
             try:
-                db_conn = sqlite3.connect(config.bgs_db_file_path);
-                db_conn.row_factory = sqlite3.Row
-                db_cur = db_conn.cursor();
                 fin_file_query = "SELECT * FROM downloads WHERE status LIKE 'downloaded'"
-                db_cur.execute(fin_file_query)
-                row = db_cur.fetchone()
+                row = jobtracker.query(fin_file_query, fetchone=True)
                 while row:
                     #print row['filename'] +" "+ row['status']
                     tmp_datafiles.append(os.path.join(config.rawdata_directory,row['filename']))
@@ -207,27 +201,17 @@ class JobPool:
                 jobpool_cout.outs("Database error: %s. Retrying in 1 sec" % str(e), OutStream.ERROR)
     
     def created_jobs_for_files_DB(self):
-        files_with_no_jobs = self.query("SELECT * from downloads as d1 where d1.id not in (SELECT downloads.id FROM jobs, job_files, downloads WHERE jobs.id = job_files.job_id AND job_files.file_id = downloads.id) and d1.status = 'downloaded'")
+        files_with_no_jobs = jobtracker.query("SELECT * from downloads as d1 where d1.id not in (SELECT downloads.id FROM jobs, job_files, downloads WHERE jobs.id = job_files.job_id AND job_files.file_id = downloads.id) and d1.status = 'downloaded'")
         for file_with_no_job in files_with_no_jobs:
             self.create_job_entry(file_with_no_job)
      
     def create_job_entry(self,file_with_no_job):
-        job_id = self.query("INSERT INTO jobs (status,created_at,updated_at) VALUES ('%s','%s','%s')"\
+        job_id = jobtracker.query("INSERT INTO jobs (status,created_at,updated_at) VALUES ('%s','%s','%s')"\
                                 % ('new',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-        self.query("INSERT INTO job_files (job_id,file_id,created_at,updated_at) VALUES (%u,%u,'%s','%s')"\
+        jobtracker.query("INSERT INTO job_files (job_id,file_id,created_at,updated_at) VALUES (%u,%u,'%s','%s')"\
                                             % (job_id,file_with_no_job['id'],datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         
             
-        
-    def update_db_file_processed(self, job):
-        db_conn = sqlite3.connect(config.bgs_db_file_path);
-        db_conn.row_factory = sqlite3.Row
-        db_cur = db_conn.cursor();
-        fin_file_query = "UPDATE restore_downloads SET status = 'Processed' WHERE filename = '%s'" % (os.path.basename(job.datafiles[0]))
-        db_cur.execute(fin_file_query)
-        db_conn.commit()
-        db_conn.close()            
-
     def get_datafiles(self):
         """Return a list of data files found in:
                 config.rawdata_directory and its subdirectories
@@ -244,11 +228,11 @@ class JobPool:
         return tmdebug.outp_datafiles
 
     def status(self,log=True):
-        running_jobs = self.query("SELECT * FROM jobs WHERE status='submitted'")
-        processed_jobs = self.query("SELECT * FROM jobs WHERE status='processed'")
-        new_jobs = self.query("SELECT * FROM jobs WHERE status='new'")
-        waiting_resubmit_jobs = self.query("SELECT * FROM jobs WHERE status='failed'")
-        failed_jobs = self.query("SELECT * FROM jobs WHERE status='terminal_failure'")
+        running_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='submitted'")
+        processed_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='processed'")
+        new_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='new'")
+        waiting_resubmit_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='failed'")
+        failed_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='terminal_failure'")
         
         status_str= "\n\n================= Job Pool Status ==============\n"
         status_str+="Num. of jobs       running: %u\n" % len(running_jobs)
@@ -288,33 +272,33 @@ class JobPool:
         
     def update_jobs_status_from_queue(self):
         #collect all non processed jobs from db linking to downloaded files
-        jobs = self.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.status NOT LIKE 'failed' AND jobs.status NOT LIKE 'terminal_failure' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
+        jobs = jobtracker.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.status NOT LIKE 'failed' AND jobs.status NOT LIKE 'terminal_failure' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
         for job in jobs:
             #check if Queue is processing a file for this job
             in_queue,queueidreported = QueueManagerClass.is_processing_file(job['filename'])
             if not in_queue:
                 #if it is not processing, collect the last job submit 
-                last_job_submit = self.query("SELECT * FROM job_submits WHERE job_id=%u ORDER by id DESC LIMIT 1" % int(job['id']))
+                last_job_submit = jobtracker.query("SELECT * FROM job_submits WHERE job_id=%u ORDER by id DESC LIMIT 1" % int(job['id']))
                 if len(last_job_submit) > 0:
                     #if there was a submit check if the job terminated with an error
                     if QueueManagerClass.error(last_job_submit[0]['queue_id']):
                         #if the job terminated with an error, update it's status to failed
                         if self.get_submits_count_by_job_id(job['id']) < config.max_attempts:
-                            self.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                            jobtracker.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
                             if config.email_on_failures:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'])
                         else:
-                            self.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                            jobtracker.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
                             if config.email_on_terminal_failures:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)
                         
                         #also update the last attempt
-                        self.query("UPDATE job_submits SET status='failed', details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
+                        jobtracker.query("UPDATE job_submits SET status='failed', details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
                     else:
                         #if the job terminated without an error, update it's status to processed
-                        self.query("UPDATE jobs SET status='processed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                        jobtracker.query("UPDATE jobs SET status='processed', updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
                         #also update the last attempt
-                        self.query("UPDATE job_submits SET status='finished',details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
+                        jobtracker.query("UPDATE job_submits SET status='finished',details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(last_job_submit[0]['id'])))
                 elif len(last_job_submit) == 0:
                     #the job was never submited, so we submit it
                     running, queued = self.get_queue_status()
@@ -322,7 +306,7 @@ class JobPool:
                         self.submit(job)
             else:
                 #if queue is processing a file for this job update job's status
-                self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
+                jobtracker.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job['id'])))
     
     def mail_job_failure(self,job_id,queue_id,terminal=False):
         stdout_log, stderr_log = QueueManagerClass.getLogs(queue_id)
@@ -342,19 +326,19 @@ class JobPool:
             pass
                 
     def get_submits_count_by_job_id(self,job_id):
-        job_submits = self.query("SELECT * FROM job_submits WHERE job_id=%u" % int(job_id))
+        job_submits = jobtracker.query("SELECT * FROM job_submits WHERE job_id=%u" % int(job_id))
         return len(job_submits)
         
     
     def resubmit_failed_jobs(self):
-        failed_jobs = self.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
+        failed_jobs = jobtracker.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
         for failed_job in failed_jobs:
             running, queued = self.get_queue_status()
             if (running + queued) < config.max_jobs_running:
                 self.submit(failed_job)
                 
     def get_jobs_files_by_job_id(self,job_id):
-        dls = self.query("SELECT * FROM jobs,downloads,job_files WHERE jobs.id=%u AND jobs.id=job_files.job_id AND downloads.id=job_files.file_id" %(int(job_id)))
+        dls = jobtracker.query("SELECT * FROM jobs,downloads,job_files WHERE jobs.id=%u AND jobs.id=job_files.job_id AND downloads.id=job_files.file_id" %(int(job_id)))
         files=list()
         for dl in dls:
             files.append(dl['filename'])
@@ -366,9 +350,9 @@ class JobPool:
             output_dir = tmp_job.get_output_dir()
         except Exception, e:
             jobpool_cout.outs("Error while reading %s. Job will not be submited" % ", ".join(tmp_job.datafiles))
-            self.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
+            jobtracker.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
           % (int(job_row['id']),'did_not_queue','could not get output dir','failed',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-            self.query("UPDATE jobs SET status='failed',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
+            jobtracker.query("UPDATE jobs SET status='failed',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
             try:
                 notification = ErrorMailer("Error while reading %s. Job will not be submited" % ", ".join(tmp_job.datafiles))
                 notification.send()
@@ -377,9 +361,9 @@ class JobPool:
             return
             
         queue_id = QueueManagerClass.submit([job_row['filename']], output_dir)
-        self.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at,base_output_dir) VALUES (%u,'%s','%s','%s','%s','%s','%s')"\
+        jobtracker.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at,base_output_dir) VALUES (%u,'%s','%s','%s','%s','%s','%s')"\
           % (int(job_row['id']),queue_id,output_dir,'running',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),config.base_results_directory ))
-        self.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
+        jobtracker.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),int(job_row['id'])))
     
     def update_demand_file_list(self):
         """Return a dictionary where the keys are the datafile names
@@ -403,30 +387,6 @@ class JobPool:
                         self.demand_file_list[d] += 1
                     else:
                         self.demand_file_list[d] = 1
-
-    def query(self,query_string):
-        not_connected = True
-        while not_connected:
-            try:
-                db_conn = sqlite3.connect(config.bgs_db_file_path,timeout=40.0);
-                db_conn.row_factory = sqlite3.Row
-                db_cur = db_conn.cursor();
-                db_cur.execute(query_string)
-                if db_cur.lastrowid:
-                    results = db_cur.lastrowid
-                else:
-                    results = db_cur.fetchall()
-                db_conn.commit()
-                db_conn.close()
-                not_connected = False
-            except Exception, e:
-                try:
-                    db_conn.close()
-                except Exception:
-                    pass
-                jobpool_cout.outs("Couldn't connect to DB retrying in 1 sec.: %s" % str(e)) 
-                time.sleep(1)
-        return results
 
     def get_queue_status(self):
         """Connect to the PBS queue and return the number of
