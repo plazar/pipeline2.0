@@ -1,12 +1,3 @@
-from threading import Thread
-import subprocess
-import sys
-import exceptions
-import re
-import datetime
-import sqlite3
-
-
 from master_config import bgs_screen_output\
                         , email_on_failures\
                         , email_on_terminal_failures\
@@ -19,13 +10,9 @@ from uploader_config import uploader_result_dir_overide\
                             , uploader_version_num
 
 import header
-from time import sleep
 import os
 import time
 import warnings
-
-
-import header
 import candidate_uploader
 import diagnostic_uploader
 import upload
@@ -40,7 +27,6 @@ warnings.filterwarnings("ignore", message="Can't find the 'DATA' column!")
 warnings.filterwarnings("ignore", message="Can't find the channel weights column, 'DAT_WTS'!")
 warnings.filterwarnings("ignore", message="Can't find the channel offsets column, 'DAT_OFFS'!")
 warnings.filterwarnings("ignore", message="Can't find the channel scalings column, 'DAT_SCL'!")
-
 
 class JobUploader():
     
@@ -67,8 +53,6 @@ class JobUploader():
                        last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
                        jobtracker.query("UPDATE job_uploads SET status='uploaded' WHERE id=%u" % last_upload_try_id)
                        self.clean_up(job_row)
-    
-
     
     def header_upload(self,job_row,commit=False):
     	dry_run = not commit;
@@ -133,8 +117,7 @@ class JobUploader():
             moded_dir = job_row['output_dir']
             
         last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
-        
-        
+                
         try:
             candidate_uploader.upload_candidates(header_id=header_id, versionnum=uploader_version_num,  directory=moded_dir,dry_run=dry_run)
         except candidate_uploader.PeriodicityCandidateError, e:
@@ -161,7 +144,6 @@ class JobUploader():
         jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
             % ('Candidates %s' % check_or_upload,jobtracker.nowstr(), last_upload_try_id))
         return True
-
             
     def diagnostics_upload(self,job_row,commit=False):
         dry_run = not commit;
@@ -206,8 +188,7 @@ class JobUploader():
         print "Diagnostics %s success for jobs.id: %u \tjob_uploads.id:%u" % (check_or_upload,int(job_row['id']), int(last_upload_try_id))
         jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
             % ('Diagnostics %s' % check_or_upload ,jobtracker.nowstr(), last_upload_try_id))
-        return True
-        
+        return True       
               
     def create_new_uploads(self):        
         print "Creating new upload entries..."
@@ -234,14 +215,6 @@ class JobUploader():
             if delete_rawdata and os.path.exists(download['filename']):
                 os.remove(download['filename'])
                 print "Deleted: %s" % download['filename']
-        
-    def upload_job(self,job_row):
-        print "Header checked: %s" % str()
-        print "Candidates checked: %s" % str()
-            #except Exception, e:
-            #    print "Error Error!"
-                
-        #header.upload_header(fns=file_names_stra)
                            
     def get_processed_jobs(self):
         return jobtracker.query("SELECT * FROM jobs WHERE status='processed'")
@@ -267,9 +240,7 @@ class JobUploader():
         return os.path.join(output_dir.replace(base_dir,uploader_result_dir),os.path.basename(filename))
     
     def clean(self):
-        #remove downloaded files
         uploaded_jobs = jobtracker.query("SELECT jobs.*,job_submits.output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='uploaded' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
-        
         for job_row in uploaded_jobs:
             for file_path in self.get_jobs_files(job_row):
                 if delete_rawdata and os.path.exists(file_path):

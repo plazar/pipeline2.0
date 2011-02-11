@@ -1,4 +1,3 @@
-
 from PipelineQueueManager import PipelineQueueManager
 import PBSQuery
 import subprocess

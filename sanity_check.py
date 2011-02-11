@@ -52,6 +52,7 @@ class SanityCheck:
             'master_config.email_on_terminal_failures':[master_config.email_on_terminal_failures,bool]
             }
             self.check_constants(consts_dict)
+            self.check_git()
             
         elif module_name=='uploader_config':
             print "Verifying %s.py" % module_name
@@ -60,8 +61,7 @@ class SanityCheck:
                 'uploader_config.uploader_result_dir':uploader_config.uploader_result_dir
             }
             self.check_read(path_to_check_for_existance_and_read_access)
-                   
-            
+
             constants_dict={
             'uploader_config.uploader_result_dir_overide':[uploader_config.uploader_result_dir_overide,bool],
             'uploader_config.uploader_result_dir':[uploader_config.uploader_result_dir,str],
@@ -105,7 +105,18 @@ class SanityCheck:
             self.check_queuemanager()
         
         for error in self.errors:
-                print error       
+                print error    
+                
+    def check_git(self):
+        import commands
+        status,string = commands.getstatusoutput('git --version')
+        if not string.startswith('git version'):
+            self.errors.append(SanityError('git', SanityError.GIT))
+            
+    def git_exists(self):
+        import commands
+        status,string = commands.getstatusoutput('git --version')
+        return string.startswith('git version')
             
     def check_queuemanager(self):
             
@@ -136,6 +147,7 @@ class SanityError():
     R_ERROR=4
     DIR_DNE=5
     Q_MANAGER=6
+    GIT=7
     
     def __init__(self, var_name, errtype, should_be_type=None, var_value=None):
         self.var_name=var_name
@@ -143,19 +155,21 @@ class SanityError():
         self.should_be_type=should_be_type
         self.errtype=errtype
         if self.errtype==self.NOT_DEFINED:
-            self.message = "!!!ERROR!!!\tYou have to define following constant: %s\n" % self.var_name
+            self.message = "%sERROR%s\tYou have to define following constant: %s\n" % ("\033[1m","\033[0;0m",self.var_name)
         elif self.errtype==self.TYPE_ERROR:
-            self.message = "!!!ERROR!!!\t %s should be:  given." % (self.var_name)
-            self.message = "!!!ERROR!!!\t %s should be: %s, given." % (self.var_name,self.should_be_type)
-            self.message = "!!!ERROR!!!\t %s should be: %s, %s given." % (self.var_name,self.should_be_type,type(self.var_value))
+            self.message = "%sERROR%s\t %s should be:  given." % ("\033[1m","\033[0;0m",self.var_name)
+            self.message = "%sERROR%s\t %s should be: %s, given." % ("\033[1m","\033[0;0m",self.var_name,self.should_be_type)
+            self.message = "%sERROR%s\t %s should be: %s, %s given." % ("\033[1m","\033[0;0m",self.var_name,self.should_be_type,type(self.var_value))
         elif self.errtype==self.RW_ERROR:
-            self.message = "!!!ERROR!!!\tIt is possible that you don't have the right permissions for %s[%s]. Should be able to read and write." % (self.var_name,self.var_value)
+            self.message = "%sERROR%s\tIt is possible that you don't have the right permissions for %s[%s]. Should be able to read and write." % ("\033[1m","\033[0;0m",self.var_name,self.var_value)
         elif self.errtype==self.R_ERROR:
-            self.message = "!!!ERROR!!!\tIt is possible that you don't have the right permissions for %s[%s]. Should be able to read." % (self.var_name,var_value)
+            self.message = "%sERROR%s\tIt is possible that you don't have the right permissions for %s[%s]. Should be able to read." % ("\033[1m","\033[0;0m",self.var_name,var_value)
         elif self.errtype==self.DIR_DNE:
-            self.message = "!!!ERROR!!!\t%s[%s] does not exist." % (self.var_name,self.var_value)
+            self.message = "%sERROR%s\t%s[%s] does not exist." % ("\033[1m","\033[0;0m",self.var_name,self.var_value)
         elif self.errtype==self.Q_MANAGER:
-            self.message = "!!!ERROR!!!\tYou must implement '%s' class method in your Queue Manager class." % (self.var_name)
+            self.message = "%sERROR%s\tYou must implement '%s' class method in your Queue Manager class." % ("\033[1m","\033[0;0m",self.var_name)
+        elif self.errtype==self.GIT:
+            self.message = "%sERROR%s\tYou must have %sgit%s installed on your system." % ("\033[1m","\033[0;0m","\033[1m","\033[0;0m")
         
     def __str__(self):
         return "%s"% self.message

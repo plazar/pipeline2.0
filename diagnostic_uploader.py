@@ -11,14 +11,8 @@ import glob
 import os.path
 import tarfile
 import optparse
-import datetime
-import warnings
-
 import upload
-
 from formats import accelcands
-
-# get configurations from config file
 from master_config import institution, pipeline,init_presto_search
 
 

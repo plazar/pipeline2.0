@@ -8,42 +8,22 @@ import os
 import re
 import os.path
 import datetime
-import socket
-import subprocess
-import shutil
-import pprint
-import logging
-
 import datafile
-
 from master_config import bgs_screen_output\
                         , email_on_failures\
                         , email_on_terminal_failures\
                         , delete_rawdata\
                         , bgs_db_file_path\
                         , base_results_directory
-
 from processor_config import rawdata_directory\
                             , max_jobs_running\
                             , max_attempts\
                             , QueueManagerClass
-
-import time
 import jobtracker
 from mailer import ErrorMailer
-
-
-"""
-from QTestManager import QTest
-from PipelineQueueManager import PipelineQueueManager
-QueueManagerClass = QTest
-"""
-
 from OutStream import OutStream as OutStream
-
 jobpool_cout = OutStream("JobPool","background.log",bgs_screen_output)
 job_cout = OutStream("Job","background.log",bgs_screen_output)
-
 from mailer import ErrorMailer
 
 class JobPool:
@@ -107,7 +87,6 @@ class JobPool:
                     #assume merger_response[0] is the produced file name of merged
                     self.merged_dict[merger_response[0]] = item
                     files_out.append(merger_response[0])
-                    
                 else:
                     #mailer can send an error to supervisor
                     mailing_message = "<h1>Merger Error.</h1> \n <p>The following error occured:</p>\n %s" % \
@@ -117,14 +96,12 @@ class JobPool:
                         mailing_message += "<br>\n"+ fn
                     mailer = ErrorMailer(mailing_message)
                     mailer.send()
-                    
                 #add pre-merged files to datafiles, so they will not get picked up again on rotation
                 self.datafiles += item
             else:
                 #single file - do not need to merge it
                 files_out.append(item)
         return files_out
-
     
     #Returns a list of files that Downloader marked Finished:* in the qlite3db
     def get_datafiles_from_db(self):
@@ -143,8 +120,7 @@ class JobPool:
                         jobpool_cout.outs(file)
                 return tmp_datafiles
             except Exception,e:
-                jobpool_cout.outs("Database error: %s. Retrying in 1 sec" % str(e), OutStream.ERROR)
-    
+                jobpool_cout.outs("Database error: %s. Retrying in 1 sec" % str(e), OutStream.ERROR)    
 
     def created_jobs_for_files_DB(self):
         files_with_no_jobs = jobtracker.query("SELECT * from downloads as d1 where d1.id not in (SELECT downloads.id FROM jobs, job_files, downloads WHERE jobs.id = job_files.job_id AND job_files.file_id = downloads.id) and d1.status = 'downloaded'")
@@ -215,8 +191,7 @@ class JobPool:
                         else:
                             jobtracker.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job['id'])))
                             if email_on_terminal_failures:
-                                self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)
-                        
+                                self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)                        
                         #also update the last attempt
                         jobtracker.query("UPDATE job_submits SET status='failed', details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",jobtracker.nowstr(),int(last_job_submit[0]['id'])))
                     else:
@@ -251,10 +226,8 @@ class JobPool:
             email_content = "Job Failure\n\nJobId: %s\n Last Attempt queue_id: %s\n" % (job_id, queue_id)
             
         email_content += "\nJob's Datafile(s):\n %s\n" % ("\n".join(self.get_jobs_files_by_job_id(job_id)))
-
         email_content += "\n\nStandard Error Log:\n===================start==================\n %s \n====================end===================\n" % stderr_log
         email_content += "\n\n%s" % stdout_log
-
         try:
             mailer = ErrorMailer(email_content)
             mailer.send()
@@ -265,7 +238,6 @@ class JobPool:
         job_submits = jobtracker.query("SELECT * FROM job_submits WHERE job_id=%u" % int(job_id))
         return len(job_submits)
         
-    
     def resubmit_failed_jobs(self):
         failed_jobs = jobtracker.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
         for failed_job in failed_jobs:
@@ -309,10 +281,7 @@ class JobPool:
 
             Returns a 2-tuple: (numrunning, numqueued).
         """
-        
         return QueueManagerClass.status()
-    
-
 
 #The following class represents a search job that is either waiting to be submitted
 #to QSUB or is running
@@ -327,8 +296,6 @@ class PulsarSearchJob:
         """PulsarSearchJob creator.
             'datafiles' is a list of data files required for the job.
         """
-        
-        
         if not issubclass(QueueManagerClass, PipelineQueueManager):
             job_cout.outs("You must derive queue manager class from QueueManagerClass",OutStream.ERROR)
             raise "You must derive queue manager class from QueueManagerClass"
@@ -339,7 +306,6 @@ class PulsarSearchJob:
             self.jobname = datafiles[0]
         self.jobid = None
         self.status = self.NEW_JOB
-
 
     def get_output_dir(self):
         """Generate path to output job's results.

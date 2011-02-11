@@ -1,15 +1,14 @@
 import sqlite3
 import time
 import datetime
-
 from master_config import bgs_db_file_path
-
 
 def nowstr():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def query(query_string, fetchone=False):
     not_connected = True
+    count =0
     while not_connected:
         try:
             db_conn = sqlite3.connect(bgs_db_file_path,timeout=40.0);
@@ -31,7 +30,9 @@ def query(query_string, fetchone=False):
                 db_conn.close()
             except Exception, e:
                 pass
-            print "Couldn't connect to DB retrying in 1 sec.: %s" % str(e)
+            if count >59:
+                print "Couldn't connect to DB retrying in 1 sec.: %s" % str(e)
             time.sleep(1)
+            count+=1
     return results
 

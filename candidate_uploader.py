@@ -7,11 +7,9 @@ Patrick Lazarus, Jan. 10th, 2011
 """
 import os.path
 import sys
-import re
 import glob
 import tarfile
 import tempfile
-import types
 import optparse
 import traceback
 import datetime
