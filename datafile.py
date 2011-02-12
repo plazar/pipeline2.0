@@ -33,17 +33,95 @@ def autogen_dataobj(fns, verbose=False, *args, **kwargs):
         find out which subclass of Data is appropriate
         and instantiate and return the object.
     """
+    datafile_type = get_datafile_type(fns)
+    if verbose:
+        print "Using %s" % datafile_type.__name__
+    data = datafile_type(fns, *args, **kwargs)
+    return data
+
+
+def get_datafile_type(fns):
+    """Find the type of data file corresponds to the given file names.
+
+        Input:
+            fns: A list of file names.
+
+        Output:
+            datafile_type: The subclass of Data that corresponds to 'fns'.
+    """
     for objname in globals():
         obj = eval(objname)
         if type(obj)==types.TypeType and issubclass(obj, Data):
             if obj.is_correct_filetype(fns):
-                if verbose:
-                    print "Using %s" % objname
-                data = obj(fns, *args, **kwargs)
+                datafile_type = obj
                 break
-    if 'data' not in dir():
-        raise ValueError("Cannot determine datafile's type.")
-    return data
+    if 'datafile_type' not in dir():
+        raise ValueError("Cannot determine datafile's type (%s)." % fns)
+    return datafile_type
+
+
+def are_grouped(fn1, fn2):
+    """Return True if file names fn1 and fn2 represent data files
+        that should grouped (ie belong to the same observation).
+        Returns False if files are of different types or don't
+        belong together.
+
+        Note: fn1 and fn2 cannot have the same file name (path is ignored).
+
+        Inputs:
+            fn1: A data file name.
+            fn2: A data file name.
+
+        Output:
+            grpd: Boolean value. True if files belong together.
+    """
+    datatype1 = get_datafile_type([fn1])
+    datatype2 = get_datafile_type([fn2])
+    grpd = False
+    if (os.path.split(fn1)[-1] != os.path.split(fn2)[-1]) and \
+            (datatype1 == datatype2):
+        grpd = datatype1.are_grouped(fn1, fn2)
+    return grpd
+
+
+def is_complete(fns):
+    """Return True if the list of file names, 'fns' is complete.
+        
+        Inputs:
+            fns: A list of file names.
+
+        Output:
+            complete: Boolean value. True if list of file names
+                is a group that is complete.
+    """
+    if not fns:
+        return False
+    datatypes = [get_datafile_type([fn]) for fn in fns]
+    for t in datatypes[1:]:
+        if datatypes[0] != t:
+            return False
+    return datatypes[0].is_complete(fns)
+
+
+def group_files(fns):
+    """Given a list of file names form groups of files
+        that belong to the same observation.
+
+        Intput:
+            fns: A list of file names.
+
+        Output:
+            groups: A list of groups (each group is a list of filenames).
+    """
+    groups = []
+    for ii, fn in enumerate(fns):
+        group = [fn]
+        for jj in range(len(fns)-1, ii, -1):
+            other = fns[jj]
+            if are_grouped(fn, other):
+                group.append(fns.pop(jj))
+        groups.append(group)
+    return groups
 
 
 class Data(object):
@@ -124,6 +202,39 @@ class Data(object):
                 result = False
                 break
         return result
+
+    @classmethod
+    def are_grouped(cls, fn1, fn2):
+        """Return True if file names fn1 and fn2 represent data files
+            that should grouped (ie belong to the same observation).
+            Returns False if files are of different types or don't
+            belong together.
+
+            Note: fn1 and fn2 cannot have the same file name (path is ignored).
+ 
+            Inputs:
+                fn1: A data file name.
+                fn2: A data file name.
+ 
+            Output:
+                grpd: Boolean value. True if files belong together.
+        """
+        raise NotImplementedError("The classmethod 'are_grouped(...)' " \
+                                    "must be overridden!")
+
+    @classmethod
+    def is_complete(cls, fns):
+        """Return True if the list of file names, 'fns' is complete.
+            
+            Inputs:
+                fns: a list of filenames.
+
+            Output:
+                complete: Boolean value. True if list of file names
+                    is a group that is complete.
+        """
+        raise NotImplementedError("The classmethod 'is_complete(...)' " \
+                                    "must be overridden!")
 
 
 class PsrfitsData(Data):
@@ -207,6 +318,47 @@ class WappPsrfitsData(PsrfitsData):
                 primary['DEC'] = self.correct_decl
                 hdus.close() # hdus are updated at close-time
 
+    @classmethod
+    def are_grouped(cls, fn1, fn2):
+        """Return True if file names fn1 and fn2 represent data files
+            that should grouped (ie belong to the same observation).
+            Returns False if files are of different types or don't
+            belong together.
+
+            Note: fn1 and fn2 cannot have the same file name (path is ignored).
+ 
+            *** Note: WAPP files are not supposed to be grouped. This
+            ***     function always returns False.
+
+            Inputs:
+                fn1: A data file name.
+                fn2: A data file name.
+ 
+            Output:
+                grpd: Boolean value. True if files belong together.
+        """
+        return False
+
+    @classmethod
+    def is_complete(cls, fns):
+        """Return True if the list of file names, 'fns' is complete.
+            
+            Inputs:
+                fns: a list of filenames.
+
+            Output:
+                complete: Boolean value. True if list of file names
+                    is a group that is complete.
+        """
+        if len(fns) == 1:
+            complete = cls.is_correct_filetype(fns) 
+        elif len(fns) > 1:
+            warnings.warn("List of PSRFITS WAPP files has " \
+                            "too many files (%d)!" % len(fns))
+            complete = False
+        else:
+            complete = False
+        return complete
 
 class MockPsrfitsData(PsrfitsData):
     """PSR fits Data object for MockSpec data.
@@ -232,6 +384,59 @@ class MockPsrfitsData(PsrfitsData):
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
+
+    @classmethod
+    def are_grouped(cls, fn1, fn2):
+        """Return True if file names fn1 and fn2 represent data files
+            that should grouped (ie belong to the same observation).
+            Returns False if files are of different types or don't
+            belong together.
+
+            Note: fn1 and fn2 cannot have the same file name (path is ignored).
+ 
+            Inputs:
+                fn1: A data file name.
+                fn2: A data file name.
+ 
+            Output:
+                grpd: Boolean value. True if files belong together.
+        """
+        fnmatch1 = cls.fnmatch(fn1)
+        fnmatch2 = cls.fnmatch(fn2)
+
+        if fnmatch1 is None or fnmatch2 is None:
+            grpd = False
+        else:
+            mdict1 = fnmatch1.groupdict()
+            mdict2 = fnmatch2.groupdict()
+            sub1 = mdict1.pop('subband')
+            sub2 = mdict2.pop('subband')
+            if (sub1 == '0' and sub2 == '1') or (sub1 == '1' and sub2 == '0'):
+                grpd = (mdict1 == mdict2) # all other values must be identical
+            else:
+                grpd = False
+        return grpd
+           
+    @classmethod
+    def is_complete(cls, fns):
+        """Return True if the list of file names, 'fns' is complete.
+            
+            Inputs:
+                fns: a list of filenames.
+
+            Output:
+                complete: Boolean value. True if list of file names
+                    is a group that is complete.
+        """
+        if len(fns) == 2:
+            complete = cls.are_grouped(*fns)
+        elif len(fns) > 2:
+            warnings.warn("List of Mock files has " \
+                            "too many files (%d)!" % len(fns))
+            complete = False
+        else:
+            complete = False
+        return complete
 
 
 class MergedMockPsrfitsData(PsrfitsData):
@@ -259,6 +464,48 @@ class MergedMockPsrfitsData(PsrfitsData):
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
 
+    @classmethod
+    def are_grouped(cls, fn1, fn2):
+        """Return True if file names fn1 and fn2 represent data files
+            that should grouped (ie belong to the same observation).
+            Returns False if files are of different types or don't
+            belong together.
+
+            Note: fn1 and fn2 cannot have the same file name (path is ignored).
+ 
+            *** Note: Merged Mock files don't need to be grouped 
+            ***     (they're already merged!) This function always 
+            ***     returns False.
+
+            Inputs:
+                fn1: A data file name.
+                fn2: A data file name.
+ 
+            Output:
+                grpd: Boolean value. True if files belong together.
+        """
+        return False
+
+    @classmethod
+    def is_complete(cls, fns):
+        """Return True if the list of file names, 'fns' is complete.
+            
+            Inputs:
+                fns: a list of filenames.
+
+            Output:
+                complete: Boolean value. True if list of file names
+                    is a group that is complete.
+        """
+        if len(fns) == 1:
+            complete = cls.is_correct_filetype(fns) 
+        elif len(fns) > 1:
+            warnings.warn("List of merged Mock files has " \
+                            "too many files (%d)!" % len(fns))
+            complete = False
+        else:
+            complete = False
+        return complete
 
 
 def main():
