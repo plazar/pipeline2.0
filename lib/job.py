@@ -98,7 +98,7 @@ class JobPool:
         running_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='submitted'")
         processed_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='processed'")
         uploaded_jobs = jobtracker.query("SELECT * FROM jobs, job_uploads WHERE " \
-                                            "jobs.id=job_upload.job_id AND " \
+                                            "jobs.id=job_uploads.job_id AND " \
                                             "jobs.status='processed' AND " \
                                             "job_uploads.status='uploaded'")
         new_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='new'")
@@ -206,17 +206,32 @@ class JobPool:
     def submit_new_jobs(self):
         new_jobs = jobtracker.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='new'")
         for new_job in new_jobs:
-            running, queued = self.get_queue_status()
-            if (running + queued) < config.jobpooler.max_jobs_running:
+            if self.can_submit():
                 self.submit(new_job)
         
     def resubmit_failed_jobs(self):
         failed_jobs = jobtracker.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
         for failed_job in failed_jobs:
-            running, queued = self.get_queue_status()
-            if (running + queued) < config.jobpooler.max_jobs_running:
+            if self.can_submit():
                 self.submit(failed_job)
-                
+       
+    def can_submit(self):
+        """Check if we can submit a job 
+            (i.e. limits imposed in config file aren't met)
+
+            Inputs:
+                None
+
+            Output:
+                Boolean value. True if submission is allowed.
+        """
+        running, queued = config.jobpooler.queue_manager.status()
+        if ((running + queued) < config.jobpooler.max_jobs_running) and \
+            (queued < config.jobpooler.max_jobs_queued):
+            return True
+        else:
+            return False
+
     def get_jobs_files_by_job_id(self,job_id):
         dls = jobtracker.query("SELECT * FROM jobs,downloads,job_files WHERE jobs.id=%u AND jobs.id=job_files.job_id AND downloads.id=job_files.file_id" %(int(job_id)))
         files=list()
@@ -252,10 +267,10 @@ class JobPool:
         """Connect to the PBS queue and return the number of
             survey jobs running and the number of jobs queued.
 
-
             Returns a 2-tuple: (numrunning, numqueued).
         """
         return config.jobpooler.queue_manager.status()
+
 
 #The following class represents a search job that is either waiting to be submitted
 #to QSUB or is running

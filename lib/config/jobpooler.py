@@ -6,6 +6,7 @@ import config.basic
 ################################################################
 base_results_directory = "/data/data7/PALFA/test_new_pipeline_clean/"
 max_jobs_running = 50
+max_jobs_queued = 1
 max_attempts = 2 # Maximum number of times a job is attempted due to errors
 delete_rawdata = True
 queue_manager = QsubManager.Qsub("%s_batchjob" % config.basic.survey, \

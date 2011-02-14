@@ -132,6 +132,13 @@ class IntConfig(Configurable):
                     (type(self.value) == types.IntType)
 
 
+class PosIntConfig(IntConfig):
+    msg = "Must be a positive integer value (i.e. > 0)."
+    def isvalid(self):
+        return super(PosIntConfig, self).isvalid() and \
+                    (self.value > 0)
+
+
 class FloatConfig(Configurable):
     msg = "Must be a float value."
     def isvalid(self):
