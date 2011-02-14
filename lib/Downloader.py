@@ -8,7 +8,8 @@ import re
 import urllib2 
 import suds.client
 import M2Crypto
-                            
+
+import datafile
 import jobtracker
 import mailer
 import OutStream
@@ -225,7 +226,10 @@ class restore:
                 list_cmd = True
                 
                 for file in files_in_res_dir:
-                    if not file.endswith('7.w4bit.fits'): 
+                    datafile_type = datafile.get_datafile_type([file])
+                    parsedfn = datafile_type.fnmatch(file)
+                    # if not file.endswith('7.w4bit.fits'): 
+                    if parsedfn.groupdict().setdefault('beam', '-1') != '7':
                         file_size = ftp.size(file)
                         dlm_cout.outs(self.guid +" got file size for "+ file)
                         self.size += file_size

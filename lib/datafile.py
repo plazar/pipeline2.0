@@ -15,8 +15,6 @@ import types
 import numpy as np
 
 # Import PSRFITS-specific modules
-import pyfits
-from formats import psrfits        
 
 from astro_utils import sextant
 from astro_utils import protractor
@@ -245,6 +243,8 @@ class PsrfitsData(Data):
     def __init__(self, fitsfns):
         """PSR fits Header object constructor.
         """
+        from formats import psrfits        
+        
         super(PsrfitsData, self).__init__(fitsfns)
         # Read information from files
         self.specinfo = psrfits.SpectraInfo(self.fns)
@@ -312,6 +312,7 @@ class WappPsrfitsData(PsrfitsData):
             
             Note: This cannot be undone!
         """
+        import pyfits
         if self.posn_corrected:
             for fn in self.fns:
                 hdus = pyfits.open(fn, mode='update')
