@@ -97,6 +97,10 @@ class JobPool:
     def status(self,log=True):
         running_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='submitted'")
         processed_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='processed'")
+        uploaded_jobs = jobtracker.query("SELECT * FROM jobs, job_uploads WHERE " \
+                                            "jobs.id=job_upload.job_id AND " \
+                                            "jobs.status='processed' AND " \
+                                            "job_uploads.status='uploaded'")
         new_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='new'")
         waiting_resubmit_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='failed'")
         failed_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='terminal_failure'")
@@ -230,7 +234,7 @@ class JobPool:
           % (int(job_row['id']),'did_not_queue','could not get output dir','failed',jobtracker.nowstr(),jobtracker.nowstr()))
             jobtracker.query("UPDATE jobs SET status='failed',updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job_row['id'])))
             try:
-                notification = ErrorMailer("Error while reading %s. Job will not be submited" % ", ".join(tmp_job.datafiles))
+                notification = mailer.ErrorMailer("Error while reading %s. Job will not be submited" % ", ".join(tmp_job.datafiles))
                 notification.send()
             except Exception,e:
                 pass

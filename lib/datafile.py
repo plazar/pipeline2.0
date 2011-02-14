@@ -14,6 +14,10 @@ import types
 
 import numpy as np
 
+# Import PSRFITS-specific modules
+import pyfits
+from formats import psrfits        
+
 from astro_utils import sextant
 from astro_utils import protractor
 from astro_utils import calendar
@@ -241,10 +245,6 @@ class PsrfitsData(Data):
     def __init__(self, fitsfns):
         """PSR fits Header object constructor.
         """
-        # Import PSRFITS-specific modules
-        import pyfits
-        from formats import psrfits
-        
         super(PsrfitsData, self).__init__(fitsfns)
         # Read information from files
         self.specinfo = psrfits.SpectraInfo(self.fns)

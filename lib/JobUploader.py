@@ -150,7 +150,7 @@ class JobUploader():
         
         try:
             diagnostic_uploader.upload_diagnostics(obsname=obs_name,beamnum=beamnum, versionnum=config.upload.version_num,  directory=dir,dry_run=dry_run)
-        except header.DiagnosticError, e:
+        except diagnostic_uploader.DiagnosticError, e:
             print "Diagnostics Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
             % ('Diagnostics %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')),jobtracker.nowstr(), last_upload_try_id))

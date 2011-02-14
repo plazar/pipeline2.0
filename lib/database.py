@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 import sys
 import warnings
-import pyodbc
 import prettytable
+
+import pyodbc
+
+import config.commondb
 
 # Connecting from Linux
 DATABASES = {
@@ -10,14 +13,14 @@ DATABASES = {
         'DATABASE': 'palfa-common',
         'UID':  config.commondb.username,
         'PWD':  config.commondb.password,
-        'HOST': config.commondb.hostname,
+        'HOST': config.commondb.host,
         'DSN':  'FreeTDSDSN'
         },
     'common-copy': {
         'DATABASE': 'palfa-common-copy',
         'UID':  config.commondb.username,
         'PWD':  config.commondb.password,
-        'HOST': config.commondb.hostname,
+        'HOST': config.commondb.host,
         'DSN':  'FreeTDSDSN'
         },
 }
