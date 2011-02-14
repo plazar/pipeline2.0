@@ -10,7 +10,6 @@ import suds.client
 import M2Crypto
                             
 import jobtracker
-import datafile
 import mailer
 import OutStream
 import config.background
@@ -226,9 +225,7 @@ class restore:
                 list_cmd = True
                 
                 for file in files_in_res_dir:
-                    datafile_type = datafile.get_datafile_type([file])
-                    parsedfn = datafile_type.fnmatch(file)
-                    if parsedfn.groupdict().setdefault('beam', '-1') != '7': 
+                    if not file.endswith('7.w4bit.fits'): 
                         file_size = ftp.size(file)
                         dlm_cout.outs(self.guid +" got file size for "+ file)
                         self.size += file_size
