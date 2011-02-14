@@ -48,11 +48,15 @@ class DownloadModule:
                     running_downloaders_count += 1
 
             # Print a status message
-            used = self.get_space_used()/1024.0**3
-            allowed = config.download.space_to_use/1024.0**3
-            status_msg  = "Number of running restores: %u\n" % running_restores_count
-            status_msg += "Usage %d GB of %d GB (%.2f %%)\n" % \
+            used = round(self.get_space_used()/1024.0**3)
+            allowed = round(config.download.space_to_use/1024.0**3)
+            s = os.statvfs(config.download.temp)
+            total = round((s.f_bavail*s.f_frsize)/1024.0**3)
+            status_msg  = "\n\n================= Downloader Status =================\n"
+            status_msg += "Number of running restores: %u\n" % running_restores_count
+            status_msg += "Disk space used by downloads: %d GB of %d GB (%.2f %%)\n" % \
                                 (used, allowed, 100.0*used/allowed)
+            status_msg += "Disk space available: %d GB\n" % total
             dlm_cout.outs(status_msg)
             time.sleep(37)
             
