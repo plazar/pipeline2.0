@@ -13,7 +13,8 @@ import tarfile
 import optparse
 import upload
 from formats import accelcands
-from master_config import institution, pipeline,init_presto_search
+import config.basic
+import config.searching
 
 
 class Diagnostic(upload.Uploadable):
@@ -50,8 +51,8 @@ class FloatDiagnostic(Diagnostic):
         sprocstr = "EXEC spDiagnosticAdder " \
             "@obs_name='%s', " % self.obs_name + \
             "@beam_id=%d, " % self.beam_id + \
-            "@instit='%s', " % institution + \
-            "@pipeline='%s', " % pipeline + \
+            "@instit='%s', " % config.basic.institution + \
+            "@pipeline='%s', " % config.basic.pipeline + \
             "@version_number='%s', " % self.version_number + \
             "@diagnostic_type_name='%s', " % self.name + \
             "@diagnostic_type_description='%s', " % self.description + \
@@ -211,9 +212,8 @@ class NumAboveThreshDiagnostic(FloatDiagnostic):
             raise DiagnosticError("Wrong number of candidate lists found (%d)!" % \
                                     len(candlists))
         candlist = accelcands.parse_candlist(candlists[0])
-        presto_search = init_presto_search()
         self.value = len([c for c in candlist \
-                            if c.sigma > presto_search.to_prepfold_sigma])
+                            if c.sigma > config.searching.to_prepfold_sigma])
 
 
 def find_in_tarballs(dir, matchfunc):

@@ -4,49 +4,23 @@ import warnings
 import pyodbc
 import prettytable
 
-if sys.platform.startswith("win"):
-    # Connecting from Windows
-    DATABASES = {
-        'common': {
-            'DATABASE': 'palfa-common',
-            'UID': 'sequenceRafal',
-            'PWD': 'seq842ce!!',
-            'SERVER': 'arecibosql.tc.cornell.edu',
-            'DRIVER': '{SQL Native Client}'
-        }
-    }
-elif sys.platform.startswith("linux"):
-    # Connecting from Linux
-    DATABASES = {
-        'common': {
-            'DATABASE': 'palfa-common',
-            'UID':  'mcgill',
-            'PWD':  'pw4sd2mcgill!',
-            'HOST': 'arecibosql.tc.cornell.edu',
-            'DSN':  'FreeTDSDSN'
-            },
-        'common-copy': {
-            'DATABASE': 'palfa-common-copy',
-            'UID':  'mcgill',
-            'PWD':  'pw4sd2mcgill!',
-            'HOST': 'arecibosql.tc.cornell.edu',
-            'DSN':  'FreeTDSDSN'
-            },
-        'tracking': {
-            'DATABASE': 'palfatracking',
-            'UID':  'mcgill',
-            'PWD':  'pw4sd2mcgill!',
-            'HOST': 'arecibosql.tc.cornell.edu',
-            'DSN':  'FreeTDSDSN'
-            },
-        'local': {
-            'DATABASE': 'PALFA_v2', # DB name is case sensitive
-            'UID':  'palfa',
-            'PWD':  'sqlme',
-            'HOST': 'frontend',
-            'DSN':  'MySQLDSN'
-            }
-    }
+# Connecting from Linux
+DATABASES = {
+    'common': {
+        'DATABASE': 'palfa-common',
+        'UID':  config.commondb.username,
+        'PWD':  config.commondb.password,
+        'HOST': config.commondb.hostname,
+        'DSN':  'FreeTDSDSN'
+        },
+    'common-copy': {
+        'DATABASE': 'palfa-common-copy',
+        'UID':  config.commondb.username,
+        'PWD':  config.commondb.password,
+        'HOST': config.commondb.hostname,
+        'DSN':  'FreeTDSDSN'
+        },
+}
 
 
 # Set defaults

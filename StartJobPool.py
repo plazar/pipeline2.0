@@ -15,8 +15,7 @@ import traceback
 import subprocess
 from mailer import ErrorMailer
 
-import config
-import dev
+import config.background
 import job
 
 def main():
@@ -56,6 +55,6 @@ def main():
                 sys.exit(1)
             except Exception:
                 raise
-        time.sleep(config.bgs_sleep)       
+        time.sleep(config.background.sleep)       
 
 main()

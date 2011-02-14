@@ -8,34 +8,23 @@ import re
 import urllib2 
 import suds.client
 import M2Crypto
-from downloader_config import downloader_api_username\
-                            , downloader_api_password\
-                            , downloader_temp\
-                            , downloader_space_to_use\
-                            , downloader_numofrestores\
-                            , downloader_api_service_url\
-                            , downloader_numofretries\
-                            , downloader_numofdownloads
                             
-from master_config import bgs_screen_output\
-                        , email_on_failures\
-                        , email_on_terminal_failures\
-                        , delete_rawdata\
-                        , bgs_db_file_path\
-                        , base_results_directory
 import jobtracker
 import mailer
 import OutStream
+import config.background
+import config.download
+import config.email
 
-dlm_cout = OutStream.OutStream("Download Module","downloader.log",bgs_screen_output)
-dl_cout = OutStream.OutStream("Download Module: d/l thread","downloader.log",bgs_screen_output)
+dlm_cout = OutStream.OutStream("Download Module","downloader.log", config.background.screen_output)
+dl_cout = OutStream.OutStream("Download Module: d/l thread","downloader.log",config.background.screen_output)
 
 class DownloadModule:
     def __init__(self):
         #self.my_logger.info('Initializing.')
         dlm_cout.outs('Initializing Module')
-        self.username = downloader_api_username
-        self.password = downloader_api_password
+        self.username = config.download.api_username
+        self.password = config.download.api_password
         self.restores = []
         self.recover()
         
@@ -68,7 +57,7 @@ class DownloadModule:
         
     def have_space(self):        
         folder_size = 0
-        for (path, dirs, files) in os.walk(downloader_temp):
+        for (path, dirs, files) in os.walk(config.download.temp):
           for file in files:
             try:
                 filename = os.path.join(path, file)
@@ -76,14 +65,14 @@ class DownloadModule:
             except Exception, e:
                 dlm_cout.outs('There was an error while getting the file size: %s   Exception: %s' % (filename,str(e)) )
 
-        if folder_size < downloader_space_to_use:
+        if folder_size < config.download.space_to_use:
             return True
         else:
             return False
 
     def can_request_more(self):
-        if len(self.restores) >= downloader_numofrestores:
-            dlm_cout.outs("Cannot have more than "+ str(downloader_numofrestores) +" at a time.")
+        if len(self.restores) >= config.download.numrestores:
+            dlm_cout.outs("Cannot have more than "+ str(config.download.numrestores) +" at a time.")
             return False
         
         total_size = 0
@@ -96,12 +85,12 @@ class DownloadModule:
 
     def get_available_space(self):
         folder_size = 0
-        if downloader_temp == "":
+        if config.download.temp == "":
             print "Getting filename"
             path_to_size = os.path.dirname(__file__)
         else:
-            print "Setting to downloader_temp"
-            path_to_size = downloader_temp
+            print "Setting to config.download.temp"
+            path_to_size = config.download.temp
         print path_to_size
         for (path, dirs, files) in os.walk(path_to_size):
           for file in files:
@@ -110,7 +99,7 @@ class DownloadModule:
                 folder_size += os.path.getsize(filename)
             except Exception, e:
                 dlm_cout.outs('There was an error while getting the file size: %s   Exception: %s' % (file,str(e)))
-        return (downloader_space_to_use - folder_size)
+        return (config.download.space_to_use - folder_size)
 
 
 class restore:
@@ -118,9 +107,9 @@ class restore:
         self.values = None
         self.num_beams = num_beams
         self.downloaders = dict()
-        self.WebService =  suds.client.Client(downloader_api_service_url).service
-        self.username = downloader_api_username
-        self.password = downloader_api_password
+        self.WebService =  suds.client.Client(config.download.api_service_url).service
+        self.username = config.download.api_username
+        self.password = config.download.api_password
         self.remove_me = True
 
         self.files = dict()
@@ -262,7 +251,7 @@ class restore:
             dl_check = jobtracker.query("SELECT * FROM downloads WHERE request_id=%s AND filename='%s'" % (self.values['id'],filename))            
             if len(dl_check) == 0:
                 query = "INSERT INTO downloads (request_id,remote_filename,filename,status,created_at,updated_at,size) VALUES ('%s','%s','%s','%s','%s','%s',%u)"\
-                        % (self.values['id'],filename,os.path.join(downloader_temp,filename),'New',jobtracker.nowstr(),jobtracker.nowstr(), int(filesize))
+                        % (self.values['id'],filename,os.path.join(config.download.temp,filename),'New',jobtracker.nowstr(),jobtracker.nowstr(), int(filesize))
                 jobtracker.query(query)
             
     #TODO: Refactor function and helpers
@@ -284,7 +273,7 @@ class restore:
             #if downloader is not running for this entry            
             if not dl_entry['remote_filename'] in self.downloaders:
                 #if maximum number of attempts is not reached
-                if downloader_numofretries > this_download_attempts_count:
+                if config.download.numretries > this_download_attempts_count:
                     #create an attempt entry and downloader refering to this attempt by id
                     id = jobtracker.query("INSERT INTO download_attempts (download_id,created_at,updated_at) VALUES  ('%s','%s','%s')" % \
                     (dl_entry['id'],jobtracker.nowstr(), jobtracker.nowstr() ))
@@ -356,7 +345,7 @@ class restore:
         
         for failed_download in failed_downloads:
             number_of_attempts = len(jobtracker.query("SELECT * FROM download_attempts WHERE download_id = %s" % failed_download['id']))
-            if downloader_numofretries < number_of_attempts:
+            if config.download.numretries < number_of_attempts:
                 return False
         
         jobtracker.query("UPDATE requests SET status ='finished', updated_at='%s' WHERE id=%s"\
@@ -422,7 +411,7 @@ class downloader(threading.Thread):
                 time.sleep(1)
         
         try:
-            self.file = open(os.path.join(downloader_temp,self.file_name),'wb')
+            self.file = open(os.path.join(config.download.temp,self.file_name),'wb')
             self.status = 'New'
         except Exception, e:
             self.status = "failed"

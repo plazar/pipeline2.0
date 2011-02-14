@@ -8,23 +8,17 @@ import os
 import re
 import os.path
 import datetime
+
 import datafile
-from master_config import bgs_screen_output\
-                        , email_on_failures\
-                        , email_on_terminal_failures\
-                        , delete_rawdata\
-                        , bgs_db_file_path\
-                        , base_results_directory
-from processor_config import rawdata_directory\
-                            , max_jobs_running\
-                            , max_attempts\
-                            , QueueManagerClass
+import config.background
+import config.jobpooler
+import config.email
 import jobtracker
-from mailer import ErrorMailer
-from OutStream import OutStream as OutStream
-jobpool_cout = OutStream("JobPool","background.log",bgs_screen_output)
-job_cout = OutStream("Job","background.log",bgs_screen_output)
-from mailer import ErrorMailer
+import mailer
+import OutStream
+
+jobpool_cout = OutStream.OutStream("JobPool","background.log",config.background.screen_output)
+job_cout = OutStream.OutStream("Job","background.log",config.background.screen_output)
 
 class JobPool:
     def __init__(self):
@@ -68,43 +62,10 @@ class JobPool:
                     files_out.append(file)
         return files_out
 
-    def merge_files(self, files_in):
-        """Given a list of datafiles run a mergin command on datafiles that
-            are grouped into list of a list.
-            Return list of datafiles replacing the grouped file with a
-            single merged file.
-        """
-        files_out = []
-        for item in files_in:
-            if isinstance(item, list):
-                merge_pipe = subprocess.Popen('merger %s' % (" ".join(item)), \
-                            shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
-                merger_response = merge_pipe.communicate()
-
-                #get response if merging was successfull
-                if not merger_response[1]:
-                    #merging was successfull - add merged file to files list for return
-                    #assume merger_response[0] is the produced file name of merged
-                    self.merged_dict[merger_response[0]] = item
-                    files_out.append(merger_response[0])
-                else:
-                    #mailer can send an error to supervisor
-                    mailing_message = "<h1>Merger Error.</h1> \n <p>The following error occured:</p>\n %s" % \
-                    (merger_response)
-                    mailing_message += "<br>\nFiles that could not be merged:"
-                    for fn in item:
-                        mailing_message += "<br>\n"+ fn
-                    mailer = ErrorMailer(mailing_message)
-                    mailer.send()
-                #add pre-merged files to datafiles, so they will not get picked up again on rotation
-                self.datafiles += item
-            else:
-                #single file - do not need to merge it
-                files_out.append(item)
-        return files_out
-    
-    #Returns a list of files that Downloader marked Finished:* in the qlite3db
     def get_datafiles_from_db(self):
+        """Returns a list of files that Downloader marked Finished:* 
+            in the job-tracker db.
+        """
         didnt_get_files = True
         tmp_datafiles = []
         while didnt_get_files:
@@ -113,7 +74,7 @@ class JobPool:
                 row = jobtracker.query(fin_file_query, fetchone=True)
                 while row:
                     #print row['filename'] +" "+ row['status']
-                    tmp_datafiles.append(os.path.join(rawdata_directory,row['filename']))
+                    tmp_datafiles.append(os.path.join(config.jobpooler.rawdata_directory,row['filename']))
                     row = db_cur.fetchone()                
                 didnt_get_files = False
 		for file in tmp_datafiles:
@@ -177,21 +138,21 @@ class JobPool:
         jobs = jobtracker.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.status NOT LIKE 'new' AND jobs.status NOT LIKE 'failed' AND jobs.status NOT LIKE 'terminal_failure' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
         for job in jobs:
             #check if Queue is processing a file for this job
-            in_queue,queueidreported = QueueManagerClass.is_processing_file(job['filename'])
+            in_queue,queueidreported = config.jobpooler.queue_manager.is_processing_file(job['filename'])
             if not in_queue:
                 #if it is not processing, collect the last job submit 
                 last_job_submit = jobtracker.query("SELECT * FROM job_submits WHERE job_id=%u ORDER by id DESC LIMIT 1" % int(job['id']))
                 if len(last_job_submit) > 0:
                     #if there was a submit check if the job terminated with an error
-                    if QueueManagerClass.error(last_job_submit[0]['queue_id']):
+                    if config.jobpooler.queue_manager.had_errors(last_job_submit[0]['queue_id']):
                         #if the job terminated with an error, update it's status to failed
-                        if self.get_submits_count_by_job_id(job['id']) < max_attempts:
+                        if self.get_submits_count_by_job_id(job['id']) < config.jobpooler.max_attempts:
                             jobtracker.query("UPDATE jobs SET status='failed', updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job['id'])))
-                            if email_on_failures:
+                            if config.email.send_on_failures:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'])
                         else:
                             jobtracker.query("UPDATE jobs SET status='terminal_failure', updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job['id'])))
-                            if email_on_terminal_failures:
+                            if config.email.send_on_terminal_failures:
                                 self.mail_job_failure(job['id'],last_job_submit[0]['queue_id'],terminal=True)                        
                         #also update the last attempt
                         jobtracker.query("UPDATE job_submits SET status='failed', details='%s',updated_at='%s' WHERE id=%u" % ("Job terminated with an Error.",jobtracker.nowstr(),int(last_job_submit[0]['id'])))
@@ -215,20 +176,24 @@ class JobPool:
                         pass
     
     def mail_job_failure(self,job_id,queue_id,terminal=False):
-        stdout_log, stderr_log = QueueManagerClass.getLogs(queue_id)
+        stderr_log = config.jobpooler.queue_manager.read_stderr_log(queue_id)
         if terminal:
-            email_content = "Terminal Job Failure. Job will not be retried. File(s) used by this job were deleted.\n JobId: %s\n Last Attempt queue_id: %s\n" % (job_id, queue_id)
+            email_content = "Terminal Job Failure. \n\n" \
+                            "*** Job will not be retried! ***\n"
+            if config.jobpooler.delete_rawdata:
+                email_content += "File(s) used by this job were deleted.\n"
         else:
-            email_content = "Job Failure\n\nJobId: %s\n Last Attempt queue_id: %s\n" % (job_id, queue_id)
-            
-        email_content += "\nJob's Datafile(s):\n %s\n" % ("\n".join(self.get_jobs_files_by_job_id(job_id)))
-        email_content += "\n\nStandard Error Log:\n===================start==================\n %s \n====================end===================\n" % stderr_log
-        email_content += "\n\n%s" % stdout_log
-        try:
-            mailer = ErrorMailer(email_content)
-            mailer.send()
-        except Exception, e:
-            pass
+            email_content = "Job Failure\n\n"            
+        email_content += "JobId: %s\n" % job_id
+        email_content += "Last Attempt queue_id: %s\n\n" % queue_id
+        email_content += "Job's Datafile(s):\n\t%s\n" % ("\n\t".join(self.get_jobs_files_by_job_id(job_id)))
+        email_content += "Error Log file path: %s\n" % config.jobpooler.queue_manager.get_stderr_path(queue_id)
+        email_content += "\nStandard Error Log:\n"
+        email_content += "===================start==================\n"
+        email_content += stderr_log
+        email_content += "\n====================end===================\n"
+        
+        mailer.ErrorMailer(email_content).send()
                 
     def get_submits_count_by_job_id(self,job_id):
         job_submits = jobtracker.query("SELECT * FROM job_submits WHERE job_id=%u" % int(job_id))
@@ -238,14 +203,14 @@ class JobPool:
         new_jobs = jobtracker.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='new'")
         for new_job in new_jobs:
             running, queued = self.get_queue_status()
-            if (running + queued) < max_jobs_running:
+            if (running + queued) < config.jobpooler.max_jobs_running:
                 self.submit(new_job)
         
     def resubmit_failed_jobs(self):
         failed_jobs = jobtracker.query("select * FROM jobs,job_files,downloads WHERE jobs.id=job_files.job_id AND job_files.file_id = downloads.id AND jobs.status='failed'")
         for failed_job in failed_jobs:
             running, queued = self.get_queue_status()
-            if (running + queued) < max_jobs_running:
+            if (running + queued) < config.jobpooler.max_jobs_running:
                 self.submit(failed_job)
                 
     def get_jobs_files_by_job_id(self,job_id):
@@ -271,10 +236,12 @@ class JobPool:
                 pass
             return
                 
-        queue_id = QueueManagerClass.submit([job_row['filename']], output_dir)
-        job_cout.outs("Submitted job to process %s. Returned Queued iD: %s" % (job_row['filename'],queue_id))
+        queue_id = config.jobpooler.queue_manager.submit([job_row['filename']], output_dir)
+        job_cout.outs("Submitted job to process:\n " \
+                        "\tData file: %s.\n\tJob ID: %s" % \
+                        (job_row['filename'],queue_id))
         jobtracker.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at,base_output_dir) VALUES (%u,'%s','%s','%s','%s','%s','%s')"\
-          % (int(job_row['id']),queue_id,output_dir,'running',jobtracker.nowstr(),jobtracker.nowstr(),config.base_results_directory ))
+          % (int(job_row['id']),queue_id,output_dir,'running',jobtracker.nowstr(),jobtracker.nowstr(),config.jobpooler.base_results_directory ))
         jobtracker.query("UPDATE jobs SET status='submitted',updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job_row['id'])))
     
     def get_queue_status(self):
@@ -284,7 +251,7 @@ class JobPool:
 
             Returns a 2-tuple: (numrunning, numqueued).
         """
-        return QueueManagerClass.status()
+        return config.jobpooler.queue_manager.status()
 
 #The following class represents a search job that is either waiting to be submitted
 #to QSUB or is running
@@ -299,9 +266,6 @@ class PulsarSearchJob:
         """PulsarSearchJob creator.
             'datafiles' is a list of data files required for the job.
         """
-        if not issubclass(QueueManagerClass, PipelineQueueManager):
-            job_cout.outs("You must derive queue manager class from QueueManagerClass",OutStream.ERROR)
-            raise "You must derive queue manager class from QueueManagerClass"
         self.datafiles = datafiles
         if not testing:
             self.jobname = self.get_jobname()
@@ -329,7 +293,7 @@ class PulsarSearchJob:
         beam_num = data.beam_id
         obs_name = data.obs_name
         proc_date=datetime.datetime.now().strftime('%y%m%d')
-        presto_outdir = os.path.join(base_results_directory, str(mjd), \
+        presto_outdir = os.path.join(config.jobpooler.base_results_directory, str(mjd), \
                                         str(obs_name), str(beam_num), proc_date)
         return presto_outdir
 

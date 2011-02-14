@@ -8,10 +8,17 @@ survey = "PALFA2.0"
 ################################################################
 # Configurations for processing
 ################################################################
-base_results_directory = "/data/data7/PALFA/test_new_pipeline_clean/"
+#base_results_directory = "/data/alfa/test_pipeline/results"
+results_directory_host = "lore2" # Set to None to not create 
+                                 # results dir and copy via ssh.
+base_results_directory = "/exports/data7/PALFA/test_new_pipeline_clean/"
 base_working_directory = "/exports/scratch/PALFA/"
 default_zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/PALFA.zaplist"
 zaplistdir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/"
+log_dir = "/homes/borgii/plazar/research/PALFA/pipeline2.0_clean/pipeline2.0/log/"
+log_archive = "/homes/borgii/plazar/research/PALFA/pipeline2.0_clean/pipeline2.0/log_archive/"
+#log_dir = "C:/Reposotories/PALFA/pipeline2.0/log"
+#log_archive = "C:/Reposotories/PALFA/pipeline2.0/log_archive"
 
 max_jobs_running = 50
 job_basename = "%s_batchjob" % survey
@@ -92,7 +99,21 @@ def init_presto_search():
     return presto_search
 
 
+################################################################
+# Downloader Configuration
+#
+# Downlaoder uses 'rawdata_directory' to move downlaoded files to
+################################################################
 
+downloader_api_service_url = "http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL"
+downloader_api_username = "mcgill"
+downloader_api_password = "palfa@Mc61!!"
+#downloader_temp = "/data/alfa/test_pipeline" # When set to empty string will download to directory of the script
+downloader_temp = "/data/alfa/test_pipeline_clean/" # When set to empty string will download to directory of the script
+downloader_space_to_use = 228748364800#214748364800 #Size to use in bytes; Use 'None' to use all available space
+downloader_numofdownloads = 2
+downloader_numofrestores = 2
+downloader_numofretries = 3
 
 ################################################################
 # Result Uploader Configuration
@@ -120,14 +141,3 @@ bgs_screen_output = True #Set to True if you want the script to output runtime i
 bgs_db_file_path = '/data/alfa/test_pipeline_clean/storage_db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
 email_on_failures = True
 email_on_terminal_failures = True
-
-
-#this try clause is temporary and should be removed on production environment
-try:
-    from sanity_check import SanityCheck
-
-    sanity = SanityCheck()
-    sanity.run()
-except Exception,e:
-    print str(e)
-

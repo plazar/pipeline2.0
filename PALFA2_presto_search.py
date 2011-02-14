@@ -19,59 +19,21 @@ import presto
 import sifting
 
 import datafile
-
-# Basic parameters
-# institution is one of: 'UBC', 'NRAOCV', 'McGill', 'Columbia', 'Cornell', 'UTB'
-institution           = "NRAOCV" 
-base_output_directory = "/home/fcardoso/results/PALFA"
-db_pointing_file      = "/home/fcardoso/results/PALFA/PALFA_coords_table.txt"
-
-# The following determines if we'll dedisperse and fold using subbands.
-# In general, it is a very good idea to use them if there is enough scratch
-# space on the machines that are processing (~30GB/beam processed)
-use_subbands          = True
-
-# To fold from raw data (ie not from subbands or dedispersed FITS files)
-# set the following to True.
-fold_rawdata          = True
-
-# Tunable parameters for searching and folding
-# (you probably don't need to tune any of them)
-datatype_flag           = "-psrfits" # PRESTO flag to determine data type
-rfifind_chunk_time      = 2**15 * 0.000064  # ~2.1 sec for dt = 64us
-singlepulse_threshold   = 5.0  # threshold SNR for candidate determination
-singlepulse_plot_SNR    = 6.0  # threshold SNR for singlepulse plot
-singlepulse_maxwidth    = 0.1  # max pulse width in seconds
-to_prepfold_sigma       = 6.0  # incoherent sum significance to fold candidates
-max_cands_to_fold       = 150   # Never fold more than this many candidates
-numhits_to_fold         = 2    # Number of DMs with a detection needed to fold
-low_DM_cutoff           = 2.0  # Lowest DM to consider as a "real" pulsar
-lo_accel_numharm        = 16   # max harmonics
-lo_accel_sigma          = 2.0  # threshold gaussian significance
-lo_accel_zmax           = 0    # bins
-lo_accel_flo            = 2.0  # Hz
-hi_accel_numharm        = 8    # max harmonics
-hi_accel_sigma          = 3.0  # threshold gaussian significance
-hi_accel_zmax           = 50   # bins
-hi_accel_flo            = 1.0  # Hz
-low_T_to_search         = 20.0 # sec
-
-# DDplan configurations
-# presto_search.lodm        = 0      # pc cm-3
-# presto_search.hidm        = 1000   # pc cm-3
-# presto_search.resolution  = 0.1    # ms
-# if presto_search.use_subbands:
-#     presto_search.numsub  = 96     # subbands
-# else:
-#     presto_search.numsub  = 0      # Defaults to number of channels
+import config.searching
 
 # Sifting specific parameters (don't touch without good reason!)
-sifting.sigma_threshold = to_prepfold_sigma-1.0  # incoherent power threshold (sigma)
-sifting.c_pow_threshold = 100.0                  # coherent power threshold
-sifting.r_err           = 1.1    # Fourier bin tolerence for candidate equivalence
-sifting.short_period    = 0.0005 # Shortest period candidates to consider (s)
-sifting.long_period     = 15.0   # Longest period candidates to consider (s)
-sifting.harm_pow_cutoff = 8.0    # Power required in at least one harmonic
+# incoherent power threshold (sigma)
+sifting.sigma_threshold = config.searching.sifting_sigma_threshold 
+# coherent power threshold
+sifting.c_pow_threshold = config.searching.sifting_c_pow_threshold 
+# Fourier bin tolerence for candidate equivalence
+sifting.r_err           = config.searching.sifting_r_err    
+# Shortest period candidates to consider (s)
+sifting.short_period    = config.searching.sifting_short_period 
+# Longest period candidates to consider (s)
+sifting.long_period     = config.searching.sifting_long_period   
+# Power required in at least one harmonic
+sifting.harm_pow_cutoff = config.searching.sifting_harm_pow_cutoff
 
 debug = 0
 
@@ -198,11 +160,11 @@ def get_folding_command(cand, obs):
     # Note:  the following calculations should probably only be done once,
     #        but in general, these calculation are effectively instantaneous
     #        compared to the folding itself
-    if fold_rawdata:
+    if config.searching.fold_rawdata:
         # Fold raw data
         foldfiles = obs.filenmstr
     else:
-        if use_subbands:
+        if config.searching.use_subbands:
             # Fold the subbands
             subdms = get_all_subdms(obs.ddplans)
             subfiles = find_closest_subbands(obs, subdms, cand.DM)
@@ -317,7 +279,8 @@ class obs_info:
         # import DDplan2b
         # obs = DDplan2b.Observation(self.dt, self.fctr, self.BW, self.nchan, \
         #                             self.samp_per_row)
-        # plan = obs.gen_ddplan(lodm, hidm, numsub, resolution)
+        # plan = obs.gen_ddplan(config.searching.lodm, config.searching.hidm, \
+        #                       config.searching.numsub, config.searching.resolution)
         # plan.plot(fn=os.path.join(self.outputdir, self.basefilenm+"_ddplan.ps"))
         # print plan
         # for ddstep in plan.DDsteps:
@@ -354,7 +317,7 @@ class obs_info:
         report_file.write("---------------------------------------------------------\n")
         report_file.write("          rfifind time = %7.1f sec (%5.2f%%)\n"%\
                           (self.rfifind_time, self.rfifind_time/self.total_time*100.0))
-        if use_subbands:
+        if config.searching.use_subbands:
             report_file.write("       subbanding time = %7.1f sec (%5.2f%%)\n"%\
                               (self.subbanding_time, self.subbanding_time/self.total_time*100.0))
         else:
@@ -453,7 +416,7 @@ def set_up_job(filenms, workdir, resultsdir):
     """
     # Get information on the observation and the job
     job = obs_info(filenms, resultsdir)
-    if job.T < low_T_to_search:
+    if job.T < config.searching.low_T_to_search:
         sys.exit("The observation is too short (%.2f s) to search."%job.T)
     job.total_time = time.time()
     
@@ -463,7 +426,7 @@ def set_up_job(filenms, workdir, resultsdir):
     except: pass
 
     # Create a directory to hold all the subbands
-    if use_subbands:
+    if config.searching.use_subbands:
         try:
             os.makedirs("subbands")
         except: pass
@@ -481,7 +444,7 @@ def search_job(job):
 
     # rfifind the data file
     cmd = "rfifind %s -time %.17g -o %s %s" % \
-          (datatype_flag, rfifind_chunk_time, job.basefilenm,
+          (config.searching.datatype_flag, config.searching.rfifind_chunk_time, job.basefilenm,
            job.filenmstr)
     job.rfifind_time += timed_execute(cmd, stdout="%s_rfifind.out" % job.basefilenm)
     maskfilenm = job.basefilenm + "_rfifind.mask"
@@ -495,7 +458,7 @@ def search_job(job):
     for ddplan in job.ddplans:
 
         # Make a downsampled filterbank file if we are not using subbands
-        if not use_subbands:
+        if not config.searching.use_subbands:
             if ddplan.downsamp > 1:
                 cmd = "downsample_psrfits.py %d %s"%(ddplan.downsamp, job.filenmstr)
                 job.downsample_time += timed_execute(cmd)
@@ -511,11 +474,11 @@ def search_job(job):
         for passnum in range(ddplan.numpasses):
             subbasenm = "%s_DM%s"%(job.basefilenm, ddplan.subdmlist[passnum])
 
-            if use_subbands:
+            if config.searching.use_subbands:
                 # Create a set of subbands
                 cmd = "prepsubband %s -sub -subdm %s -downsamp %d -nsub %d -mask %s " \
                         "-o subbands/%s %s" % \
-                        (datatype_flag, ddplan.subdmlist[passnum], ddplan.sub_downsamp,
+                        (config.searching.datatype_flag, ddplan.subdmlist[passnum], ddplan.sub_downsamp,
                         ddplan.numsub, maskfilenm, job.basefilenm,
                         job.filenmstr)
                 job.subbanding_time += timed_execute(cmd, stdout="%s.subout" % subbasenm)
@@ -547,7 +510,7 @@ def search_job(job):
 
                 # Do the single-pulse search
                 cmd = "single_pulse_search.py -p -m %f -t %f %s"%\
-                      (singlepulse_maxwidth, singlepulse_threshold, datnm)
+                      (config.searching.singlepulse_maxwidth, config.searching.singlepulse_threshold, datnm)
                 job.singlepulse_time += timed_execute(cmd)
 
                 # FFT, zap, and de-redden
@@ -565,21 +528,21 @@ def search_job(job):
                 # Do the low-acceleration search
                 cmd = "accelsearch -harmpolish -numharm %d -sigma %f " \
                         "-zmax %d -flo %f %s"%\
-                        (lo_accel_numharm, lo_accel_sigma, lo_accel_zmax, \
-                        lo_accel_flo, fftnm)
+                        (config.searching.lo_accel_numharm, config.searching.lo_accel_sigma, config.searching.lo_accel_zmax, \
+                        config.searching.lo_accel_flo, fftnm)
                 job.lo_accelsearch_time += timed_execute(cmd)
                 try:
-                    os.remove(basenm+"_ACCEL_%d.txtcand"%lo_accel_zmax)
+                    os.remove(basenm+"_ACCEL_%d.txtcand"%config.searching.lo_accel_zmax)
                 except: pass
         
                 # Do the high-acceleration search
                 cmd = "accelsearch -harmpolish -numharm %d -sigma %f " \
                         "-zmax %d -flo %f %s"%\
-                        (hi_accel_numharm, hi_accel_sigma, hi_accel_zmax, \
-                        hi_accel_flo, fftnm)
+                        (config.searching.hi_accel_numharm, config.searching.hi_accel_sigma, config.searching.hi_accel_zmax, \
+                        config.searching.hi_accel_flo, fftnm)
                 job.hi_accelsearch_time += timed_execute(cmd)
                 try:
-                    os.remove(basenm+"_ACCEL_%d.txtcand"%hi_accel_zmax)
+                    os.remove(basenm+"_ACCEL_%d.txtcand"%config.searching.hi_accel_zmax)
                 except: pass
 
                 # Remove the .dat and .fft files
@@ -609,7 +572,7 @@ def search_job(job):
         # Check that there are matching files and they are not all empty
         if dmfiles and sum([os.path.getsize(f) for f in dmfiles]):
             cmd = 'single_pulse_search.py -t %f -g "%s"' % \
-                (singlepulse_plot_SNR, dmglob)
+                (config.searching.singlepulse_plot_SNR, dmglob)
             job.singlepulse_time += timed_execute(cmd)
             os.rename(psname,
                         job.basefilenm+"_DMs%s_singlepulse.ps"%dmrangestr)
@@ -617,19 +580,19 @@ def search_job(job):
     # Sift through the candidates to choose the best to fold
     job.sifting_time = time.time()
 
-    lo_accel_cands = sifting.read_candidates(glob.glob("*ACCEL_%d"%lo_accel_zmax))
+    lo_accel_cands = sifting.read_candidates(glob.glob("*ACCEL_%d"%config.searching.lo_accel_zmax))
     if len(lo_accel_cands):
         lo_accel_cands = sifting.remove_duplicate_candidates(lo_accel_cands)
     if len(lo_accel_cands):
-        lo_accel_cands = sifting.remove_DM_problems(lo_accel_cands, numhits_to_fold,
-                                                    dmstrs, low_DM_cutoff)
+        lo_accel_cands = sifting.remove_DM_problems(lo_accel_cands, config.searching.numhits_to_fold,
+                                                    dmstrs, config.searching.low_DM_cutoff)
 
-    hi_accel_cands = sifting.read_candidates(glob.glob("*ACCEL_%d"%hi_accel_zmax))
+    hi_accel_cands = sifting.read_candidates(glob.glob("*ACCEL_%d"%config.searching.hi_accel_zmax))
     if len(hi_accel_cands):
         hi_accel_cands = sifting.remove_duplicate_candidates(hi_accel_cands)
     if len(hi_accel_cands):
-        hi_accel_cands = sifting.remove_DM_problems(hi_accel_cands, numhits_to_fold,
-                                                    dmstrs, low_DM_cutoff)
+        hi_accel_cands = sifting.remove_DM_problems(hi_accel_cands, config.searching.numhits_to_fold,
+                                                    dmstrs, config.searching.low_DM_cutoff)
 
     all_accel_cands = lo_accel_cands + hi_accel_cands
     if len(all_accel_cands):
@@ -649,9 +612,9 @@ def search_job(job):
 
     cands_folded = 0
     for cand in all_accel_cands:
-        if cands_folded == max_cands_to_fold:
+        if cands_folded == config.searching.max_cands_to_fold:
             break
-        if cand.sigma > to_prepfold_sigma:
+        if cand.sigma > config.searching.to_prepfold_sigma:
             job.folding_time += timed_execute(get_folding_command(cand, job))
             cands_folded += 1
 
@@ -672,18 +635,18 @@ def clean_up(job):
     # NOTE:  need to add database commands
 
     # Tar up the results files 
-    tar_suffixes = ["_ACCEL_%d.tgz"%lo_accel_zmax,
-                    "_ACCEL_%d.tgz"%hi_accel_zmax,
-                    "_ACCEL_%d.cand.tgz"%lo_accel_zmax,
-                    "_ACCEL_%d.cand.tgz"%hi_accel_zmax,
+    tar_suffixes = ["_ACCEL_%d.tgz"%config.searching.lo_accel_zmax,
+                    "_ACCEL_%d.tgz"%config.searching.hi_accel_zmax,
+                    "_ACCEL_%d.cand.tgz"%config.searching.lo_accel_zmax,
+                    "_ACCEL_%d.cand.tgz"%config.searching.hi_accel_zmax,
                     "_singlepulse.tgz",
                     "_inf.tgz",
                     "_pfd.tgz",
                     "_bestprof.tgz"]
-    tar_globs = ["*_ACCEL_%d"%lo_accel_zmax,
-                 "*_ACCEL_%d"%hi_accel_zmax,
-                 "*_ACCEL_%d.cand"%lo_accel_zmax,
-                 "*_ACCEL_%d.cand"%hi_accel_zmax,
+    tar_globs = ["*_ACCEL_%d"%config.searching.lo_accel_zmax,
+                 "*_ACCEL_%d"%config.searching.hi_accel_zmax,
+                 "*_ACCEL_%d.cand"%config.searching.lo_accel_zmax,
+                 "*_ACCEL_%d.cand"%config.searching.hi_accel_zmax,
                  "*.singlepulse",
                  "*_DM[0-9]*.inf",
                  "*.pfd",

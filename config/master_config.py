@@ -1,33 +1,27 @@
+from config_defs import basic, processing, background, email, download, upload, commondb
 ################################################################
 # Basic parameters
 ################################################################
-institution = "McGill"
-pipeline = "PRESTO"
-survey = "PALFA2.0"
+basic.institution = "McGill"
+basic.pipeline = "PRESTO"
+basic.survey = "PALFA2.0"
+basic.pipelinedir = "/homes/borgii/plazar/research/PALFA/pipeline2.0_clean/pipeline2.0"
 
 ################################################################
 # Configurations for processing
 ################################################################
-base_results_directory = "/data/data7/PALFA/test_new_pipelinedew/"
-base_working_directory = "/exports/scratch/PALFA/"
-default_zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/PALFA.zaplist"
-zaplistdir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/"
+processing.base_results_directory = "/data/data7/PALFA/test_new_pipeline_clean/"
+processing.base_working_directory = "/exports/scratch/PALFA/"
+processing.default_zaplist = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/PALFA.zaplist"
+processing.zaplistdir = "/homes/borgii/plazar/research/PALFA/pipeline2.0/lib/zaplists/"
 
-
-
-sleep_time = 10*60 # time to sleep between submitting jobs (in seconds)
-job_basename = "%s_batchjob" % survey
-#resource_list = "nodes=borg94:ppn=1:JumboFrame" # resource list for PBS's qsub
-resource_list = "nodes=P248:ppn=1" # resource list for PBS's qsub
-delete_rawdata = True
-
-################################################################
-# Configurations for raw data
-################################################################
-#rawdata_directory = "C:/Reposotories/PALFA/FTP"
-rawdata_re_pattern = r"^p2030.*b[0-7]s[0-1]g?.*\.fits$"
-
-
+processing.max_jobs_running = 50
+processing.job_basename = "%s_batchjob" % basic.survey
+processing.max_attempts = 2 # Maximum number of times a job is attempted due to errors
+processing.resource_list = "nodes=P248:ppn=1" # resource list for PBS's qsub
+processing.delete_rawdata = True
+import QsubManager
+processing.QueueManagerClass = QsubManager.Qsub()
 ################################################################
 # Import presto_search module and set parameters
 ################################################################
@@ -92,30 +86,57 @@ def init_presto_search():
     return presto_search
 
 
-
-
+################################################################
+# Result Uploader Configuration
+################################################################
+import subprocess
+import imp
+import os
+prestodir = os.getenv('PRESTO')
+prestohash = subprocess.Popen("git rev-parse HEAD", cwd=prestodir, \
+                        stdout=subprocess.PIPE, shell=True).stdout.read().strip()
+pipelinehash = subprocess.Popen("git rev-parse HEAD", cwd=basic.pipelinedir, \
+                        stdout=subprocess.PIPE, shell=True).stdout.read().strip()
+upload.version_num = 'PRESTO:%s;PIPELINE:%s' % (prestohash, pipelinehash)
 
 
 ################################################################
-# Mailer Configuration
-#
-# Mailer uses following configurations to send notification email
-# in case of an error.
+# Common Database Configuration
 ################################################################
-#!!!!!!!! Configure mailer in non versioned file: mail.cfg.py
+commondb.username = 'mcgill'
+commondb.password = 'pw4sd2mcgill!'
+commondb.host = 'arecibosql.tc.cornell.edu'
 
 
 ################################################################
 # Background Script Configuration
 ################################################################
-bgs_screen_output = True #Set to True if you want the script to output runtime information, False otherwise
-bgs_db_file_path = '/data/alfa/test_pipeline_clean/storage_db' #path to sqlite3 database file, put just the filename if the file is in the same directory as the background script
-email_on_failures = True
-email_on_terminal_failures = True
+background.screen_output = True # Set to True if you want the script to 
+                                # output runtime information, False otherwise
+# Path to sqlite3 database file
+background.jobtracker_db = "/data/alfa/test_pipeline_clean/storage_db"
+
+################################################################
+# Email Notification Configuration
+################################################################
+email.enabled = True
+email.smtp_host = 'smtp.gmail.com' # None - For use of the local smtp server
+email.smtp_username = 'mcgill.pipeline@gmail.com'
+email.smtp_password = 'mcg1592l!!'
+email.recipient = 'patricklazarus@gmail.com' # The address to send emails to
+email.sender = None # From address to show in email
+email.send_on_failures = True
+email.send_on_terminal_failures = True
 
 
-#this try clause is temporary and should be removed on production environment
-import sanity_check
-sanity = sanity_check.SanityCheck()
-sanity.run(__name__)
-
+################################################################
+# Downloader Configuration
+################################################################
+download.api_service_url = "http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL"
+download.api_username = "mcgill"
+download.api_password = "palfa@Mc61!!"
+download.temp = "/data/alfa/test_pipeline_clean/"
+download.space_to_use = 228748364800
+download.numdownloads = 2
+download.numrestores = 2
+download.numretries = 3

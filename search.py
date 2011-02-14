@@ -14,7 +14,7 @@ import subprocess
 
 import datafile
 
-import config
+import config.processing
 
 
 def get_datafns():
@@ -74,13 +74,13 @@ def init_workspace():
         - Return 2-tuple (working directory, results directory).
     """
     # Generate temporary working directory
-    if not os.path.isdir(config.base_working_directory):
+    if not os.path.isdir(config.processing.base_working_directory):
 	print "Creating base work directory..."
-	os.makedirs(config.base_working_directory)
+	os.makedirs(config.processing.base_working_directory)
     workdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_processing_", \
-                        dir=config.base_working_directory)
+                        dir=config.processing.base_working_directory)
     resultsdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_results_", \
-                        dir=config.base_working_directory)
+                        dir=config.processing.base_working_directory)
     return (workdir, resultsdir)
 
 
@@ -126,8 +126,8 @@ def set_up():
 def search(fns, workdir, resultsdir):
     # Search the data
     print "Go-Go-Gadget pulsar search..."
-    presto_search = config.init_presto_search()
-    presto_search.main(fns, workdir, resultsdir)
+    import PALFA2_presto_search
+    PALFA2_presto_search.main(fns, workdir, resultsdir)
     
     # Remove data, weights, scales and offsets from fits files
     # and stash them in the results directory.
@@ -142,16 +142,17 @@ def copy_zaplist(fns, workdir):
     data = datafile.autogen_dataobj(fns)
 
     # First, try to find custom zaplist for this MJD
-    customzapfn = os.path.join(config.zaplistdir, "autozap_mjd%d.zaplist" % \
-                                                    int(data.timestamp_mjd))
+    customzapfn = os.path.join(config.processing.zaplistdir, \
+                                "autozap_mjd%d.zaplist" % int(data.timestamp_mjd))
     if os.path.exists(customzapfn):
         # Copy custom zaplist to workdir and rename to the expected zaplist fn
         shutil.copy(customzapfn, workdir)
         print "Copied custom zaplist: %s" % customzapfn
     else:
         # Copy default zaplist
-        shutil.copy(config.default_zaplist, workdir)
-        print "No custom zaplist found. Copied default zaplist: %s" % config.default_zaplist
+        shutil.copy(config.processing.default_zaplist, workdir)
+        print "No custom zaplist found. Copied default zaplist: %s" % \
+                config.processing.default_zaplist
 
 
 def copy_results(resultsdir, outdir):

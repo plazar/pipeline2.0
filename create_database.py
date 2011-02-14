@@ -1,7 +1,7 @@
 import os.path
 
 import jobtracker
-import config
+import config.background
 
 creates = []
 
@@ -66,11 +66,11 @@ creates.append("CREATE TABLE requests ( " \
                     "updated_at TEXT)")
 
 
-if not os.path.exists(config.bgs_db_file_path):
+if not os.path.exists(config.background.jobtracker_db):
     print "Database file %s doesn't exists, creating a clean database." % \
-                    config.bgs_db_file_path
+                    config.background.jobtracker_db
     for table in creates:
         jobtracker.query(table)
 else:
     print "Database file %s already exists. " \
-            "Aborting creation of database." % config.bgs_db_file_path
+            "Aborting creation of database." % config.background.jobtracker_db

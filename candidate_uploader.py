@@ -20,9 +20,9 @@ import prepfold
 import upload
 from formats import accelcands
 
-# get configurations from config file
-from master_config import institution, pipeline,init_presto_search
-
+# get configurations
+import config.basic
+import config.searching
 
 class PeridocityCandidate(upload.Uploadable):
     """A class to represent a PALFA periodicity candidate.
@@ -74,8 +74,8 @@ class PeridocityCandidate(upload.Uploadable):
             "@incoherent_power=%.12g, " % self.incoherent_power + \
             "@num_hits=%d, " % self.num_hits + \
             "@num_harmonics=%d, " % self.num_harmonics + \
-            "@institution='%s', " % institution + \
-            "@pipeline='%s', " % pipeline + \
+            "@institution='%s', " % config.basic.institution + \
+            "@pipeline='%s', " % config.basic.pipeline + \
             "@version_number='%s', " % self.versionnum + \
             "@proc_date='%s', " % datetime.date.today().strftime("%Y-%m-%d") + \
             "@presto_sigma=%.12g" % self.sigma
@@ -152,8 +152,7 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
 
     # Get list of candidates from *.accelcands file
     candlist = accelcands.parse_candlist(candlists[0])
-    presto_search = init_presto_search()
-    minsigma = presto_search.to_prepfold_sigma
+    minsigma = config.searching.to_prepfold_sigma
     foldedcands = [c for c in candlist if c.sigma > minsigma]
     foldedcands = foldedcands[:presto_search.max_cands_to_fold]
     foldedcands.sort(reverse=True) # Sort by descending sigma
