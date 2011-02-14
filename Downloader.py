@@ -10,6 +10,7 @@ import suds.client
 import M2Crypto
                             
 import jobtracker
+import datafile
 import mailer
 import OutStream
 import config.background
@@ -47,10 +48,10 @@ class DownloadModule:
                     running_downloaders_count += 1
 
             # Print a status message
-            used = self.get_space_used()
-            allowed = config.download.space_to_use
+            used = self.get_space_used()/1024.0**3
+            allowed = config.download.space_to_use/1024.0**3
             status_msg  = "Number of running restores: %u\n" % running_restores_count
-            status_msg += "Usage %d of %d (%.2f %%)\n" % \
+            status_msg += "Usage %d GB of %d GB (%.2f %%)\n" % \
                                 (used, allowed, 100.0*used/allowed)
             dlm_cout.outs(status_msg)
             time.sleep(37)
@@ -225,7 +226,9 @@ class restore:
                 list_cmd = True
                 
                 for file in files_in_res_dir:
-                    if not re.match('.*7\.w4bit\.fits',file):
+                    datafile_type = datafile.get_datafile_type([file])
+                    parsedfn = datafile_type.fnmatch(file)
+                    if parsedfn.groupdict().setdefault('beam', '-1') != '7': 
                         file_size = ftp.size(file)
                         dlm_cout.outs(self.guid +" got file size for "+ file)
                         self.size += file_size
@@ -236,6 +239,7 @@ class restore:
                 got_all_files_size = True
                 no_connection = False
             except Exception, e:
+                raise
                 dlm_cout.outs(self.guid +" FTP-Connection Error: "+ str(e) +"Wating for retry...2 seconds", OutStream.OutStream.WARNING)
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to Connect: "+ str(connected), OutStream.OutStream.WARNING)
                 dlm_cout.outs(self.guid +" FTP-Connection Managed to Login: "+ str(logged_in), OutStream.OutStream.WARNING)

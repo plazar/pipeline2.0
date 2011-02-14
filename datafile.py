@@ -12,13 +12,11 @@ import re
 import warnings
 import types
 
-import pyfits
 import numpy as np
 
 from astro_utils import sextant
 from astro_utils import protractor
 from astro_utils import calendar
-from formats import psrfits
 
 COORDS_TABLE = "/homes/borgii/alfa/svn/workingcopy_PL/PALFA/miscellaneous/" + \
                 "PALFA_coords_table.txt"
@@ -243,6 +241,10 @@ class PsrfitsData(Data):
     def __init__(self, fitsfns):
         """PSR fits Header object constructor.
         """
+        # Import PSRFITS-specific modules
+        import pyfits
+        from formats import psrfits
+        
         super(PsrfitsData, self).__init__(fitsfns)
         # Read information from files
         self.specinfo = psrfits.SpectraInfo(self.fns)
