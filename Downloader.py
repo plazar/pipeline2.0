@@ -45,8 +45,14 @@ class DownloadModule:
                     res.status()
                     running_restores_count += 1
                     running_downloaders_count += 1
-            dlm_cout.outs("Number of running restores: %u" % running_restores_count)
-            print "\n\n"
+
+            # Print a status message
+            used = self.get_space_used()
+            allowed = config.download.space_to_use
+            status_msg  = "Number of running restores: %u\n" % running_restores_count
+            status_msg += "Usage %d of %d (%.2f %%)\n" % \
+                                (used, allowed, 100.0*used/allowed)
+            dlm_cout.outs(status_msg)
             time.sleep(37)
             
     def recover(self):
@@ -55,7 +61,7 @@ class DownloadModule:
             self.restores.append(restore(num_beams=1,guid=request['guid']))
         dlm_cout.outs("Recovered: %u restores" % len(self.restores))
         
-    def have_space(self):        
+    def get_space_used(self):        
         folder_size = 0
         for (path, dirs, files) in os.walk(config.download.temp):
           for file in files:
@@ -64,7 +70,10 @@ class DownloadModule:
                 folder_size += os.path.getsize(filename)
             except Exception, e:
                 dlm_cout.outs('There was an error while getting the file size: %s   Exception: %s' % (filename,str(e)) )
+        return folder_size
 
+    def have_space(self):
+        folder_size = self.get_space_used()
         if folder_size < config.download.space_to_use:
             return True
         else:
