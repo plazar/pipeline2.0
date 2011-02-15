@@ -9,7 +9,7 @@ import mailer
 import jobtracker
 import header
 import config.upload
-import config.jobpooler
+import config.basic
 
 # Suppress warnings produced by uploaders
 # (typically because data, weights, scales, offsets are missing 
@@ -197,7 +197,7 @@ class JobUploader():
     def clean_up(self,job_row):
         downloads = jobtracker.query('SELECT downloads.* FROM jobs,job_files,downloads WHERE jobs.id=%u AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id' % (job_row['id']))
         for download in downloads:
-            if config.jobpooler.delete_rawdata and os.path.exists(download['filename']):
+            if config.basic.delete_rawdata and os.path.exists(download['filename']):
                 os.remove(download['filename'])
                 print "Deleted: %s" % download['filename']
                            
@@ -220,5 +220,5 @@ class JobUploader():
         uploaded_jobs = jobtracker.query("SELECT jobs.*,job_submits.output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='uploaded' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
         for job_row in uploaded_jobs:
             for file_path in self.get_jobs_files(job_row):
-                if config.jobpooler.delete_rawdata and os.path.exists(file_path):
+                if config.basic.delete_rawdata and os.path.exists(file_path):
                     os.remove(file_path)

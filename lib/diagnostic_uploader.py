@@ -73,8 +73,8 @@ class PlotDiagnostic(Diagnostic):
         sprocstr = "EXEC spDiagnosticPlotAdder " \
             "@obs_name='%s', " % self.obs_name + \
             "@beam_id=%d, " % self.beam_id + \
-            "@instit='%s', " % institution + \
-            "@pipeline='%s', " % pipeline + \
+            "@instit='%s', " % config.basic.institution + \
+            "@pipeline='%s', " % config.basic.pipeline + \
             "@version_number='%s', " % self.version_number + \
             "@diagnostic_plot_type_name='%s', " % self.name + \
             "@diagnostic_plot_type_description='%s', " % self.description + \

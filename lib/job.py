@@ -13,6 +13,7 @@ import datafile
 import config.background
 import config.jobpooler
 import config.email
+import config.basic
 import jobtracker
 import mailer
 import OutStream
@@ -184,7 +185,7 @@ class JobPool:
         if terminal:
             email_content = "Terminal Job Failure. \n\n" \
                             "*** Job will not be retried! ***\n"
-            if config.jobpooler.delete_rawdata:
+            if config.basic.delete_rawdata:
                 email_content += "File(s) used by this job were deleted.\n"
         else:
             email_content = "Job Failure\n\n"            
