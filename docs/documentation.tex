@@ -14,6 +14,19 @@
 
 \section{Installation}
 \subsection{Dependencies}
+The PALFA pipeline has various dependencies. All of the following packages are required to run the pipeline.
+\begin{itemize}
+    \item PRESTO (https://github.com/scottransom/presto)
+    \item psrfits\_utils (be sure to pull Kevin Stovall's version of psrfits\_utils. It contains the merging code required to analyse PALFA Mock spectrometer data. https://github.com/kstovall/psrfits\_utils.git)
+    \item numpy (http://numpy.scipy.org/)
+    \item M2Crypto (http://pypi.python.org/pypi/M2Crypto)
+    \item PBSQuery (http://subtrac.sara.nl/oss/pbs\_python/wiki/TorqueInstallation)
+    \item pyfits (http://www.stsci.edu/resources/software\_hardware/pyfits)
+    \item pyodbc (http://pypi.python.org/pypi/pyodbc/)
+    \item suds (http://pypi.python.org/pypi/suds)
+\end{itemize}
+
+\textit{NOTE: Some of these dependencies have requirements of their own. For example, PRESTO requires cfitsio, TEMPO, numpy, scipy, etc. Be sure to follow the installation instructions for each packages.}
 
 \subsection{Getting Started}
 Here we will present basic step-by-step instructions for setting up the pipeline.
@@ -71,9 +84,25 @@ An overview of the pipeline.
 
 \subsection{Components}
 \subsubsection{Job-tracking Database}
+Each job run through the pipeline passes through multiple stages before it is completed. To track the state of each job, and log its history a SQLite3 database is used. The database is simply a (readable/writable) binary file formatted according to the SQLite3 format. The database file can be access using SQL statements using python's sqlite3 module, which is part of python's standard library, as of python version 2.5.
+
+Relevant links:
+\begin{itemize}
+    \item http://docs.python.org/library/sqlite3.html
+    \item http://www.sqlite.org/
+\end{itemize}
+
+The job-tracker database governs all aspects of the pipeline. It maintains lists of requests for data, downloads, jobs, files associated with each job, processing attempts, and upload attempts.
+
+Details for each table in the database are presented in Section \ref{sec:dbdetails}.
+
 \subsubsection{Downloader}
 \subsubsection{Job Pooler}
 \subsubsection{Uploader}
+\paragraph{Headers}
+
+\paragraph{Candidates}
+
 \paragraph{Diagnostics}
 Diagnostics stored in the common database are split into two types: Numeric values and binary data. Some of the ``binary data" diagnostics are actually plain text files.
 
@@ -104,6 +133,15 @@ The following per-beam diagnostics are uploaded to the common database:
         The list of frequencies and ranges zapped from the power spectrum before searching this beam.
 \end{itemize}
 
+\subsection{Objects Tracked}
+\paragraph{Restores}
+
+\paragraph{Downloads}
+
+\paragraph{Jobs}
+
+\paragraph{Uploads}
+
 
 \section{Reference}
 \subsection{Executables}
@@ -125,5 +163,8 @@ usage: \texttt{StartJobUploader.py}
 \subsection{Generic Queue Manager Interface}
 
 \subsection{Configurations}
+
+\subsection{Database Details}
+\label{sec:dbdetails}
 
 \end{document}
