@@ -49,13 +49,14 @@ def get_datafile_type(fns):
         Output:
             datafile_type: The subclass of Data that corresponds to 'fns'.
     """
+    datafile_type = None
     for objname in globals():
         obj = eval(objname)
         if type(obj)==types.TypeType and issubclass(obj, Data):
             if obj.is_correct_filetype(fns):
                 datafile_type = obj
                 break
-    if 'datafile_type' not in dir():
+    if 'datafile_type' is None:
         raise ValueError("Cannot determine datafile's type (%s)." % fns)
     return datafile_type
 
