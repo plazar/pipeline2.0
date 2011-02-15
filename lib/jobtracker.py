@@ -25,7 +25,7 @@ def query(query_string, fetchone=False):
             db_conn.commit()
             db_conn.close()
             not_connected = False
-        except Exception, e:
+        except sqlite3.OperationalError, e:
             try:
                 db_conn.close()
             except Exception, e:
