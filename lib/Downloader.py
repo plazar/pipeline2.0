@@ -212,7 +212,7 @@ class restore:
                 ftp.set_pasv(1)
                 connected = True
 
-                login_response = ftp.login('palfadata','NAIC305m')
+                login_response = ftp.login(config.download.ftp_host,config.download.ftp_port)
                 logged_in = True
                 if login_response != "230 User logged in.":
                     return False
