@@ -1,0 +1,64 @@
+**********************************************************************
+This file describes the usage of PipelineQueueManager 'InterfaceClass'
+
+Author: Alexander Samoilov (SequenbceFactory.com)
+**********************************************************************
+
+Introduction
+The Pipeline interfaces a queue manager, that allows implementation of
+a system specific queueing system for job processing.
+The system specific queue manage class must be derived
+from PipelineQueueManager class located in PipelineQueueManager module.
+Each function of the PipelineQueueManager must be implemented in the
+derived class.
+
+***************
+Methods Details
+***************
+
+*******
+submit
+*******
+Submits a job to queue manager with files list and output directory.
+Must return a unique string identifier for the submitted job.
+Raises ValueError if job was not submitted by queue manager.
+
+**********
+is_running
+**********
+Given a unique string identifier for a job, must return True/False
+wheather the job is in the Queue or not respectively.
+
+
+******************
+is_processing_file
+******************
+Given a string path of a file, must return True/False wheather the job
+processing the input filename is running.
+
+******
+delete
+******
+Given a unique string identifier for a job, must guarantee the removal of the job from the Queue Manager.
+Returns True if the job was delete, False when the error occured.
+
+******
+status
+******
+Must return a tuple of number of jobs running and queued for the
+pipeline.
+
+**********
+had_errors
+**********
+Given a unique string identifier for a job, must return True/False weather
+The job terminated with an error or not respectively.
+
+
+
+
+
+
+
+
+
