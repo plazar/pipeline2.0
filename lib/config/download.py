@@ -9,6 +9,7 @@ space_to_use = 228748364800
 numdownloads = 2
 numrestores = 2
 numretries = 3
+log_file_path = "downloader.log"
 
 import download_check
 download_check.download.populate_configs(locals())

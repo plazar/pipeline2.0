@@ -1,11 +1,11 @@
 import os.path
 import sys
 import os
-import threading 
+import threading
 import shutil
 import time
 import re
-import urllib2 
+import urllib2
 import suds.client
 import M2Crypto
 
@@ -17,8 +17,8 @@ import config.background
 import config.download
 import config.email
 
-dlm_cout = OutStream.OutStream("Download Module","downloader.log", config.background.screen_output)
-dl_cout = OutStream.OutStream("Download Module: d/l thread","downloader.log",config.background.screen_output)
+dlm_cout = OutStream.OutStream("Download Module",config.download.log_file_path, config.background.screen_output)
+dl_cout = OutStream.OutStream("Download Module: d/l thread",config.download.log_file_path,config.background.screen_output)
 
 class DownloadModule:
     def __init__(self):
@@ -28,7 +28,7 @@ class DownloadModule:
         self.password = config.download.api_password
         self.restores = []
         self.recover()
-        
+
     def run(self):
         #if can create more restores then request new ones and add them to restores array
         while True:
@@ -59,14 +59,14 @@ class DownloadModule:
             status_msg += "Disk space available: %d GB\n" % total
             dlm_cout.outs(status_msg)
             time.sleep(37)
-            
+
     def recover(self):
         unfinished_requests = jobtracker.query("SELECT * FROM requests WHERE status NOT LIKE 'finished'")
         for request in unfinished_requests:
             self.restores.append(restore(num_beams=1,guid=request['guid']))
         dlm_cout.outs("Recovered: %u restores" % len(self.restores))
-        
-    def get_space_used(self):        
+
+    def get_space_used(self):
         folder_size = 0
         for (path, dirs, files) in os.walk(config.download.temp):
           for file in files:
@@ -88,12 +88,12 @@ class DownloadModule:
         if len(self.restores) >= config.download.numrestores:
             dlm_cout.outs("Cannot have more than "+ str(config.download.numrestores) +" at a time.")
             return False
-        
+
         total_size = 0
         for request in self.restores:
             if request.values['size']:
                 total_size += int(request.values['size'])
-        
+
         dlm_cout.outs("Total estimated size of currently running restores: %u" % total_size)
         return ((self.get_available_space() - total_size) > 0)
 
@@ -133,14 +133,14 @@ class restore:
             self.update_from_db()
 
     def run(self):
-        """If this doesn't have guid then we request it 
+        """If this doesn't have guid then we request it
         """
         if self.guid == False:
             return self.request()
-        
+
         self.update_from_db()
         # print self.values
-        
+
         if self.values['status'] == "waiting":
             #TODO: remove in refactored
             self.getLocation()
@@ -150,7 +150,7 @@ class restore:
             if self.files == dict():
                 self.get_files()
             self.download()
-        elif self.values['status'] == "finished" or self.values['status'] == "failed":  
+        elif self.values['status'] == "finished" or self.values['status'] == "failed":
             dlm_cout.outs("Restore: %s is %s" % (self.guid,self.values['status']))
             return False
         return True
@@ -177,7 +177,7 @@ class restore:
         else:
             dlm_cout.outs("Failed to receive proper GUID", OutStream.OutStream.WARNING)
             return False
-    
+
     def is_downloading(self):
         if self.downloaders == dict():
             return False
@@ -185,10 +185,10 @@ class restore:
             atleast_one = False
             for filename in self.downloaders:
                 if self.downloaders[filename].is_alive():
-                    atleast_one = True        
+                    atleast_one = True
         return atleast_one
-        
-    
+
+
     def getLocation(self):
         #self.my_logger.info("Requesting Location for: "+ self.name)
         response = self.WebService.Location(username=self.username,pw=self.password, guid=self.guid)
@@ -197,7 +197,7 @@ class restore:
             return True
         else:
             return False
-            
+
     def get_files(self):
         connected = False
         logged_in = False
@@ -205,7 +205,7 @@ class restore:
         list_cmd = False
         got_all_files_size = False
         no_connection = True
-        
+
         while no_connection:
             try:
                 ftp = M2Crypto.ftpslib.FTP_TLS()
@@ -225,14 +225,14 @@ class restore:
                 if cwd_response != "250 CWD command successful.":
                     #dlm_cout.outs(self.guid+" Restore Directory not found", OutStream.OutStream.WARNING)
                     return False
-                
+
                 files_in_res_dir = ftp.nlst()
                 list_cmd = True
-                
+
                 for file in files_in_res_dir:
                     datafile_type = datafile.get_datafile_type([file])
                     parsedfn = datafile_type.fnmatch(file)
-                    # if not file.endswith('7.w4bit.fits'): 
+                    # if not file.endswith('7.w4bit.fits'):
                     if parsedfn.groupdict().setdefault('beam', '-1') != '7':
                         file_size = ftp.size(file)
                         dlm_cout.outs(self.guid +" got file size for "+ file)
@@ -240,7 +240,7 @@ class restore:
                         self.files[file] = file_size
                     else:
                         dlm_cout.outs(self.guid +" IGNORING: %s" % file)
-                        
+
                 got_all_files_size = True
                 no_connection = False
             except Exception, e:
@@ -258,20 +258,20 @@ class restore:
                         notification.send()
                     except Exception,e:
                         pass
-                    return False                    
+                    return False
 
                 time.sleep(2)
         jobtracker.query("UPDATE requests SET size = '%u' WHERE guid='%s'" % (self.size,self.guid))
         ftp.close()
-    
-    def create_dl_entries(self):        
-        for filename,filesize in self.files.items():            
-            dl_check = jobtracker.query("SELECT * FROM downloads WHERE request_id=%s AND filename='%s'" % (self.values['id'],filename))            
+
+    def create_dl_entries(self):
+        for filename,filesize in self.files.items():
+            dl_check = jobtracker.query("SELECT * FROM downloads WHERE request_id=%s AND filename='%s'" % (self.values['id'],filename))
             if len(dl_check) == 0:
                 query = "INSERT INTO downloads (request_id,remote_filename,filename,status,created_at,updated_at,size) VALUES ('%s','%s','%s','%s','%s','%s',%u)"\
                         % (self.values['id'],filename,os.path.join(config.download.temp,filename),'New',jobtracker.nowstr(),jobtracker.nowstr(), int(filesize))
                 jobtracker.query(query)
-            
+
     #TODO: Refactor function and helpers
     def download(self):
         dl_entries = jobtracker.query("SELECT * FROM downloads WHERE request_id = %u" % self.values['id'])
@@ -281,14 +281,14 @@ class restore:
             if dl_entries == list():
                 #created downloads entries for this restore (for all files)
                 self.create_dl_entries()
-        
+
         #get downloads entries for this restore (for all files)
         dl_entries = jobtracker.query("SELECT * FROM downloads WHERE request_id = %u and status NOT LIKE 'downloaded'" % self.values['id'])
         #for each downloads entry
         for dl_entry in dl_entries:
             #get number of attempts for this downoad
             this_download_attempts_count = len(jobtracker.query("SELECT * from download_attempts WHERE download_id = %s" % dl_entry['id']))
-            #if downloader is not running for this entry            
+            #if downloader is not running for this entry
             if not dl_entry['remote_filename'] in self.downloaders:
                 #if maximum number of attempts is not reached
                 if config.download.numretries > this_download_attempts_count:
@@ -299,7 +299,7 @@ class restore:
                     self.downloaders[dl_entry['remote_filename']] = downloader(self.guid,dl_entry['remote_filename'],id)
                     #run downloader thread
                     self.downloaders[dl_entry['remote_filename']].start()
-        
+
         #update download status and remove dead downloaders
         for filename in self.downloaders.keys():
             if not self.downloaders[filename].is_alive():
@@ -325,18 +325,18 @@ class restore:
                     % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),self.downloaders[filename].attempt_id))
                 jobtracker.query("UPDATE downloads SET status = 'downloading', details = '%s',updated_at='%s' WHERE remote_filename = '%s'"\
                     % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),filename))
-                    
+
     def downloaded_size_match(self,attempt_id):
         attempt_row = jobtracker.query("SELECT * FROM download_attempts WHERE id=%u" % int(attempt_id))[0]
         download = jobtracker.query("SELECT * FROM downloads WHERE id=%u" % int(attempt_row['download_id']))[0]
-        
+
         if os.path.exists(download['filename']):
             return (os.path.getsize(download['filename']) == int(download['size']))
         else:
             dlm_cout.outs("Does not exist: %s" % download['filename'])
             return False
-        
-            
+
+
     def status(self):
         dls = jobtracker.query("SELECT * from downloads WHERE request_id = %s" % self.values['id'])
         print "Restore: %s" % self.guid
@@ -349,23 +349,23 @@ class restore:
         finished_downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s AND status LIKE 'downloaded'" % self.values['id'])
         failed_downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s AND status LIKE 'failed'" % self.values['id'])
         downloading = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s AND status LIKE 'downloading'" % self.values['id'])
-        
+
         if len(downloading) > 0:
             return False
-        
+
         if len(all_downloads) == 0 and self.downloaders == dict():
             return False
-        
+
         if len(all_downloads) == len(finished_downloads):
             jobtracker.query("UPDATE requests SET status ='finished', updated_at='%s' WHERE id = %s"\
                     % (jobtracker.nowstr(), self.values['id']))
             return True
-        
+
         for failed_download in failed_downloads:
             number_of_attempts = len(jobtracker.query("SELECT * FROM download_attempts WHERE download_id = %s" % failed_download['id']))
             if config.download.numretries < number_of_attempts:
                 return False
-        
+
         jobtracker.query("UPDATE requests SET status ='finished', updated_at='%s' WHERE id=%s"\
                     % (jobtracker.nowstr(),self.values['id']) )
         return True
@@ -378,7 +378,7 @@ class restore:
         if result == list():
             return result
         return result[0]
-    
+
 
 class downloader(threading.Thread):
 
@@ -401,7 +401,7 @@ class downloader(threading.Thread):
         self.end_time = 0
         self.total_size_got = 0
         self.file_size = 0
-        
+
     def run(self):
         not_logged_in = True
         while not_logged_in:
@@ -427,14 +427,14 @@ class downloader(threading.Thread):
                 #self.status = "Failed: '"+ self.file_name +"' -- "+ str(e)
                 dl_cout.outs("Could not connect to host. Reason: %s. Waiting 1 sec: %s " % (self.file_name,str(e)) )
                 time.sleep(1)
-        
+
         try:
             self.file = open(os.path.join(config.download.temp,self.file_name),'wb')
             self.status = 'New'
         except Exception, e:
             self.status = "failed"
             self.details = str(e)
-        
+
         if self.status == 'failed':
             return
         dl_cout.outs("Starting Download of %s for %s " % (self.file_name, self.restore_dir) )
@@ -452,7 +452,7 @@ class downloader(threading.Thread):
             self.prntime(time_took))
         except Exception , e:
             self.finished('failed','Failed: in Downloader.run() %s' % str(e))
-        
+
     def get_file_size(self):
         self.file_size = self.ftp.size(self.file_name)
         return self.file_size
@@ -491,7 +491,7 @@ class downloader(threading.Thread):
         h,m=divmod(m,60)
         d,h=divmod(h,24)
         return_string = ""
-        
+
         if d > 0:
             return_string = str(int(d))+" days "+ str(int(h)) +" hours "+\
             str(int(m)) +" minutes "+ str(int(s)) +" seconds."
