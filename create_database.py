@@ -2,7 +2,9 @@ import os.path
 
 import jobtracker
 import config.background
-
+"""
+This script creates sqlite3 clean database structure to be used by Pipeline2.0
+"""
 creates = []
 
 
@@ -33,7 +35,7 @@ creates.append("CREATE TABLE job_files ( " \
                     "id INTEGER PRIMARY KEY, " \
                     "job_id INTEGER, " \
                     "updated_at TEXT)")
-creates.append("CREATE TABLE job_submits ( " 
+creates.append("CREATE TABLE job_submits ( "
                     "created_at TEXT, " \
                     "details TEXT, " \
                     "id INTEGER PRIMARY KEY, " \
