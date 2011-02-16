@@ -27,6 +27,7 @@ class JobUploader():
     def run(self):
         self.create_new_uploads()
         self.check_new_uploads()
+        self.mark_reprocess_failed()
         self.upload_checked()
         time.sleep(300)
 
@@ -63,7 +64,6 @@ class JobUploader():
                 print "Header Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
                 jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
                 % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), last_upload_try_id))
-                self.mark_for_reprocessing(int(job_row['id']),int(last_upload_try_id))
                 try:
                     notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
                     notification.send()
@@ -113,7 +113,6 @@ class JobUploader():
             print "Candidates Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
             % ('Candidates %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')),jobtracker.nowstr(), last_upload_try_id))
-            self.mark_for_reprocessing(int(job_row['id']),int(last_upload_try_id))
             try:
                 notification = mailer.ErrorMailer('Candidates %s failed: %s' % (check_or_upload,str(e)))
                 notification.send()
@@ -156,7 +155,6 @@ class JobUploader():
             print "Diagnostics Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
             % ('Diagnostics %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')),jobtracker.nowstr(), last_upload_try_id))
-            self.mark_for_reprocessing(int(job_row['id']),int(last_upload_try_id))
             try:
                 notification = mailer.ErrorMailer('Diagnostics %s failed: %s' % (check_or_upload,str(e)))
                 notification.send()
@@ -180,7 +178,7 @@ class JobUploader():
 
     def create_new_uploads(self):
         print "Creating new upload entries..."
-        jobs_with_no_uploads = jobtracker.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads)")
+        jobs_with_no_uploads = jobtracker.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads WHERE job_uploads.status NOT ('new','checked','uploaded'))")
         for job_row in jobs_with_no_uploads:
             jobtracker.query("INSERT INTO job_uploads (job_id, status, details, created_at, updated_at) VALUES(%u,'%s','%s','%s','%s')"\
                 % (job_row['id'], 'new','Newly added upload',jobtracker.nowstr(),jobtracker.nowstr()))
@@ -197,9 +195,16 @@ class JobUploader():
                        last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
                        jobtracker.query("UPDATE job_uploads SET status='checked' WHERE id=%u" % last_upload_try_id)
 
+    def mark_reprocess_failed(self):
+        failed_upload_jobs = jobtracker.query("SELECT * FROM jobs WHERE id IN (SELECT job_id FROM job_uploads WHERE status='failed')")
+        for job_row in failed_upload_jobs:
+            last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
+            self.mark_for_reprocessing(job_row['id'], last_upload_try_id)
+
     def mark_for_reprocessing(self,job_id, last_upload_id):
         jobtracker.query("UPDATE jobs SET status='failed' WHERE id=%u" % (int(job_id)))
         jobtracker.query("UPDATE job_submits SET status='failed' WHERE job_id=%u" % (int(job_id)))
+        jobtracker.query("UPDATE job_uploads SET status='reprocessing' WHERE id=%u" % (int(last_upload_id)))
 
 
     def clean_up(self,job_row):
