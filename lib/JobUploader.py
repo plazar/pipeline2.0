@@ -34,6 +34,8 @@ class JobUploader():
         checked_uploads = jobtracker.query("SELECT jobs.*,job_submits.output_dir,job_submits.base_output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='checked' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
 
         for job_row in checked_uploads:
+            print "Uploading results from: %s" % job_row['output_dir']
+            print "Job ID: %d" % job_row['id']
             header_id = self.header_upload(job_row,commit=True)
             if header_id:
                 print "Header Uploaded id: %u" % int(header_id)

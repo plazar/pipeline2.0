@@ -101,9 +101,17 @@ def upload_header(fns, beamnum=None, verbose=False, dry_run=False):
     if beamnum is not None:
         if not 0 <= beamnum <= 7:
             raise HeaderError("Beam number must be between 0 and 7, inclusive!")
-        header = Header(fns, beamnum=beamnum)
+        try:
+            header = Header(fns, beamnum=beamnum)
+        except Exception:
+            raise HeaderError("Couldn't create Header object for files (%s)!" % \
+                                    fns) 
     else:
-        header = Header(fns)
+        try:
+            header = Header(fns)
+        except Exception:
+            raise HeaderError("Couldn't create Header object for files (%s)!" % \
+                                    fns) 
     # header.upload('common', verbose=verbose)
     if dry_run:
         header.get_upload_sproc_call()
