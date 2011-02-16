@@ -3,8 +3,8 @@
 \begin{document}
 
 \title{PALFA Pipeline2.0 Documentation}
-\author{Patrick Lazarus, ... \\
-        plazar@physics.mcgill.ca}
+\author{Patrick Lazarus, Alex Samoilov, ... \\
+        plazar@physics.mcgill.ca, alex@sequencefactory.com}
 \date{\today}
 
 \maketitle
@@ -161,6 +161,17 @@ A script to start the results uploader background process.
 usage: \texttt{StartJobUploader.py}
 
 \subsection{Generic Queue Manager Interface}
+The Pipeline interacts with the system's queue manager using an abstract interface. This generic interface can be implemented with the specific queue manager installed on the system. The system-specific queue manager class must be derived from the \texttt{PipelineQueueManager} class. Each of the following methods of \texttt{PipelineQueueManager} must be implemented in the derived class:
+
+\begin{description}
+    \item[submit] Submits a job to queue manager with files list and output directory. Must return a unique string identifier for the submitted job. Raises ValueError if job was not submitted by queue manager.
+
+    \item[is_running] Given a unique identifier for a job, must return True or False whether the job is running or not, respectively.
+
+    \item[is_processing_file] Given a string path of a file, return True or False whether or not the job processing the input filename is running.
+
+    \item[delete] 
+
 
 \subsection{Configurations}
 
