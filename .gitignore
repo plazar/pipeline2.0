@@ -18,3 +18,5 @@ mail_cfg.py
 storage_db
 upload_db
 *.out
+.pydevproject
+.project
