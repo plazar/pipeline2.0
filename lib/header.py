@@ -17,6 +17,8 @@ import optparse
 import upload
 import datafile
 
+# Raise warnings produced by invalid coord strings as exceptions
+warnings.filterwarnings("error", message="Input is not a valid sexigesimal string: .*")
 
 class Header(upload.Uploadable):
     """PALFA Header object. 
