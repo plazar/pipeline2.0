@@ -178,7 +178,7 @@ class JobUploader():
 
     def create_new_uploads(self):
         print "Creating new upload entries..."
-        jobs_with_no_uploads = jobtracker.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads WHERE job_uploads.status NOT ('new','checked','uploaded'))")
+        jobs_with_no_uploads = jobtracker.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads WHERE job_uploads.status IN ('new','checked','uploaded','failed'))")
         for job_row in jobs_with_no_uploads:
             jobtracker.query("INSERT INTO job_uploads (job_id, status, details, created_at, updated_at) VALUES(%u,'%s','%s','%s','%s')"\
                 % (job_row['id'], 'new','Newly added upload',jobtracker.nowstr(),jobtracker.nowstr()))
