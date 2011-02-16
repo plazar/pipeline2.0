@@ -21,6 +21,11 @@ dlm_cout = OutStream.OutStream("Download Module",config.download.log_file_path, 
 dl_cout = OutStream.OutStream("Download Module: d/l thread",config.download.log_file_path,config.background.screen_output)
 
 class DownloadModule:
+    """
+    Allows requesting and downloading of restores through a SOAP api from Cornell University.
+    """
+
+
     def __init__(self):
         #self.my_logger.info('Initializing.')
         dlm_cout.outs('Initializing Module')
@@ -30,6 +35,15 @@ class DownloadModule:
         self.recover()
 
     def run(self):
+        """
+        Drives status changes, requests for restores
+
+        Input(s):
+            None
+        Output(s):
+            None
+        """
+
         #if can create more restores then request new ones and add them to restores array
         while True:
             running_restores_count = 0
@@ -61,12 +75,28 @@ class DownloadModule:
             time.sleep(37)
 
     def recover(self):
+        """
+        Recovers unfinished restores from the Database
+
+        Input(s):
+            None
+        Output(s):
+            None
+        """
         unfinished_requests = jobtracker.query("SELECT * FROM requests WHERE status NOT LIKE 'finished'")
         for request in unfinished_requests:
             self.restores.append(restore(num_beams=1,guid=request['guid']))
         dlm_cout.outs("Recovered: %u restores" % len(self.restores))
 
     def get_space_used(self):
+        """
+        Reports space used by the download directory (config.download.temp)
+
+        Input(s):
+            None
+        Output(s):
+            int: size of download directory (config.download.temp)
+        """
         folder_size = 0
         for (path, dirs, files) in os.walk(config.download.temp):
           for file in files:
@@ -78,6 +108,16 @@ class DownloadModule:
         return folder_size
 
     def have_space(self):
+        """
+        Returns if Downloader has device space left for more storage.
+
+        Input(s):
+            None
+        Output(s):
+            boolean True: if Downloader has device space to use.
+            boolean False: if Downloader has no more space to use.
+        """
+
         folder_size = self.get_space_used()
         if folder_size < config.download.space_to_use:
             return True
@@ -85,6 +125,16 @@ class DownloadModule:
             return False
 
     def can_request_more(self):
+        """
+        Returns whether Downloader can request more restores.
+
+        Input(s):
+            None
+        Output(s):
+            boolean True: if Downloader can request more restores.
+            boolean False: if Downloader may not request more restores.
+        """
+
         if len(self.restores) >= config.download.numrestores:
             dlm_cout.outs("Cannot have more than "+ str(config.download.numrestores) +" at a time.")
             return False
@@ -98,6 +148,15 @@ class DownloadModule:
         return ((self.get_available_space() - total_size) > 0)
 
     def get_available_space(self):
+        """
+        Returns space available to the Downloader
+
+        Input(s):
+            None
+        Output(s):
+            int : size in bytes available for Downloader storage
+        """
+
         folder_size = 0
         if config.download.temp == "":
             print "Getting filename"
@@ -117,6 +176,10 @@ class DownloadModule:
 
 
 class restore:
+    """
+    Class representing an active restore request.
+    """
+
     def __init__(self,num_beams,guid=False):
         self.values = None
         self.num_beams = num_beams
@@ -133,7 +196,8 @@ class restore:
             self.update_from_db()
 
     def run(self):
-        """If this doesn't have guid then we request it
+        """
+        Drives Request/Downloader status updating and request
         """
         if self.guid == False:
             return self.request()
@@ -155,6 +219,15 @@ class restore:
         return True
 
     def request(self):
+        """
+        Requests a restore from Cornell's SOAP Webservice.
+
+        Input(s):
+            None
+        Output(s)
+            boolean False: if the API reported failure upon requesting a restore
+            string: guid of a restore to be tracked for availability of restore files.
+        """
         dlm_cout.outs("Requesting Restore")
         try:
             response = self.WebService.Restore(username=self.username,pw=self.password,number=self.num_beams,bits=4,fileType="wapp")
@@ -177,6 +250,15 @@ class restore:
             return False
 
     def is_downloading(self):
+        """
+        Returns whether restore is downloading files.
+
+        Input(s):
+            None
+        Output(s):
+            boolean True: if restore is downloading atleast one file.
+            boolean False: if restore is not downloading at all.
+        """
         if self.downloaders == dict():
             return False
         else:
@@ -188,6 +270,16 @@ class restore:
 
 
     def getLocation(self):
+        """
+        Returns whether files for this restore were written to guid directory
+
+        Input(s):
+            none
+        Output(s):
+            boolean True: if files were written for this restore
+            boolean False: if files are not yet ready for this restore.
+        """
+
         #self.my_logger.info("Requesting Location for: "+ self.name)
         response = self.WebService.Location(username=self.username,pw=self.password, guid=self.guid)
         if response == "done":
@@ -197,6 +289,14 @@ class restore:
             return False
 
     def get_files(self):
+        """
+        Get list of files associated with this restore.
+
+        Input(s):
+            None
+        Output(s):
+            stores a list of files in self.files
+        """
         connected = False
         logged_in = False
         cwd = False
@@ -262,6 +362,15 @@ class restore:
         ftp.close()
 
     def create_dl_entries(self):
+        """
+        Creates downloads entries for each file to be downloaded for this restore.
+
+        Input(s):
+            dict self.files
+        Output(s):
+            None
+        """
+
         for filename,filesize in self.files.items():
             dl_check = jobtracker.query("SELECT * FROM downloads WHERE request_id=%s AND filename='%s'" % (self.values['id'],filename))
             if len(dl_check) == 0:
@@ -271,6 +380,16 @@ class restore:
 
     #TODO: Refactor function and helpers
     def download(self):
+        """
+        Creates download thread for each download entry for this restore
+        Updates downloads, download_attempts status according to reported status by downloader threads for this restore.
+
+        Input(s):
+            downlaods entries
+        Output(s):
+            None
+        """
+
         dl_entries = jobtracker.query("SELECT * FROM downloads WHERE request_id = %u" % self.values['id'])
         #if no downloaders are running for this restore
         if self.downloaders == dict():
@@ -324,6 +443,16 @@ class restore:
                     % (self.downloaders[filename].details.replace("'","").replace('"',""),jobtracker.nowstr(),filename))
 
     def downloaded_size_match(self,attempt_id):
+        """
+        Verifies downloaded file's size and file size on the FTP matches for a given download_attempts id
+
+        Input(s):
+            int attempt_id: current download_attempts id for this downloads of this restore
+        Output(s):
+            boolean True: if ftp listing size matches downlaoded file size.
+            boolean False: if ftp listing size does not match downloaded file size.
+        """
+
         attempt_row = jobtracker.query("SELECT * FROM download_attempts WHERE id=%u" % int(attempt_id))[0]
         download = jobtracker.query("SELECT * FROM downloads WHERE id=%u" % int(attempt_row['download_id']))[0]
 
@@ -335,6 +464,11 @@ class restore:
 
 
     def status(self):
+        """
+        Reports summary of a current restore.
+            restore GUID , files being downlaoded for this restore and their expected size.
+        """
+
         dls = jobtracker.query("SELECT * from downloads WHERE request_id = %s" % self.values['id'])
         print "Restore: %s" % self.guid
         print "\t\tDownloading: "
@@ -342,6 +476,16 @@ class restore:
             print "\t\t %s \t[%s]" % (dl['remote_filename'],str(dl['size']))
 
     def is_finished(self):
+        """
+        Tests whether this restore successfully completed downlaoding all of the associated files.
+
+        Input(s):
+            None
+        Output(s):
+            boolean True: if this restore successfully downlaoded all of its associated files.
+            boolean False: if this restore failed to download all of its associated files.
+        """
+
         all_downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s" % self.values['id'])
         finished_downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s AND status LIKE 'downloaded'" % self.values['id'])
         failed_downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s AND status LIKE 'failed'" % self.values['id'])
@@ -368,9 +512,22 @@ class restore:
         return True
 
     def update_from_db(self):
+        """
+        Updates this restores vaules from the database.
+        """
+
         self.values = self.get_by_guid(self.guid)
 
     def get_by_guid(self, guid):
+        """
+        Returns sqlite3.row of an entry matching given guid.
+
+        Input(s):
+            string guid: unique restore identifier
+        Output(s):
+            sqlite3.row: if the restore entry was found
+            empty list(): if restore entry was not found
+        """
         result = jobtracker.query("SELECT * FROM requests WHERE guid = '%s'" % guid)
         if result == list():
             return result
@@ -378,6 +535,9 @@ class restore:
 
 
 class downloader(threading.Thread):
+    """
+    Downloader thread for downloading files from the FTP
+    """
 
     def __init__(self,restore_dir ,filename,attempt_id = None):
         dl_cout.outs("Initializing Downloader for: %s" % restore_dir)
@@ -400,6 +560,9 @@ class downloader(threading.Thread):
         self.file_size = 0
 
     def run(self):
+        """
+        Starts the download of a given file
+        """
         not_logged_in = True
         while not_logged_in:
             try:
@@ -451,10 +614,17 @@ class downloader(threading.Thread):
             self.finished('failed','Failed: in Downloader.run() %s' % str(e))
 
     def get_file_size(self):
+        """
+        Returns size of the file to be downlaoded.
+        """
+
         self.file_size = self.ftp.size(self.file_name)
         return self.file_size
 
     def write(self, block):
+        """
+        Write a block of data of a file transfer and updates self.status
+        """
         self.total_size_got += len(block)
         self.speed = int(((float(self.total_size_got) - float(self.block['size'\
         ])) / float( time.time() -self.block['time'] ))/1024)
@@ -470,6 +640,15 @@ class downloader(threading.Thread):
         self.file.write(block)
 
     def finished(self,status,message):
+        """
+        Finishes downlaod with a status and message.
+
+        Input(s):
+            string status: status to be provided for the restore object
+            string message: complimentary message ot be provided for the restore object
+        Output(s):
+            None
+        """
         #print "Closing File: "+self.file_name
         dl_cout.outs(message)
         self.status = status
