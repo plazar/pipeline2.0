@@ -142,7 +142,6 @@ class restore:
         # print self.values
 
         if self.values['status'] == "waiting":
-            #TODO: remove in refactored
             self.getLocation()
         elif self.values['status'] == "ready":
             if self.is_finished():
@@ -162,7 +161,6 @@ class restore:
         except urllib2.URLError, e:
             dlm_cout.outs("There was a problem requesting the restore. Reason: %s" % str(e))
             return False
-        #response = '9818e194a5db4f4d90aa706826d69907'
         if response != "fail":
             self.guid = response
             if self.get_by_guid(self.guid) != list():
@@ -214,10 +212,9 @@ class restore:
                 ftp.set_pasv(1)
                 connected = True
 
-                login_response = ftp.login('palfadata','NAIC305m')
+                login_response = ftp.login(config.download.ftp_host,config.download.ftp_port)
                 logged_in = True
                 if login_response != "230 User logged in.":
-                    #dlm_cout.outs(self.guid +" Could not login with user: palfadata  password: NAIC305m  Response: %s" % login_response)
                     return False
 
                 cwd_response = ftp.cwd(self.guid)
@@ -407,12 +404,12 @@ class downloader(threading.Thread):
         while not_logged_in:
             try:
                 self.ftp = M2Crypto.ftpslib.FTP_TLS()
-                self.ftp.connect('arecibo.tc.cornell.edu',31001)
+                self.ftp.connect(config.download.ftp_host,config.download.ftp_port)
                 self.ftp.auth_tls()
                 self.ftp.set_pasv(1)
-                login_response = self.ftp.login('palfadata','NAIC305m')
+                login_response = self.ftp.login(config.download.ftp_username,config.download.ftp_password)
                 if login_response != "230 User logged in.":
-                    dl_cout.outs("Could not login with user: palfadata  password: NAIC305m", OutStream.OutStream.ERROR)
+                    dl_cout.outs("Could not login with user: %s  password: %s" % (config.download.ftp_username,config.download.ftp_password ), OutStream.OutStream.ERROR)
                     self.status = 'failed'
                     self.details = 'Login failed %s' % str(self.file_name)
                 self.download = True
