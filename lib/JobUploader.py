@@ -33,7 +33,7 @@ class JobUploader():
         self.check_new_uploads()
         self.mark_reprocess_failed()
         self.upload_checked()
-    
+
     def upload_checked(self):
         """
         Uploads checked results.
@@ -235,7 +235,7 @@ class JobUploader():
         """
 
         print "Creating new upload entries..."
-        jobs_with_no_uploads = jobtracker.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads)")
+        jobs_with_no_uploads = jobtracker.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads WHERE job_uploads.status IN ('new','checked','uploaded','failed'))")
         print "%d new uploads to enter" % len(jobs_with_no_uploads)
         for job_row in jobs_with_no_uploads:
             jobtracker.query("INSERT INTO job_uploads (job_id, status, details, created_at, updated_at) VALUES(%u,'%s','%s','%s','%s')"\
