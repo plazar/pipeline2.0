@@ -344,6 +344,7 @@ class JobPool:
         try:
             output_dir = tmp_job.get_output_dir()
         except Exception, e:
+            raise
             jobpool_cout.outs("Error while reading %s. Job will not be submited" % ", ".join(tmp_job.datafiles))
             jobtracker.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
           % (int(job_row['id']),'did_not_queue','could not get output dir','failed',jobtracker.nowstr(),jobtracker.nowstr()))
