@@ -313,8 +313,13 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
     for diagnostic_type in diagnostic_types:
     	if verbose:
         	print "Working on %s" % diagnostic_type.name
-        d = diagnostic_type(obsname, beamnum, \
+        try:
+            d = diagnostic_type(obsname, beamnum, \
                             versionnum, directory)
+        except Exception:
+            raise DiagnosticsError("Could not create %s object for " \
+                                    "observation: %s (beam: %d)" % \
+                                    (obsname, beamnum))
         if dry_run:
             d.get_upload_sproc_call()
             if verbose:

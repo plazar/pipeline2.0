@@ -186,8 +186,32 @@ class QManagerConfig(Configurable):
     msg = "Must be a subclass of PipelineQueueManager."
     def isvalid(self):
         import PipelineQueueManager
-        return super(QManagerConfig, self).isvalid() and \
-                isinstance(self.value, PipelineQueueManager.PipelineQueueManager)
+        if super(QManagerConfig, self).isvalid() and \
+                isinstance(self.value, PipelineQueueManager.PipelineQueueManager):
+            # Check if appropriate functions are defined.
+            methods = ['submit', \
+                        'is_running', \
+                        'is_processing_file', \
+                        'delete', \
+                        'status', \
+                        'get_stderr_path', \
+                        'get_stdout_path', \
+                        'had_errors', \
+                        'read_stderr_log', \
+                        'read_stdout_log']
+            alldefined = True
+            undefined = []
+            for m in methods:
+                if m not in self.value.__class__.__dict__:
+                    alldefined = False
+                    undefined.append(m)
+            if alldefined:
+                return True
+            else:
+                QManagerConfig.msg = "The following methods must be defined: %s" % ', '.join(undefined)
+                return False
+        else:
+            return False
 
 
 class ConfigValidationError(Exception):

@@ -20,8 +20,7 @@ from astro_utils import sextant
 from astro_utils import protractor
 from astro_utils import calendar
 
-COORDS_TABLE = "/homes/borgii/alfa/svn/workingcopy_PL/PALFA/miscellaneous/" + \
-                "PALFA_coords_table.txt"
+import config.basic
 
 date_re = re.compile(r'^(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})$')
 time_re = re.compile(r'^(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})$')
@@ -56,7 +55,7 @@ def get_datafile_type(fns):
             if obj.is_correct_filetype(fns):
                 datafile_type = obj
                 break
-    if 'datafile_type' is None:
+    if datafile_type is None:
         raise ValueError("Cannot determine datafile's type (%s)." % fns)
     return datafile_type
 
@@ -150,7 +149,7 @@ class Data(object):
                             "%5d" % int(self.timestamp_mjd), \
                             self.fnmatch(self.original_file).groupdict()['scan']])
         # Get corrected beam positions
-        matches = [line for line in open(COORDS_TABLE, 'r') if \
+        matches = [line for line in open(config.basic.coords_table, 'r') if \
                         line.startswith(wappfn)]
         if len(matches) == 0 and self.timestamp_mjd > 54651:
             # No corrected coords found, but coordinate problem is fixed,

@@ -307,12 +307,12 @@ class restore:
         while no_connection:
             try:
                 ftp = M2Crypto.ftpslib.FTP_TLS()
-                ftp.connect('arecibo.tc.cornell.edu',31001)
+                ftp.connect(config.download.ftp_host, config.download.ftp_port)
                 ftp.auth_tls()
                 ftp.set_pasv(1)
                 connected = True
 
-                login_response = ftp.login(config.download.ftp_host,config.download.ftp_port)
+                login_response = ftp.login(config.download.ftp_username, config.download.ftp_password)
                 logged_in = True
                 if login_response != "230 User logged in.":
                     return False

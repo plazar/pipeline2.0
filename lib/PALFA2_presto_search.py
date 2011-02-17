@@ -187,19 +187,30 @@ def get_folding_command(cand, obs):
     p = 1.0 / cand.f
     if p < 0.002:
         Mp, Mdm, N = 2, 2, 24
-        otheropts = "-npart 50 -ndmfact 3"
+        npart = 50
+        otheropts = "-ndmfact 3"
     elif p < 0.05:
         Mp, Mdm, N = 2, 1, 50
-        otheropts = "-npart 40 -pstep 1 -pdstep 2 -dmstep 3"
+        npart = 40
+        otheropts = "-pstep 1 -pdstep 2 -dmstep 3"
     elif p < 0.5:
         Mp, Mdm, N = 1, 1, 100
-        otheropts = "-npart 30 -pstep 1 -pdstep 2 -dmstep 1"
+        npart = 30
+        otheropts = "-pstep 1 -pdstep 2 -dmstep 1"
     else:
         Mp, Mdm, N = 1, 1, 200
-        otheropts = "-npart 30 -nopdsearch -pstep 1 -pdstep 2 -dmstep 1"
-    return "prepfold -noxwin -accelcand %d -accelfile %s.cand -dm %.2f -o %s %s -n %d -npfact %d -ndmfact %d %s" % \
+        npart = 30
+        otheropts = "-nopdsearch -pstep 1 -pdstep 2 -dmstep 1"
+
+    # If prepfold is instructed to use more subbands than there are rows in the PSRFITS file
+    # it doesn't use any data when folding since the amount of data for each part is
+    # shorter than the PSRFITS row. However, PRESTO doesn't break up rows.
+    # Set npart to the number of rows in the PSRFITS file.
+    if npart > obs.numrows:
+        npart = obs.numrows
+    return "prepfold -noxwin -accelcand %d -accelfile %s.cand -dm %.2f -o %s -npart %d %s -n %d -npfact %d -ndmfact %d %s" % \
            (cand.candnum, cand.filename, cand.DM, outfilenm,
-            otheropts, N, Mp, Mdm, foldfiles)
+            npart, otheropts, N, Mp, Mdm, foldfiles)
 
 
 class obs_info:
@@ -233,7 +244,8 @@ class obs_info:
         self.nchan = spec_info.num_channels
         self.samp_per_row = spec_info.spectra_per_subint
         self.fctr = spec_info.fctr
-  
+        self.numrows = np.sum(spec_info.num_subint) 
+        
         # Correct positions in data file headers for WappPsrfitsData
         if isinstance(data, datafile.WappPsrfitsData):
             data.update_positions()

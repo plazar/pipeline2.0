@@ -27,8 +27,8 @@ import config.searching
 class PeridocityCandidate(upload.Uploadable):
     """A class to represent a PALFA periodicity candidate.
     """
-    def __init__(self, header_id, cand_num, topo_freq, bary_freq, topo_f_dot, \
-                        bary_f_dot, dm, snr, coherent_power, incoherent_power, \
+    def __init__(self, header_id, cand_num, pfd , snr, \
+                        coherent_power, incoherent_power, \
                         num_hits, num_harmonics, versionnum, sigma):
         self.header_id = header_id # Header ID from database
         self.cand_num = cand_num # Unique identifier of candidate within beam's 
@@ -36,11 +36,11 @@ class PeridocityCandidate(upload.Uploadable):
                                  # a list of all candidates produced in beam
                                  # ordered by decreasing sigma (where largest
                                  # sigma has cand_num=1).
-        self.topo_freq = topo_freq # Topocentric spin frequency
-        self.bary_freq = bary_freq # Barycentric spin frequency
-        self.topo_f_dot = topo_f_dot # Topocentric spin frequency derivative
-        self.bary_f_dot = bary_f_dot # Barycentric spin frequency derivative
-        self.dm = dm # Dispersion measure
+        self.topo_freq, self.topo_f_dot, fdd = \
+                psr_utils.p_to_f(pfd.topo_p1, pfd.topo_p2, pfd.topo_p3)
+        self.bary_freq, self.bary_f_dot, baryfdd = \
+                psr_utils.p_to_f(pfd.bary_p1, pfd.bary_p2, pfd.bary_p3)
+        self.dm = pfd.bestdm # Dispersion measure
         self.snr = snr # signal-to-noise ratio
         self.coherent_power = coherent_power # Coherent power
         self.incoherent_power = incoherent_power # Incoherent power
@@ -177,13 +177,14 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
         
         pfd = prepfold.pfd(pfdfn)
         
-        f, fd, fdd = psr_utils.p_to_f(pfd.topo_p1, pfd.topo_p2, pfd.topo_p3)
-        baryf, baryfd, baryfdd = psr_utils.p_to_f(pfd.bary_p1, pfd.bary_p2, \
-                                                    pfd.bary_p3)
-        cand = PeridocityCandidate(header_id, ii+1, f, baryf, fd, baryfd, \
-                                    pfd.bestdm, c.snr, c.ipow, c.cpow, \
-                                    len(c.dmhits), c.numharm, versionnum, \
-                                    c.sigma)
+        try:
+            cand = PeridocityCandidate(header_id, ii+1, pfd, c.snr, \
+                                    c.cpow, c.ipow, len(c.dmhits), \
+                                    c.numharm, versionnum, c.sigma)
+        except Exception:
+            raise PeriodicityCandidateError("PeriodicityCandidate could not be " \
+                                            "created (%s)!" % pfdfn)
+
         if dry_run:
             cand.get_upload_sproc_call()
             if verbose:

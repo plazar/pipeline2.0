@@ -1,8 +1,8 @@
 import JobUploader
-from time import sleep
+import time
 
 upl = JobUploader.JobUploader()
 
 while True:
     upl.run()
-    sleep(600)
+    time.sleep(60)
