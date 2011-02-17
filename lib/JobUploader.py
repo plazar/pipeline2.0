@@ -25,12 +25,20 @@ class JobUploader():
         self.created_at = jobtracker.nowstr()
 
     def run(self):
+        """
+        Drives the process of uploading results of the completed jobs.
+
+        """
         self.create_new_uploads()
         self.check_new_uploads()
         self.mark_reprocess_failed()
         self.upload_checked()
-    
+
     def upload_checked(self):
+        """
+        Uploads checked results.
+
+        """
         checked_uploads = jobtracker.query("SELECT jobs.*,job_submits.output_dir,job_submits.base_output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='checked' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
 
         for job_row in checked_uploads:
@@ -48,6 +56,18 @@ class JobUploader():
                        self.clean_up(job_row)
 
     def header_upload(self,job_row,commit=False):
+        """
+        Uploads/Checks header for a processed job.
+
+        Input(s):
+            sqlite3.row job_row: represents an entry of related records in tables: jobs,job_uploads,job_submits
+            boolean commit:
+                True: Uploads header information
+                False: Checks header information
+        Output(s):
+            boolean: True if operation succeeded.
+                    False otherwise.
+        """
     	dry_run = not commit;
 
         if(dry_run):
@@ -97,6 +117,18 @@ class JobUploader():
             return False
 
     def candidates_upload(self,job_row,header_id=0,commit=False):
+        """
+        Uploads/Checks candidates for a processed job.
+
+        Input(s):
+            sqlite3.row job_row: represents an entry of related records in tables: jobs,job_uploads,job_submits
+            boolean commit:
+                True: Uploads candidates information
+                False: Checks candidates information
+        Output(s):
+            boolean: True if operation succeeded.
+                    False otherwise.
+        """
         dry_run = not commit;
 
         if(dry_run):
@@ -136,6 +168,18 @@ class JobUploader():
         return True
 
     def diagnostics_upload(self,job_row,commit=False):
+        """
+        Uploads/Checks diagnostics for a processed job.
+
+        Input(s):
+            sqlite3.row job_row: represents an entry of related records in tables: jobs,job_uploads,job_submits
+            boolean commit:
+                True: Uploads diagnostics information
+                False: Checks diagnostics information
+        Output(s):
+            boolean: True if operation succeeded.
+                    False otherwise.
+        """
         dry_run = not commit;
 
         if(dry_run):
@@ -178,14 +222,30 @@ class JobUploader():
         return True
 
     def create_new_uploads(self):
+        """
+        Creates new job_uploads entries, for processed jobs, with status 'new'.
+
+        Input(s):
+            None
+            database entries
+        Output(s):Input(s):
+            sqlite3.row job_row: represents an entry of related records in tables: jobs,job_uploads,job_submits
+            None
+            new database entries
+        """
+
         print "Creating new upload entries..."
-        jobs_with_no_uploads = jobtracker.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads)")
+        jobs_with_no_uploads = jobtracker.query("SELECT * FROM jobs WHERE status='processed' AND id NOT IN (SELECT job_id FROM job_uploads WHERE job_uploads.status IN ('new','checked','uploaded','failed'))")
         print "%d new uploads to enter" % len(jobs_with_no_uploads)
         for job_row in jobs_with_no_uploads:
             jobtracker.query("INSERT INTO job_uploads (job_id, status, details, created_at, updated_at) VALUES(%u,'%s','%s','%s','%s')"\
                 % (job_row['id'], 'new','Newly added upload',jobtracker.nowstr(),jobtracker.nowstr()))
 
     def check_new_uploads(self):
+        """
+        Checks job_uploads entries with status being 'new'.
+        Updates the database entries whether results are checked and ready for upload, or job_upload failed
+        """
         new_uploads = jobtracker.query("SELECT jobs.*,job_submits.output_dir,job_submits.base_output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='new' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
         for job_row in new_uploads:
             if self.header_upload(job_row):
@@ -198,18 +258,33 @@ class JobUploader():
                        jobtracker.query("UPDATE job_uploads SET status='checked' WHERE id=%u" % last_upload_try_id)
 
     def mark_reprocess_failed(self):
+        """
+        Marks failed jobs for associated job_uploads to be reprocessed by JobPooler
+        """
         failed_upload_jobs = jobtracker.query("SELECT * FROM jobs WHERE id IN (SELECT job_id FROM job_uploads WHERE status='failed')")
         for job_row in failed_upload_jobs:
             last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
             self.mark_for_reprocessing(job_row['id'], last_upload_try_id)
 
     def mark_for_reprocessing(self,job_id, last_upload_id):
+        """
+        Marks job and job submit as failed (for reprocessing), sets status on job upload entry to reprocessing.
+
+        """
         jobtracker.query("UPDATE jobs SET status='failed' WHERE id=%u" % (int(job_id)))
         jobtracker.query("UPDATE job_submits SET status='failed' WHERE job_id=%u" % (int(job_id)))
         jobtracker.query("UPDATE job_uploads SET status='reprocessing' WHERE id=%u" % (int(last_upload_id)))
 
 
     def clean_up(self,job_row):
+        """
+        Deletes raw files for a given job_row.
+
+        Input(s):
+            sqlite3.row job_row: represents an entry of related records in tables: jobs,job_uploads,job_submits
+        Output(s):
+            stdout that the file was deleted.
+        """
         downloads = jobtracker.query('SELECT downloads.* FROM jobs,job_files,downloads WHERE jobs.id=%u AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id' % (job_row['id']))
         for download in downloads:
             if config.basic.delete_rawdata and os.path.exists(download['filename']):
@@ -217,12 +292,32 @@ class JobUploader():
                 print "Deleted: %s" % download['filename']
 
     def get_processed_jobs(self):
+        """
+        Returns array of sqlite3.row(s) of processed jobs
+        """
         return jobtracker.query("SELECT * FROM jobs WHERE status='processed'")
 
     def get_upload_attempts(self,job_row):
+        """
+        Returns array of sqlite3.row(s) of upload attempts for the given job_row
+
+        Input(s):
+            sqlite3.row job_row: represents an entry of related records in tables: jobs,job_uploads,job_submits
+        Output(s):
+            array of sqlite3.row(s) of upload attempts for the given job_row
+        """
         return jobtracker.query("SELECT * FROM job_uploads WHERE job_id = %u" % int(job_row['id']))
 
     def get_jobs_files(self,job_row):
+        """
+        Returns list of files associated to a give job_row
+
+        Input(s):
+            sqlite3.row job_row: represents an entry of related records in tables: jobs,job_uploads,job_submits
+        Output(s):
+            array of file path strings associated with a job_row
+        """
+
         file_rows = jobtracker.query("SELECT * FROM job_files,downloads WHERE job_files.job_id=%u AND downloads.id=job_files.file_id" % int(job_row['id']))
         files_stra = list()
         for file_row in file_rows:
