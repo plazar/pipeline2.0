@@ -56,7 +56,7 @@ def get_datafile_type(fns):
             if obj.is_correct_filetype(fns):
                 datafile_type = obj
                 break
-    if 'datafile_type' is None:
+    if datafile_type is None:
         raise ValueError("Cannot determine datafile's type (%s)." % fns)
     return datafile_type
 
