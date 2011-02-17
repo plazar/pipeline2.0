@@ -41,12 +41,12 @@ def main():
         #rotation function changes/updates the states and submits jobs
         #that were created
         try:
-            jobpool.rotate()
             jobpool.status()
+            jobpool.rotate()
         except Exception, e:
             try:
                 traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
-                msg = 'Could not initialize JobPool.\nFatal occured: %s' % str(e)
+                msg = 'Fatal occured while running job pool: %s' % str(e)
                 msg += '\n\nTraceback:\n' + traceback_string
                 notification = ErrorMailer(msg)
                 notification.send()
