@@ -1,6 +1,7 @@
 import os
 import time
 import warnings
+import fnmatch
 
 import candidate_uploader
 import diagnostic_uploader
@@ -75,12 +76,21 @@ class JobUploader():
         else:
             check_or_upload='upload'
 
-    	file_names_stra = self.get_jobs_files(job_row)
+    	#file_names_stra = self.get_jobs_files(job_row)
+        #last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
 
-        last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
         if file_names_stra != list():
             try:
-                header_id = header.upload_header(fns=file_names_stra,dry_run=dry_run)
+                last_upload_try = self.get_jobs_last_upload(job_row['id'])
+                if last_upload_try == None:
+                    raise Exception('Could not find last upload try for this job.')
+                else:
+                    last_upload_try_id = last_upload_try['id']
+
+                raw_files_for_header = self.get_raw_result_file(job_row['id'])
+                if not raw_file_for_header:
+                    raise Exception('No *.fits files found in result directory.')
+                header_id = header.upload_header(fns=raw_files_for_header,dry_run=dry_run)
             except header.HeaderError, e:
                 print "Header Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
                 jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
@@ -136,11 +146,11 @@ class JobUploader():
         else:
             check_or_upload='upload'
 
-        dir = job_row['output_dir']
-
-        last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
-
         try:
+            dir = job_row['output_dir']
+
+            last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
+
             candidate_uploader.upload_candidates(header_id=header_id, versionnum=config.upload.version_num,  directory=dir,dry_run=dry_run)
         except candidate_uploader.PeriodicityCandidateError, e:
             print "Candidates Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
@@ -241,12 +251,36 @@ class JobUploader():
             jobtracker.query("INSERT INTO job_uploads (job_id, status, details, created_at, updated_at) VALUES(%u,'%s','%s','%s','%s')"\
                 % (job_row['id'], 'new','Newly added upload',jobtracker.nowstr(),jobtracker.nowstr()))
 
+    def get_jobs_last_successful_submit(self,job_id):
+        lss = jobtracker.query("SELECT * FROM job_submits WHERE status='finished' AND job_id=%u ORDER BY id DESC LIMIT 1" % (int(job_id)),fetchone=True)
+        return lss
+
+    def get_raw_result_file(self,job_id):
+        raw_filenames = list()
+        lss = self.get_jobs_last_successful_submit(int(job_id))
+        if lss == None:
+            return False
+
+        if os.path.exists(lss['output_dir']):
+            for file in os.listdir(lss['output_dir']):
+                if fnmatch.fnmatch(file, '*.fits'):
+                   raw_filenames.append(os.path.join(lss['output_dir'],file))
+
+        if raw_filenames == list():
+            return False
+        else:
+            return raw_filenames
+
+    def get_jobs_last_upload(self,job_id):
+        lu = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % (int(job_id)),fetchone=True)
+        return lu
+
     def check_new_uploads(self):
         """
         Checks job_uploads entries with status being 'new'.
         Updates the database entries whether results are checked and ready for upload, or job_upload failed
         """
-        new_uploads = jobtracker.query("SELECT jobs.*,job_submits.output_dir,job_submits.base_output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='new' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
+        new_uploads = jobtracker.query("SELECT jobs.* FROM jobs,job_uploads WHERE job_uploads.status='new' AND jobs.id=job_uploads.job_id")
         for job_row in new_uploads:
             if self.header_upload(job_row):
                 print "Header check passed"
