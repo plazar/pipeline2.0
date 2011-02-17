@@ -212,6 +212,9 @@ class restore:
                 return False
             if self.files == dict():
                 self.get_files()
+                if self.size == 0:
+                    jobtracker.query("UPDATE requests SET status = 'finished' WHERE guid ='%s'" % (self.guid))
+                    return False
             self.download()
         elif self.values['status'] == "finished" or self.values['status'] == "failed":
             dlm_cout.outs("Restore: %s is %s" % (self.guid,self.values['status']))
@@ -449,7 +452,7 @@ class restore:
         Input(s):
             int attempt_id: current download_attempts id for this downloads of this restore
         Output(s):
-            boolean True: if ftp listing size matches downlaoded file size.
+            boolean True: if ftp listing size matches downloaded file size.
             boolean False: if ftp listing size does not match downloaded file size.
         """
 
