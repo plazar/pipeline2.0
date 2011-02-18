@@ -35,28 +35,56 @@ class JobUploader():
         self.mark_reprocess_failed()
         self.upload_checked()
 
+        #We might've crashed or stopped and couldn't upload checked
+        self.upload_checked()
+        self.upload_finished()
+
     def upload_checked(self):
         """
         Uploads checked results.
 
         """
-        checked_uploads = jobtracker.query("SELECT jobs.*,job_submits.output_dir,job_submits.base_output_dir FROM jobs,job_uploads,job_submits WHERE job_uploads.status='checked' AND jobs.id=job_uploads.job_id AND job_submits.job_id=jobs.id")
+        chk_query = "SELECT * FROM job_submits WHERE status='checked'"
+        checked_submit = jobtracker.query(chk_query,fetchone=True)
 
-        for job_row in checked_uploads:
-            print "Uploading results from: %s" % job_row['output_dir']
-            print "Job ID: %d" % job_row['id']
-            header_id = self.header_upload(job_row,commit=True)
-            if header_id:
-                print "Header Uploaded id: %u" % int(header_id)
-                if self.candidates_upload(job_row, header_id,commit=True):
-                    print "Candidates uploaded for: %u" % int(header_id)
-                    if self.diagnostics_upload(job_row,commit=True):
-                       print "Diagnostics uploaded for: %u" % int(header_id)
-                       last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
-                       jobtracker.query("UPDATE job_uploads SET status='uploaded' WHERE id=%u" % last_upload_try_id)
-                       self.clean_up(job_row)
+        while checked_submit:
+            self.upload(checked_submit,commit=True)
+            checked_submit = jobtracker.query(chk_query,fetchone=True)
 
-    def header_upload(self,job_row,commit=False):
+
+    def upload_finished(self):
+        fin_query = "SELECT * FROM job_submits WHERE status='finished'"
+        finished_submit = jobtracker.query(fin_query,fetchone=True)
+
+        while finished_submit:
+            if self.upload(finished_submit,commit=False):
+                self.upload(finished_submit,commit=True)
+            finished_submit = jobtracker.query(fin_query,fetchone=True)
+
+    def upload(self,job_submit,commit=False):
+        """
+        Uploads Results for a given submit.
+
+        Input(s):
+            job_submit: dict representation of job_submits record
+        Output(s):
+            boolean True/False: whether upload/check succeeded
+        """
+        if commit:
+            header_id = self.header_upload(job_submit,commit=commit)
+        else:
+            header_id = 0
+
+        if header_id:
+            if self.candidates_upload(job_submit,header_id=header_id,commit=commit):
+                if self.diagnostics_upload(job_submit,commit=commit):
+                   jobtracker.query("UPDATE job_submits SET status='uploaded' WHERE id=%u" % job_submit['id'])
+                   jobtracker.query("UPDATE jobs SET status='uploaded' WHERE id=%u" % job_submit['job_id'])
+                   return True
+        return False
+
+
+    def header_upload(self,job_submit,commit=False):
         """
         Uploads/Checks header for a processed job.
 
@@ -77,32 +105,30 @@ class JobUploader():
             check_or_upload='upload'
 
         try:
-            last_upload_try = self.get_jobs_last_upload(job_row['id'])
-            if not last_upload_try:
-                raise NoUploadAttempt('Could not find last upload attempt for this job: %u.' % int(job_row['id']))
-            else:
-                last_upload_try_id = last_upload_try['id']
-
-            raw_files_for_header = self.get_raw_result_file(job_row['id'])
+            raw_files_for_header = self.get_raw_result_files(job_submit['id'])
             if not raw_files_for_header:
-                raise NoRawResultFiles("No *.fits files found in result directory for jobs.id: %u  job_uploads.id:%u" % (int(job_row['id']), int(last_upload_try_id)))
+                raise NoRawResultFiles("No *.fits files found in result directory for jobs.id: %u  job_submits.id:%u"\
+                                        % (int(job_submit['job_id']), int(job_submit['id'])))
 
             header_id = header.upload_header(fns=raw_files_for_header,dry_run=dry_run)
 
-            jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
-            % ('Header %s' % check_or_upload ,jobtracker.nowstr(), last_upload_try_id))
+            jobtracker.query("UPDATE job_submits SET details='%s', updated_at='%s' WHERE id=%u"\
+            % ('Header %s' % check_or_upload ,jobtracker.nowstr(), int(job_submit['id'])))
 
             if(dry_run):
-                print "Header check success for jobs.id: %u \tjob_uploads.id:%u" % (int(job_row['id']), int(last_upload_try_id))
+                print "Header check success for jobs.id: %u \tjob_submits.id:%u" % (int(job_submit['job_id']), int(job_submit['id']))
                 return True
             else:
-                print "Header upload success for jobs.id: %u \tjob_uploads.id:%u \theader_id: %u" % (int(job_row['id']), int(last_upload_try_id),int(header_id))
+                print "Header upload success for jobs.id: %u \tjob_submits.id:%u \theader_id: %u" % (int(job_submit['job_id']), int(job_submit['id']),int(header_id))
                 return header_id
 
         except header.HeaderError, e:
-            print "Header Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
-            jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
-            % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), last_upload_try_id))
+            print "Header Uploader Parsing error: %s  \njobs.id: %u \tjob_submits.id:%u" % (str(e),int(job_submit['job_id']), int(job_submit['id']))
+            if dry_run:
+                jobtracker.query("UPDATE job_submits SET status='check_failed', details='%s', updated_at='%s' WHERE id=%u"\
+                % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), int(job_submit['id'])))
+                jobtracker.query("UPDATE jobs SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
+                % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), int(job_submit['job_id'])))
             try:
                 notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
                 notification.send()
@@ -111,8 +137,9 @@ class JobUploader():
             return False
 
         except upload.UploadError, e:
-            print "Header Uploader error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
-            jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Header uploader error (probable connection issues)',jobtracker.nowstr(), last_upload_try_id))
+            print "Header Uploader error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_submit['job_id']), int(job_submit['id']))
+            jobtracker.query("UPDATE job_submits SET details='%s', updated_at='%s' WHERE id=%u"\
+            % ('Header uploader error (probable connection issues)',jobtracker.nowstr(), int(job_submit['id'])))
             try:
                 notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
                 notification.send()
@@ -120,11 +147,10 @@ class JobUploader():
                 pass
             return False
 
-        except (NoUploadAttempt, NoRawResultFiles), e:
+        except NoRawResultFiles, e:
             print "%s" % str(e)
-            if last_upload_try:
-                jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
-                % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), last_upload_try_id))
+            jobtracker.query("UPDATE job_submits SET status='check_failed', details='%s', updated_at='%s' WHERE id=%u"\
+            % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), int(job_submit['id'])))
             try:
                 notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
                 notification.send()
@@ -303,16 +329,13 @@ class JobUploader():
         lss = jobtracker.query("SELECT * FROM job_submits WHERE status='finished' AND job_id=%u ORDER BY id DESC LIMIT 1" % (int(job_id)),fetchone=True)
         return lss
 
-    def get_raw_result_file(self,job_id):
+    def get_raw_result_files(self,job_submit):
         raw_filenames = list()
-        lss = self.get_jobs_last_successful_submit(int(job_id))
-        if lss == None:
-            return False
 
-        if os.path.exists(lss['output_dir']):
-            for file in os.listdir(lss['output_dir']):
+        if os.path.exists(job_submit['output_dir']):
+            for file in os.listdir(job_submit['output_dir']):
                 if fnmatch.fnmatch(file, '*.fits'):
-                   raw_filenames.append(os.path.join(lss['output_dir'],file))
+                   raw_filenames.append(os.path.join(job_submit['output_dir'],file))
 
         if raw_filenames == list():
             return False
