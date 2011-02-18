@@ -76,54 +76,60 @@ class JobUploader():
         else:
             check_or_upload='upload'
 
-    	#file_names_stra = self.get_jobs_files(job_row)
-        #last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
+        try:
+            last_upload_try = self.get_jobs_last_upload(job_row['id'])
+            if not last_upload_try:
+                raise NoUploadAttempt('Could not find last upload attempt for this job: %u.' % int(job_row['id']))
+            else:
+                last_upload_try_id = last_upload_try['id']
 
-        if file_names_stra != list():
-            try:
-                last_upload_try = self.get_jobs_last_upload(job_row['id'])
-                if last_upload_try == None:
-                    raise Exception('Could not find last upload try for this job.')
-                else:
-                    last_upload_try_id = last_upload_try['id']
+            raw_files_for_header = self.get_raw_result_file(job_row['id'])
+            if not raw_files_for_header:
+                raise NoRawResultFiles("No *.fits files found in result directory for jobs.id: %u  job_uploads.id:%u" % (int(job_row['id']), int(last_upload_try_id)))
 
-                raw_files_for_header = self.get_raw_result_file(job_row['id'])
-                if not raw_file_for_header:
-                    raise Exception('No *.fits files found in result directory.')
-                header_id = header.upload_header(fns=raw_files_for_header,dry_run=dry_run)
-            except header.HeaderError, e:
-                print "Header Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
-                jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
-                % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), last_upload_try_id))
-                try:
-                    notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
-                    notification.send()
-                except Exception,e:
-                    pass
-                return False
-            except upload.UploadError, e:
-                print "Header Uploader error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
-                jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Header uploader error (probable connection issues)',jobtracker.nowstr(), last_upload_try_id))
-                try:
-                    notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
-                    notification.send()
-                except Exception,e:
-                    pass
-                return False
+            header_id = header.upload_header(fns=raw_files_for_header,dry_run=dry_run)
 
             jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
-                % ('Header %s' % check_or_upload ,jobtracker.nowstr(), last_upload_try_id))
+            % ('Header %s' % check_or_upload ,jobtracker.nowstr(), last_upload_try_id))
 
             if(dry_run):
                 print "Header check success for jobs.id: %u \tjob_uploads.id:%u" % (int(job_row['id']), int(last_upload_try_id))
+                return True
             else:
-                return header_id
                 print "Header upload success for jobs.id: %u \tjob_uploads.id:%u \theader_id: %u" % (int(job_row['id']), int(last_upload_try_id),int(header_id))
-            return True
-        else:
-            print "No files were found in database for jobs.id: %u \tjob_uploads.id:%u" % (int(job_row['id']), int(last_upload_try_id))
+                return header_id
+
+        except header.HeaderError, e:
+            print "Header Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
-                % ('No files were found in database for this job',jobtracker.nowstr(), last_upload_try_id))
+            % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), last_upload_try_id))
+            try:
+                notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
+                notification.send()
+            except Exception,e:
+                pass
+            return False
+
+        except upload.UploadError, e:
+            print "Header Uploader error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
+            jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Header uploader error (probable connection issues)',jobtracker.nowstr(), last_upload_try_id))
+            try:
+                notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
+                notification.send()
+            except Exception,e:
+                pass
+            return False
+
+        except (NoUploadAttempt, NoRawResultFiles), e:
+            print "%s" % str(e)
+            if last_upload_try:
+                jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
+                % ('Header %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), last_upload_try_id))
+            try:
+                notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
+                notification.send()
+            except Exception,e:
+                pass
             return False
 
     def candidates_upload(self,job_row,header_id=0,commit=False):
@@ -147,11 +153,24 @@ class JobUploader():
             check_or_upload='upload'
 
         try:
-            dir = job_row['output_dir']
+            last_upload_try = self.get_jobs_last_upload(job_row['id'])
+            if not last_upload_try:
+                raise NoUploadAttempt('Could not find last upload attempt for this job: %u.' % int(job_row['id']))
+            else:
+                last_upload_try_id = last_upload_try['id']
 
-            last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
+            last_successful_submit = self.get_jobs_last_successful_submit(job_row['id'])
+            if not last_successful_submit:
+                raise NoSuccessfulSubmit("Could not retrieve last successful submit for this job: %u" % int(job_row['id']))
+
+            dir = last_successful_submit['output_dir']
 
             candidate_uploader.upload_candidates(header_id=header_id, versionnum=config.upload.version_num,  directory=dir,dry_run=dry_run)
+            print "Candidates %s success for jobs.id: %u \tjob_uploads.id:%u" % (check_or_upload,int(job_row['id']), int(last_upload_try_id))
+            jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
+                % ('Candidates %s' % check_or_upload,jobtracker.nowstr(), last_upload_try_id))
+            return True
+
         except candidate_uploader.PeriodicityCandidateError, e:
             print "Candidates Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
@@ -162,6 +181,7 @@ class JobUploader():
             except Exception,e:
                 pass
             return False
+
         except upload.UploadError, e:
             print "Candidates Uploader error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Candidates uploader error (probable connection issues)',jobtracker.nowstr(), last_upload_try_id))
@@ -172,10 +192,17 @@ class JobUploader():
                 pass
             return False
 
-        print "Candidates %s success for jobs.id: %u \tjob_uploads.id:%u" % (check_or_upload,int(job_row['id']), int(last_upload_try_id))
-        jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
-            % ('Candidates %s' % check_or_upload,jobtracker.nowstr(), last_upload_try_id))
-        return True
+        except (NoUploadAttempt, NoSuccessfulSubmit), e:
+            print "%s" % str(e)
+            if last_upload_try:
+                jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
+                % ('Candidates %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), last_upload_try_id))
+            try:
+                notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
+                notification.send()
+            except Exception,e:
+                pass
+            return False
 
     def diagnostics_upload(self,job_row,commit=False):
         """
@@ -197,15 +224,28 @@ class JobUploader():
         else:
             check_or_upload='upload'
 
-        dir = job_row['output_dir']
-
-        last_upload_try_id = jobtracker.query("SELECT * FROM job_uploads WHERE job_id=%u ORDER BY id DESC LIMIT 1" % job_row['id'])[0]['id']
-        obs_name = dir.split('/')[len(dir.split('/'))-3]
-        beamnum = int(dir.split('/')[len(dir.split('/'))-2])
-        print "obs_name: %s  beamnum: %s" % (obs_name,beamnum)
-
         try:
+            last_upload_try = self.get_jobs_last_upload(job_row['id'])
+            if not last_upload_try:
+                raise NoUploadAttempt('Could not find last upload attempt for this job: %u.' % int(job_row['id']))
+            else:
+                last_upload_try_id = last_upload_try['id']
+
+            last_successful_submit = self.get_jobs_last_successful_submit(job_row['id'])
+            if not last_successful_submit:
+                raise NoSuccessfulSubmit("Could not retrieve last successful submit for this job: %u" % int(job_row['id']))
+
+            dir = last_successful_submit['output_dir']
+            obs_name = dir.split('/')[len(dir.split('/'))-3]
+            beamnum = int(dir.split('/')[len(dir.split('/'))-2])
+            print "obs_name: %s  beamnum: %s" % (obs_name,beamnum)
+
             diagnostic_uploader.upload_diagnostics(obsname=obs_name,beamnum=beamnum, versionnum=config.upload.version_num,  directory=dir,dry_run=dry_run)
+
+            print "Diagnostics %s success for jobs.id: %u \tjob_uploads.id:%u" % (check_or_upload,int(job_row['id']), int(last_upload_try_id))
+            jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
+                % ('Diagnostics %s' % check_or_upload ,jobtracker.nowstr(), last_upload_try_id))
+            return True
         except diagnostic_uploader.DiagnosticError, e:
             print "Diagnostics Uploader Parsing error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
@@ -216,6 +256,7 @@ class JobUploader():
             except Exception,e:
                 pass
             return False
+
         except upload.UploadError, e:
             print "Diagnostics Uploader error: %s  \njobs.id: %u \tjob_uploads.id:%u" % (str(e),int(job_row['id']), int(last_upload_try_id))
             jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u" % ('Diagnostics uploader error (probable connection issues)',jobtracker.nowstr(), last_upload_try_id))
@@ -226,10 +267,17 @@ class JobUploader():
                 pass
             return False
 
-        print "Diagnostics %s success for jobs.id: %u \tjob_uploads.id:%u" % (check_or_upload,int(job_row['id']), int(last_upload_try_id))
-        jobtracker.query("UPDATE job_uploads SET details='%s', updated_at='%s' WHERE id=%u"\
-            % ('Diagnostics %s' % check_or_upload ,jobtracker.nowstr(), last_upload_try_id))
-        return True
+        except (NoUploadAttempt, NoSuccessfulSubmit), e:
+            print "%s" % str(e)
+            if last_upload_try:
+                jobtracker.query("UPDATE job_uploads SET status='failed', details='%s', updated_at='%s' WHERE id=%u"\
+                % ('Diagnostics %s failed: %s' % (check_or_upload,str(e).replace("'","").replace('"','')) ,jobtracker.nowstr(), last_upload_try_id))
+            try:
+                notification = mailer.ErrorMailer('Header %s failed: %s' % (check_or_upload,str(e)))
+                notification.send()
+            except Exception,e:
+                pass
+            return False
 
     def create_new_uploads(self):
         """
@@ -366,3 +414,22 @@ class JobUploader():
             for file_path in self.get_jobs_files(job_row):
                 if config.basic.delete_rawdata and os.path.exists(file_path):
                     os.remove(file_path)
+
+
+class NoUploadAttempt(Exception):
+    def __init__(self, value):
+        self.parameter = value
+    def __str__(self):
+        return repr(self.parameter)
+
+class NoRawResultFiles(Exception):
+    def __init__(self, value):
+        self.parameter = value
+    def __str__(self):
+        return repr(self.parameter)
+
+class NoSuccessfulSubmit(Exception):
+    def __init__(self, value):
+        self.parameter = value
+    def __str__(self):
+        return repr(self.parameter)
