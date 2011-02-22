@@ -52,27 +52,6 @@ class DownloadModule:
                     myRestore = restore(num_beams=1)
                     request = myRestore.request()
 
-                myRestore = restore(1,guid='e96ea139361740eca91f0f82ed4d889f')
-                #myRestore.create_downloads()
-                #myRestore.create_downloads()
-
-
-
-                #myRestore.getLocation()
-                WebService =  sudsClient(config.download.api_service_url).service
-
-                response = WebService.Location(guid='e96ea139361740eca91f0f82ed4d889f',username='mcgill',pw='palfa@Mc61!!')
-                print response
-                ftp = M2Crypto.ftpslib.FTP_TLS()
-                ftp.connect(config.download.ftp_host,config.download.ftp_port)
-                ftp.auth_tls()
-                ftp.set_pasv(1)
-                print config.download.ftp_username,config.download.ftp_password
-                login_response = ftp.login(config.download.ftp_username,config.download.ftp_password)
-                print login_response
-                exit()
-                myRestore.create_downloads()
-                myRestore.create_downloads()
                 if request:
                     having_location = False
                     while not having_location:
@@ -81,13 +60,14 @@ class DownloadModule:
                         if not having_location:
                             time.sleep(5)
 
-                    myRestore.create_downloads()
-#                    if downloads_created:
-#                        print "Downlaods created. Starting Download."
-#                        if myRestore.download_files():
-#                            print "Mark Requests as downloaded"
-#                    else:
-#                        print "Fail this request"
+                    downloads_created = myRestore.create_downloads()
+                    print "Downloads created: %s" % str(downloads_created)
+                    if downloads_created:
+                        print "Downlaods created. Starting Download."
+                        if myRestore.download_files():
+                            print "Mark Requests as downloaded"
+                    else:
+                        print "Fail this request"
 
     def get_space_used(self):
         """
@@ -197,29 +177,30 @@ class restore:
 
     def create_downloads(self):
         C_FTP = CornellFTP.CornellFTP()
-        print self.guid
-        files = C_FTP.get_files('e96ea139361740eca91f0f82ed4d889f')
+        files = C_FTP.get_files(self.guid)
         if files:
             for filename,filesize in files:
-                #existing_file = jobtracker.query("SELECT * FROM downloads WHERE remote_filename='%s'" % filename)
+                existing_file = jobtracker.query("SELECT * FROM downloads WHERE remote_filename='%s'" % filename)
                 print existing_file
                 if not existing_file:
-                    pass
-                    #ins_query = "INSERT INTO downloads (request_id,remote_filename,filename,status,created_at,updated_at,size) VALUES ('%s','%s','%s','%s','%s','%s',%u)" % (self.values['id'],filename,os.path.join(config.download.temp,filename),'new',jobtracker.nowstr(),jobtracker.nowstr(), int(filesize))
-                    #jobtracker.query(ins_query)
+                    ins_query = "INSERT INTO downloads (request_id,remote_filename,filename,status,created_at,updated_at,size) VALUES ('%s','%s','%s','%s','%s','%s',%u)" % (self.values['id'],filename,os.path.join(config.download.temp,filename),'new',jobtracker.nowstr(),jobtracker.nowstr(), int(filesize))
+                    jobtracker.query(ins_query)
+            return True
+        else:
+            return False
 
-#    def download_files(self):
-#        downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id=%u AND status NOT 'downloaded'" % self.values['id'])
-#        for download in downloads:
-#            attempt_id = jobtracker.query("INSERT INTO download_attempts (download_id, status, created_at, updated_at) VALUES  ('%s','%s','%s')" % (download['id'],'downloading',jobtracker.nowstr(), jobtracker.nowstr() ))
-#            try:
-#                C_FTP = CornellFTP.CornellFTP()
-#                C_FTP.download(os.path.join(self.guid,download['remote_filename']))
-#                jobtracker.query("UPDATE download_attempts SET status='downloaded' WHERE id=%u" % int(attempt_id))
-#                print "Download of %s SUCCEEDED." % download['remote_filename']
-#            except Exception, e:
-#                print "Download of %s FAILED." % download['remote_filename']
-#                jobtracker.query("UPDATE download_attempts SET status='failed' WHERE id=%u" % int(attempt_id))
+    def download_files(self):
+        downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id=%u AND status NOT 'downloaded'" % self.values['id'])
+        for download in downloads:
+            attempt_id = jobtracker.query("INSERT INTO download_attempts (download_id, status, created_at, updated_at) VALUES  ('%s','%s','%s')" % (download['id'],'downloading',jobtracker.nowstr(), jobtracker.nowstr() ))
+            try:
+                C_FTP = CornellFTP.CornellFTP()
+                C_FTP.download(os.path.join(self.guid,download['remote_filename']))
+                jobtracker.query("UPDATE download_attempts SET status='downloaded' WHERE id=%u" % int(attempt_id))
+                print "Download of %s SUCCEEDED." % download['remote_filename']
+            except Exception, e:
+                print "Download of %s FAILED." % download['remote_filename']
+                jobtracker.query("UPDATE download_attempts SET status='failed' WHERE id=%u" % int(attempt_id))
 
 #    def request(self):
 #        """

@@ -31,15 +31,18 @@ class CornellFTP():
     def connect(self):
         myFtp = M2Crypto.ftpslib.FTP_TLS()
         myFtp.connect(self.host, self.port)
-        myFtp.auth_tls()
-        myFtp.set_pasv(1)
+
+        myFtp.connect('localhost')
+        #myFtp.auth_tls()
+        #myFtp.set_pasv(1)
         print "Connected."
         return myFtp
 
     def login(self,connection):
         print self.username,self.password
-        connection.login('palfadata','NAIC305m')
+        #connection.login('palfadata','NAIC305m')
         #(self.username, self.password)
+        connection.login('arecibo','arecibo')
         print "Logged in."
         return connection
 
