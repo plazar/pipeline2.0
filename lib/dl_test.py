@@ -1,5 +1,6 @@
 import M2Crypto
 import suds.client
+from time import sleep
 
 myFtp = M2Crypto.ftpslib.FTP_TLS()
 myFtp.connect('arecibo.tc.cornell.edu', 31001)
