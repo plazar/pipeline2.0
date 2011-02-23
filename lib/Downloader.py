@@ -182,7 +182,11 @@ class restore:
         self.update_from_db()
         dlm_cout.outs("Creating/Updating Download entries for %s:" % self.guid)
         C_FTP = CornellFTP.CornellFTP()
-        files = C_FTP.get_files(self.guid)
+        try:
+            files = C_FTP.get_files(self.guid)
+        except Excepttion, e:
+            dlm_cout.outs("There was an error while getting the files listing for: %s" % self.guid)
+            return False
         total_size = 0
         num_of_downloads = 0
         if files:
