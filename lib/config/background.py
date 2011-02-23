@@ -5,7 +5,7 @@ screen_output = True # Set to True if you want the script to
                                 # output runtime information, False otherwise
 # Path to sqlite3 database file
 #jobtracker_db = "/data/alfa/test_pipeline_clean/storage_db"
-jobtracker_db = "/home/snip3/dev/storage_db"
+jobtracker_db = "/homes/borgii/snipka/dev/storage_db"
 sleep = 60
 
 import background_check
