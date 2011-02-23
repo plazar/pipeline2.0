@@ -180,7 +180,28 @@ The Pipeline interacts with the system's queue manager using an abstract interfa
 
 \subsection{Configurations}
 
-\subsection{Database Details}
+\subsection{Job-Tracker Database Details}
 \label{sec:dbdetails}
+
+The job-tracker database contains seven tables: requests, downloads, download\_attempts, jobs, job\_files, job\_submits, and job\_uploads. Each of these tables is meant to track a particular object (e.g. jobs), or events (e.g. job submissions to the queue).
+
+A description of each database table will now be presented:
+
+\paragraph{\texttt{requests}}
+The \texttt{requests} table tracks requests for data restores. An entry in the table is inserted when a request is made. Each entry contains the following data:
+\begin{description}
+    \item[id] (UNIQUE INTEGER) A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[size] (INTEGER) Total size of the files restored, in bytes.
+    \item[guid] (TEXT) A globally unique identifier for the restore. This serves as the directory name on the FTP server where the restored files will be placed.
+    \item[status] (TEXT) The current status of the request.
+    \item[details] (TEXT) Details about the request.
+    \item[created\_at] (TEXT) Date and time when the request entry was created.
+    \item[updated\_at] (TEXT) Date and time when the request entry was last updated.
+\end{description}
+
+The possible status values for requests are:
+\begin{description}
+    \item[waiting] ...
+\end{description}
 
 \end{document}
