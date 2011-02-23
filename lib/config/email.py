@@ -1,7 +1,7 @@
 ################################################################
 # Email Notification Configuration
 ################################################################
-enabled = True
+enabled = False
 smtp_host = 'smtp.gmail.com' # None - For use of the local smtp server
 smtp_username = 'mcgill.pipeline@gmail.com'
 smtp_password = 'mcg1592l!!'

@@ -32,7 +32,7 @@ def init_presto_search():
             main(filename, working_directory)
     """
     import PALFA2_presto_search as presto_search
-    
+
     # The following determines if we'll dedisperse and fold using subbands.
     # In general, it is a very good idea to use them if there is enough scratch
     # space on the machines that are processing (~30GB/beam processed)
@@ -40,7 +40,7 @@ def init_presto_search():
     # To fold from raw data (ie not from subbands or dedispersed FITS files)
     # set the following to True.
     presto_search.fold_rawdata          = True
-    
+
     # Tunable parameters for searching and folding
     # (you probably don't need to tune any of them)
     presto_search.datatype_flag           = "-psrfits" # PRESTO flag to determine data type
@@ -63,8 +63,8 @@ def init_presto_search():
     presto_search.low_T_to_search         = 20.0 # sec
 
     # DDplan configurations
-    # The following configurations are for calculating dedispersion plans 
-    # on demand. Currently dedispersion plans for WAPP and Mock data 
+    # The following configurations are for calculating dedispersion plans
+    # on demand. Currently dedispersion plans for WAPP and Mock data
     # are hardcoded.
     # presto_search.lodm        = 0      # pc cm-3
     # presto_search.hidm        = 1000   # pc cm-3
@@ -75,7 +75,7 @@ def init_presto_search():
     #     presto_search.numsub  = 0      # Defaults to number of channels
 
     # Sifting specific parameters (don't touch without good reason!)
-    presto_search.sifting.sigma_threshold = presto_search.to_prepfold_sigma-1.0  
+    presto_search.sifting.sigma_threshold = presto_search.to_prepfold_sigma-1.0
                                                    # incoherent power threshold (sigma)
     presto_search.sifting.c_pow_threshold = 100.0  # coherent power threshold
     presto_search.sifting.r_err           = 1.1    # Fourier bin tolerence for candidate equivalence
@@ -111,11 +111,11 @@ commondb.host = 'arecibosql.tc.cornell.edu'
 ################################################################
 # Background Script Configuration
 ################################################################
-background.screen_output = True # Set to True if you want the script to 
+background.screen_output = True # Set to True if you want the script to
                                 # output runtime information, False otherwise
 # Path to sqlite3 database file
-background.jobtracker_db = "/data/alfa/test_pipeline_clean/storage_db"
-
+#background.jobtracker_db = "/data/alfa/test_pipeline_clean/storage_db"
+background.jobtracker_db = "/homes/borgii/snipka/dev/storage_db"
 ################################################################
 # Email Notification Configuration
 ################################################################
