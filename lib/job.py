@@ -340,7 +340,21 @@ class JobPool:
             None
         """
 
-        tmp_job = PulsarSearchJob([job_row['filename']])
+        fns = [job_row['filename']]
+        missingfiles = [fn for fn in fns if not os.path.exists(fn)]
+        if not missingfiles:
+            tmp_job = PulsarSearchJob(fns)
+        else:
+            jobtracker.query("INSERT INTO job_submits (job_id,queue_id,output_dir,status,created_at,updated_at) VALUES (%u,'%s','%s','%s','%s','%s')"\
+          % (int(job_row['id']),'did_not_queue','some job files do not exist','failed',jobtracker.nowstr(),jobtracker.nowstr()))
+            jobtracker.query("UPDATE jobs SET status='failed',updated_at='%s' WHERE id=%u" % (jobtracker.nowstr(),int(job_row['id'])))
+            try:
+                notification = mailer.ErrorMailer("Some of job's data files no longer exist (%s)!. Job will not be submited" % ", ".join(missingfiles))
+                notification.send()
+            except Exception,e:
+                pass
+            return
+            
         try:
             output_dir = tmp_job.get_output_dir()
         except Exception, e:
