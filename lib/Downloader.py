@@ -71,6 +71,7 @@ class DownloadModule:
                         dlm_cout.outs("Marking Request as failed: %s" % myRestore.values['guid'])
                         update_query = "UPDATE requests SET status='failed' WHERE id=%u" % int(myRestore.values['id'])
                         jobtracker.query(update_query)
+            time.sleep(config.background.sleep)
 
     def get_space_used(self):
         """
@@ -184,7 +185,7 @@ class restore:
         C_FTP = CornellFTP.CornellFTP()
         try:
             files = C_FTP.get_files(self.guid)
-        except Excepttion, e:
+        except Exception, e:
             dlm_cout.outs("There was an error while getting the files listing for: %s" % self.guid)
             return False
         total_size = 0
