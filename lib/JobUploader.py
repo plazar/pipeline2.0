@@ -43,7 +43,8 @@ class JobUploader():
         checked_submit = jobtracker.query(chk_query,fetchone=True)
 
         while checked_submit:
-            self.upload(checked_submit,commit=True)
+            if self.upload(checked_submit,commit=True):
+            	self.clean_up(checked_submit)
             checked_submit = jobtracker.query(chk_query,fetchone=True)
 
     def upload_finished(self):
@@ -54,7 +55,8 @@ class JobUploader():
             print "Uploading %s" % str(finished_submit['output_dir'])
             if self.upload(finished_submit,commit=False):
                 print finished_submit
-                self.upload(finished_submit,commit=True)
+                if self.upload(finished_submit,commit=True):
+                	self.clean_up(finished_submit)
             finished_submit = jobtracker.query(fin_query,fetchone=True)
 
     def upload(self,job_submit,commit=False):
@@ -362,7 +364,7 @@ class JobUploader():
         jobtracker.query("UPDATE job_uploads SET status='reprocessing' WHERE id=%u" % (int(last_upload_id)))
 
 
-    def clean_up(self,job_row):
+    def clean_up(self,job_submit):
         """
         Deletes raw files for a given job_row.
 
@@ -371,7 +373,7 @@ class JobUploader():
         Output(s):
             stdout that the file was deleted.
         """
-        downloads = jobtracker.query('SELECT downloads.* FROM jobs,job_files,downloads WHERE jobs.id=%u AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id' % (job_row['id']))
+        downloads = jobtracker.query('SELECT downloads.* FROM job_files,downloads WHERE job_files.job_id=%u  AND job_files.file_id=downloads.id' % (job_submit['job_id']))
         for download in downloads:
             if config.basic.delete_rawdata and os.path.exists(download['filename']):
                 os.remove(download['filename'])
