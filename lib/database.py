@@ -61,14 +61,25 @@ class Database:
             warnings.warn("Database (%s) not recognized. Using default (%s)." \
                             % (db, DEFAULTDB))
             db = 'default'
-        self.conn = pyodbc.connect(autocommit=autocommit, **DATABASES[db])   
-        self.cursor = self.conn.cursor()
+        try:
+            self.conn = pyodbc.connect(autocommit=autocommit, **DATABASES[db])   
+            self.cursor = self.conn.cursor()
+        except:
+            msg  = "Could not establish database connection.\n"
+            msg += "\tCheck your connection options:\n"
+            for key, val in DATABASES[db].iteritems():
+                msg += "\t\t%s: %s\n" % (key, val)
+
+            raise DatabaseConnectionError(msg)
 
     def execute(self, *args, **kwargs):
         self.cursor.execute(*args, **kwargs)
 
     def commit(self):
         self.conn.commit()
+  
+    def rollback(self):
+        self.conn.rollback()
   
     def close(self):
         """Close database connection.
@@ -140,7 +151,11 @@ class Database:
             file.write(candidate["filedata"])
             file.close()
         return candidate["filename"]    
-   
+
+
+class DatabaseConnectionError(Exception):
+    pass
+
 
 if __name__=='__main__':
     if len(sys.argv) > 1:
