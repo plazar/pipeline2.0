@@ -176,8 +176,8 @@ class JobPool:
         jobs = jobtracker.query("SELECT * FROM jobs,job_files,downloads WHERE jobs.status NOT LIKE 'processed' AND jobs.status NOT LIKE 'new' AND jobs.status NOT LIKE 'failed' AND jobs.status NOT LIKE 'terminal_failure' AND jobs.status NOT LIKE 'uploaded' AND jobs.id=job_files.job_id AND job_files.file_id=downloads.id")
         for job in jobs:
             #check if Queue is processing a file for this job
-            in_queue,queueidreported = config.jobpooler.queue_manager.is_processing_file(job['filename'])
-            if not in_queue:
+            is_running = config.jobpooler.queue_manager.is_running(job['filename'])
+            if not is_running:
                 #if it is not processing, collect the last job submit
                 last_job_submit = jobtracker.query("SELECT * FROM job_submits WHERE job_id=%u ORDER by id DESC LIMIT 1" % int(job['id']))
                 if len(last_job_submit) > 0:

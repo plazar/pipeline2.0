@@ -191,7 +191,6 @@ class QManagerConfig(Configurable):
             # Check if appropriate functions are defined.
             methods = ['submit', \
                         'is_running', \
-                        'is_processing_file', \
                         'delete', \
                         'status', \
                         'get_stderr_path', \

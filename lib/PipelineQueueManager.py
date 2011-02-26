@@ -34,21 +34,6 @@ class PipelineQueueManager(object):
         """
         raise NotImplementedError
 
-    def is_processing_file(self, filename_str=None, imp_test=False):
-        """Must return True/False whether the job processing given filepath
-            is in the Queue or not respectively.
-
-        Input(s):
-            filename_str: String - full file path .
-            imp_test: boolean for testing if the derived class implemented this function
-                        (in the derived class if set to True, the function must return
-                        from the first line.
-        Output(s):
-            Boolean: True - if the job processing give file is still managed by queue manager
-                    False - otherwise
-        """
-        raise NotImplementedError
-
     def delete(self, jobid_str=None, imp_test=False):
         """Must guarantee the removal of the job from the Queue.
 

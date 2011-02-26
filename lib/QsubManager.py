@@ -56,29 +56,6 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
         else:
             return False
 
-    def is_processing_file(self, filename_str=None, imp_test=False):
-        """Must return True/False wheather the job processing the input filename
-            is running.
-
-        Input(s):
-            filename_str: String - full file path .
-            imp_test: boolean for testing if the derived class implemented this function
-                        (in the derived class if set to True, the function must return
-                        from the first line.
-        Output(s):
-            Boolean: True - if the job processing give file is still managed by queue manager
-                    False - otherwise
-        """
-        if imp_test:
-            return True
-
-        batch = PBSQuery.PBSQuery().getjobs()
-        for j in batch.keys():
-            if batch[j]['Job_Name'][0].startswith(self.job_basename):
-                if batch[j]['Variable_List']['DATAFILES'][0] == filename_str:
-                    return True,j
-        return False, None
-
     def delete(self, jobid_str=None, imp_test=False):
         """Must guarantee the removal of the job from the Queue.
 
