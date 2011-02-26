@@ -275,7 +275,7 @@ class DiagnosticError(Exception):
 
 
 def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
-                        dry_run=False):
+                        dry_run=False, *args, **kwargs):
     """Upload diagnostic to common DB.
         
         Inputs:
@@ -291,6 +291,9 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
                         will be made and DB command will not be executed.
                         (If verbose is True DB command will be printed 
                         to stdout.)
+
+            *** NOTE: Additional arguments are passed to the uploader function.
+
         Outputs:
             diagnostic_ids: List of diagnostic IDs corresponding to these 
                         diagnostics in the common DB. (Or a list of None values 
@@ -326,7 +329,7 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
                 print d
             results.append(None)
         else:
-            result = d.upload()
+            result = d.upload(*args, **kwargs)
             if result < 0:
                 raise DiagnosticError("An error was encountered! " \
                                         "(Error code: %d)" % result)

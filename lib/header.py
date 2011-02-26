@@ -81,7 +81,8 @@ class HeaderError(Exception):
     pass
 
 
-def upload_header(fns, beamnum=None, verbose=False, dry_run=False):
+def upload_header(fns, beamnum=None, verbose=False, dry_run=False, \
+                    *args, **kwargs):
     """Upload header to commonDB.
 
         Inputs:
@@ -94,6 +95,9 @@ def upload_header(fns, beamnum=None, verbose=False, dry_run=False):
                         will be made and DB command will not be executed.
                         (If verbose is True DB command will be be printed 
                         to stdout.)
+
+            *** NOTE: Additional arguments are passed to the uploader function.
+
         Output:
             header_id: The header ID corresponding to this beam's entry
                         in the common DB. (Or None if dry_run is True).
@@ -112,14 +116,13 @@ def upload_header(fns, beamnum=None, verbose=False, dry_run=False):
         except Exception:
             raise HeaderError("Couldn't create Header object for files (%s)!" % \
                                     fns) 
-    # header.upload('common', verbose=verbose)
     if dry_run:
         header.get_upload_sproc_call()
         if verbose:
             print header
         result = None
     else:
-        result = header.upload()
+        result = header.upload(*args, **kwargs)
         if result < 0:
             raise HeaderError("An error was encountered! " \
                                 "(Error code: %d)" % result)

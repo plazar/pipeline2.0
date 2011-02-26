@@ -33,26 +33,26 @@ class Uploadable(object):
     def upload(self, dbname='common-copy'):
         """Upload an Uploadable to the desired database.
         """
-        warnings.warn("Default is to connect to common-copy DB at Cornell for testing...")
-        if dbname not in db_connections:
-            try:
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            warnings.warn("Default is to connect to common-copy DB "
+                            "at Cornell for testing...")
+            if dbname not in db_connections:
                 db_connections[dbname] = database.Database(dbname)
-            except:
-                raise UploadError("There was an error establishing a connection " \
-                                    "to %s" % dbname)
-        db = db_connections[dbname]
+            db = db_connections[dbname]
         query = str(self.get_upload_sproc_call())
         db.cursor.execute(query)
         try:
             db.cursor.execute(query)
         except:
             raise UploadError("There was an error executing the following " \
-                                "query: %s" % query)
+                                "query: %s" % query[:256])
         try:
             result = db.cursor.fetchone()[0]
         except:
             raise UploadError("There was an error fetching the result of " \
-                                "the following query: %s" % query)
+                                "the following query: %s" % query[:256])
         return result
 
     def __str__(self):

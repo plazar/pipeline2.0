@@ -123,7 +123,7 @@ class PeriodicityCandidateError(Exception):
 
 
 def upload_candidates(header_id, versionnum, directory, verbose=False, \
-                        dry_run=False):
+                        dry_run=False, *args, **kwargs):
     """Upload candidates to common DB.
 
         Inputs:
@@ -138,6 +138,9 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
                         will be made and DB command will not be executed.
                         (If verbose is True DB command will be printed 
                         to stdout.)
+
+            *** NOTE: Additional arguments are passed to the uploader function.
+
         Ouputs:
             cand_ids: List of candidate IDs corresponding to these candidates
                         in the common DB. (Or a list of None values if
@@ -192,7 +195,7 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
             results.append(None)
             cand_id = -1
         else:
-            cand_id = cand.upload()
+            cand_id = cand.upload(*args, **kwargs)
         
         pfdplot = PeriodicityCandidatePFD(cand_id, pfdfn)
         pngplot = PeriodicityCandidatePNG(cand_id, pngfn)
@@ -203,8 +206,8 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
                 print pfdplot
                 print pngplot
         else:
-            pfdplot.upload()
-            pngplot.upload()
+            pfdplot.upload(*args, **kwargs)
+            pngplot.upload(*args, **kwargs)
         
     shutil.rmtree(tempdir)
     return results
