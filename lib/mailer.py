@@ -6,7 +6,7 @@ import config.email
 
 class ErrorMailer:
     def __init__(self,message):
-        self.msg = MIMEText(message)
+        self.msg = MIMEText(message.strip())
         self.msg['Subject'] = 'Pipeline notification at: '+ datetime.datetime.now().strftime("%a %d %b, %I:%M:%S%P")
 
         if not config.email.sender:
