@@ -1,8 +1,11 @@
-import PipelineQueueManager
-import PBSQuery
 import subprocess
 import os
 import time
+
+import PBSQuery
+
+import PipelineQueueManager
+import pipeline_utils
 
 class Qsub(PipelineQueueManager.PipelineQueueManager):
     def __init__(self, job_basename, qsublogdir, resource_list):
@@ -20,6 +23,9 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
 
             Output:
                 jobid: A unique job identifier.
+        
+            *** NOTE: A pipeline_utils.PipelineError is raised if
+                        the queue submission fails.
         """
         if imp_test:
             return True
@@ -31,7 +37,9 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
         jobid = pipe.communicate()[0].strip()
         pipe.stdin.close()
         if not jobid:
-            raise ValueError("No job identifier returned by qsub!")
+            errormsg  = "No job identifier returned by qsub!\n"
+            errormsg += "\tCommand executed: %s\n" % cmd
+            raise pipeline_utils.PipelineError(errormsg)
         return jobid
 
     def is_running(self, jobid_str=None, imp_test=False):
@@ -107,7 +115,7 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
                     numqueued += 1
         return (numrunning, numqueued)
 
-    def get_stderr_path(self, jobid_str):
+    def _get_stderr_path(self, jobid_str):
         """Must return a string file path to the error log of the given job
         defined by input jobid_str
 
@@ -120,19 +128,6 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
         stderr_path = os.path.join(self.qsublogdir, self.job_basename+".e"+jobnum)
         return stderr_path
 
-    def get_stdout_path(self, jobid_str):
-        """Must return a string file path to the output log of the given job
-        defined by input jobid_str.
-
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            String: Path to the output log file provided by queue manger for this job .
-        """
-        jobnum = jobid_str.split(".")[0]
-        stdout_path = os.path.join(self.qsublogdir, self.job_basename+".o"+jobnum)
-        return stdout_path
-
     def had_errors(self, jobid_str):
         """Must return True/False if the job terminated with an error or without
         accordingly, given the unique string identifier for a job.
@@ -144,7 +139,7 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
                     False - otherwise.
         """
 
-        errorlog = self.get_stderr_path(jobid_str)
+        errorlog = self._get_stderr_path(jobid_str)
         if os.path.exists(errorlog):
             if os.path.getsize(errorlog) > 0:
                 return True
@@ -153,37 +148,19 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
         else:
             raise ValueError("Cannot find error log for job (%s): %s" % (jobid_str, errorlog))
 
-    def read_stderr_log(self, jobid_str):
-        """Must return the content of error log file for a given job unique string
-        identifier.
+    def get_errors(self, queue_id):
+        """Return content of error log file for a given queue ID.
+        
+            Input:
+                queue_id: Queue's unique identifier for the job.
 
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            String: Content of error log file for this job.
+            Output:
+                errors: The content of the error log for this job (a string).
         """
-
-        errorlog = self.get_stderr_path(jobid_str)
+        errorlog = self._get_stderr_path(queue_id)
         if os.path.exists(errorlog):
             err_f = open(errorlog, 'r')
-            stderr_log = err_f.read()
+            errors = err_f.read()
             err_f.close()
-        return stderr_log
+        return errors
 
-    def read_stdout_log(self, jobid_str):
-        """Must return the content of error log file for a given job unique string
-        identifier.
-
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            String: Content of output log file for this job.
-
-        """
-
-        outlog = self.get_stdout_path(jobid_str)
-        if os.path.exists(outlog):
-            out_f = open(outlog, 'r')
-            stdout_log = out_f.read()
-            out_f.close()
-        return stdout_log

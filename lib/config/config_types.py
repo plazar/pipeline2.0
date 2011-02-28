@@ -193,11 +193,8 @@ class QManagerConfig(Configurable):
                         'is_running', \
                         'delete', \
                         'status', \
-                        'get_stderr_path', \
-                        'get_stdout_path', \
                         'had_errors', \
-                        'read_stderr_log', \
-                        'read_stdout_log']
+                        'get_errors']
             alldefined = True
             undefined = []
             for m in methods:

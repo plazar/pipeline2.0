@@ -16,6 +16,9 @@ class PipelineQueueManager(object):
         Output(s):
             String: unique string identifier for this submitted job in queue manager.
                     later used to get information about the job.
+        
+        *** NOTE: A pipeline_utils.PipelineError should be raised if
+                    the queue submission fails.
         """
         raise NotImplementedError
 
@@ -61,25 +64,14 @@ class PipelineQueueManager(object):
         """
         raise NotImplementedError
 
-    def get_stderr_path(self, jobid_str):
-        """Must return a string file path to the error log of the given job
-        defined by input jobid_str
+    def get_errors(self, queue_id):
+        """Return content of error log file for a given queue ID.
+        
+            Input:
+                queue_id: Queue's unique identifier for the job.
 
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            String: Path to the error log file provided by queue manger for this job .
-        """
-        raise NotImplementedError
-
-    def get_stdout_path(self, jobid_str):
-        """Must return a string file path to the output log of the given job
-        defined by input jobid_str.
-
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            String: Path to the output log file provided by queue manger for this job .
+            Output:
+                errors: The content of the error log for this job (a string).
         """
         raise NotImplementedError
 
@@ -92,29 +84,6 @@ class PipelineQueueManager(object):
         Output(s):
             Boolean: True - if this job terminated with an error,
                     False - otherwise.
-        """
-        raise NotImplementedError
-
-    def read_stderr_log(self, jobid_str):
-        """Must return the content of error log file for a given job unique string
-        identifier.
-
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            String: Content of error log file for this job.
-        """
-        raise NotImplementedError
-
-    def read_stdout_log(self, jobid_str):
-        """Must return the content of error log file for a given job unique string
-        identifier.
-
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            String: Content of output log file for this job.
-
         """
         raise NotImplementedError
 

@@ -10,6 +10,7 @@ import candidate_uploader
 import diagnostic_uploader
 import jobtracker
 import database
+import pipeline_utils
 import config.upload
 import config.basic
 
@@ -26,9 +27,9 @@ def run():
     query = "SELECT * FROM job_submits " \
             "WHERE status='processed'"
     processed_submits = jobtracker.query(query)
-    print "Found %d processed jobs waiting for submission" % \
-                len(processed_submits)
-    for submit in processed_submits:
+    print "Found %d processed jobs waiting for upload" % len(processed_submits)
+    for ii, submit in enumerate(processed_submits):
+        print "Upload %d of %d" % (ii+1, len(processed_submits))
         upload_results(submit)
 
 
@@ -71,7 +72,9 @@ def upload_results(job_submit):
             diagnostic_uploader.DiagnosticError):
         # Parsing error caught. Job attempt has failed!
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
-        errormsg  = "Error while checking results!\n\n"
+        errormsg  = "Error while checking results!\n"
+        errormsg += "\tJob ID: %d, Job submit ID: %d\n\n" % \
+                        (job_submit['job_id'], job_submit['id'])
         errormsg += "".join(exceptionmsgs)
         
         sys.stderr.write("Error while checking results!\n")
@@ -87,10 +90,10 @@ def upload_results(job_submit):
                     (errormsg, jobtracker.nowstr(), job_submit['id']))
         queries.append("UPDATE jobs " \
                        "SET status='failed', " \
-                            "details='%s', " \
+                            "details='Error while uploading results', " \
                             "updated_at='%s' " \
                        "WHERE id=%d" % \
-                    (errormsg, jobtracker.nowstr(), job_submit['job_id']))
+                    (jobtracker.nowstr(), job_submit['job_id']))
         jobtracker.query(queries)
         
         # Rolling back changes. 
@@ -127,10 +130,12 @@ def upload_results(job_submit):
                        (jobtracker.nowstr(), job_submit['job_id']))
         jobtracker.query(queries)
 
-        print "Results successfully uploaded\n"
+        print "Results successfully uploaded"
 
         if config.basic.delete_rawdata:
-            clean_up(job_submit)
+            pipeline_utils.clean_up(job_submit['job_id'])
+
+        print "" # Just a blank line
 
 def get_fitsfiles(job_submit):
     """Find the fits files associated with this job.
@@ -146,25 +151,4 @@ def get_fitsfiles(job_submit):
                 directory.
     """
     return glob.glob(os.path.join(job_submit['output_dir'], "*.fits"))
-
-def clean_up(job_submit):
-    """
-    Deletes raw files for a given job_row.
-
-        Input:
-            job_submit: A row from the job_submits table.
-                The files associated to this job will be removed.
-        Outputs:
-            None
-    """
-    downloads = jobtracker.query("SELECT downloads.filename " \
-                                 "FROM job_files, downloads " \
-                                 "WHERE job_files.job_id=%d " \
-                                    "AND job_files.file_id=downloads.id" % \
-                                    job_submit['job_id'])
-    for download in downloads:
-        file = download['filename']
-        if os.path.exists(file):
-            os.remove(file)
-            print "Deleted: %s" % file
 

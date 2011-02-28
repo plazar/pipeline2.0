@@ -13,29 +13,23 @@ import shutil
 import os.path
 import traceback
 import subprocess
-from mailer import ErrorMailer
 
-import config.background
 import job
+import mailer
+import config.background
 
 def main():
-    global datafile_demand
-
     try:
         #initialize new JobPool object to manage search jobs in QSUB
         jobpool = job.JobPool()
     except Exception, e:
-        try:
-            traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
-            msg = 'Could not initialize JobPool.\nFatal occured: %s' % str(e)
-            msg += '\n\nTraceback:\n' + traceback_string
-            notification = ErrorMailer(msg)
-            notification.send()
-            sys.stderr.write("Fatal error occurred! Could not initialize JobPool\n")
-            sys.stderr.write(traceback_string)
-            sys.exit(1)
-        except Exception:
-            raise
+        traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
+        msg = 'Could not initialize JobPool.\nFatal occured: %s\n\n' % str(e)
+        msg += traceback_string
+        notification = mailer.ErrorMailer(msg).send()
+        sys.stderr.write("Fatal error occurred! Could not initialize JobPool\n")
+        sys.stderr.write(traceback_string)
+        raise
 
     while True:
         #rotation function changes/updates the states and submits jobs
@@ -44,17 +38,12 @@ def main():
             jobpool.status()
             jobpool.rotate()
         except Exception, e:
-            try:
-                traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
-                msg = 'Fatal occured while running job pool: %s' % str(e)
-                msg += '\n\nTraceback:\n' + traceback_string
-                notification = ErrorMailer(msg)
-                notification.send()
-                sys.stderr.write("Fatal error occurred!\n")
-                sys.stderr.write(traceback_string)
-                sys.exit(1)
-            except Exception:
-                raise
+            traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
+            msg = 'Fatal occured while running job pool: %s\n\n' % str(e)
+            msg += traceback_string
+            notification = mailer.ErrorMailer(msg).send()
+            sys.stderr.write("Fatal error occurred!\n")
+            raise
         time.sleep(config.background.sleep)       
 
 main()
