@@ -24,12 +24,17 @@ def run():
     Drives the process of uploading results of the completed jobs.
 
     """
-    query = "SELECT * FROM job_submits " \
+    query = "SELECT * FROM jobs " \
             "WHERE status='processed'"
-    processed_submits = jobtracker.query(query)
-    print "Found %d processed jobs waiting for upload" % len(processed_submits)
-    for ii, submit in enumerate(processed_submits):
-        print "Upload %d of %d" % (ii+1, len(processed_submits))
+    processed_jobs = jobtracker.query(query)
+    print "Found %d processed jobs waiting for upload" % len(processed_jobs)
+    for ii, job in enumerate(processed_jobs):
+        # Get the job's most recent submit
+        submit = jobtracker.query("SELECT * FROM job_submits " \
+                                  "WHERE job_id=%d " \
+                                    "AND status='processed' " \
+                                  "ORDER BY id DESC" % job['id'], fetchone=True)
+        print "Upload %d of %d" % (ii+1, len(processed_jobs))
         upload_results(submit)
 
 
@@ -53,7 +58,6 @@ def upload_results(job_submit):
         # Prepare for upload
         dir = job_submit['output_dir']
         fitsfiles = get_fitsfiles(job_submit)
-        data = datafile.autogen_dataobj(fitsfiles)
 
         # Upload results
         header_id = header.upload_header(fitsfiles, dbname=db)
@@ -62,6 +66,7 @@ def upload_results(job_submit):
                                              config.upload.version_num, \
                                              dir, dbname=db)
         print "\tCandidates uploaded."
+        data = datafile.autogen_dataobj(fitsfiles)
         diagnostic_uploader.upload_diagnostics(data.obs_name, 
                                              data.beam_id, \
                                              config.upload.version_num, \
@@ -82,19 +87,20 @@ def upload_results(job_submit):
         sys.stderr.write("\t%s" % exceptionmsgs[-1])
 
         queries = []
+        arglists = []
         queries.append("UPDATE job_submits " \
                        "SET status='upload_failed', " \
-                            "details='%s', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % \
-                    (errormsg, jobtracker.nowstr(), job_submit['id']))
+                            "details=?, " \
+                            "updated_at=? " \
+                       "WHERE id=?")
+        arglists.append((errormsg, jobtracker.nowstr(), job_submit['id']))
         queries.append("UPDATE jobs " \
                        "SET status='failed', " \
                             "details='Error while uploading results', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % \
-                    (jobtracker.nowstr(), job_submit['job_id']))
-        jobtracker.query(queries)
+                            "updated_at=? " \
+                       "WHERE id=?")
+        arglists.append((jobtracker.nowstr(), job_submit['job_id']))
+        jobtracker.execute(queries, arglists)
         
         # Rolling back changes. 
         db.rollback()
@@ -118,16 +124,16 @@ def upload_results(job_submit):
         queries = []
         queries.append("UPDATE job_submits " \
                        "SET status='uploaded', " \
-                            "details='Upload successful', " \
+                            "details='Upload successful (header_id=%d)', " \
                             "updated_at='%s' " \
                        "WHERE id=%d" % 
-                       (jobtracker.nowstr(), job_submit['id']))
+                       (header_id, jobtracker.nowstr(), job_submit['id']))
         queries.append("UPDATE jobs " \
                        "SET status='uploaded', " \
-                            "details='Upload successful', " \
+                            "details='Upload successful (header_id=%d)', " \
                             "updated_at='%s' " \
                        "WHERE id=%d" % \
-                       (jobtracker.nowstr(), job_submit['job_id']))
+                       (header_id, jobtracker.nowstr(), job_submit['job_id']))
         jobtracker.query(queries)
 
         print "Results successfully uploaded"
