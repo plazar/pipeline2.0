@@ -19,24 +19,12 @@ import mailer
 import config.background
 
 def main():
-    try:
-        #initialize new JobPool object to manage search jobs in QSUB
-        jobpool = job.JobPool()
-    except Exception, e:
-        traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
-        msg = 'Could not initialize JobPool.\nFatal occured: %s\n\n' % str(e)
-        msg += traceback_string
-        notification = mailer.ErrorMailer(msg).send()
-        sys.stderr.write("Fatal error occurred! Could not initialize JobPool\n")
-        sys.stderr.write(traceback_string)
-        raise
-
     while True:
         #rotation function changes/updates the states and submits jobs
         #that were created
         try:
-            jobpool.status()
-            jobpool.rotate()
+            job.status()
+            job.rotate()
         except Exception, e:
             traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
             msg = 'Fatal occured while running job pool: %s\n\n' % str(e)
