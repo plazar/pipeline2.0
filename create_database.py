@@ -45,13 +45,6 @@ creates.append("CREATE TABLE job_submits ( "
                     "updated_at TEXT, " \
                     "output_dir TEXT, " \
                     "base_output_dir TEXT)")
-creates.append("CREATE TABLE job_uploads ( " \
-                    "created_at TEXT, " \
-                    "details TEXT, " \
-                    "id INTEGER PRIMARY KEY, " \
-                    "job_id INTEGER, " \
-                    "status TEXT, " \
-                    "updated_at TEXT)")
 creates.append("CREATE TABLE jobs ( " \
                     "created_at TEXT, " \
                     "details TEXT, " \
@@ -67,6 +60,14 @@ creates.append("CREATE TABLE requests ( " \
                     "status TEXT, " \
                     "updated_at TEXT)")
 
+########## No Longer in use ####################
+#creates.append("CREATE TABLE job_uploads ( " \
+#                    "created_at TEXT, " \
+#                    "details TEXT, " \
+#                    "id INTEGER PRIMARY KEY, " \
+#                    "job_id INTEGER, " \
+#                    "status TEXT, " \
+#                    "updated_at TEXT)")
 
 if not os.path.exists(config.background.jobtracker_db):
     print "Database file %s doesn't exists, creating a clean database." % \
