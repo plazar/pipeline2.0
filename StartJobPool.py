@@ -21,7 +21,7 @@ def main():
             job.rotate()
         except Exception, e:
             traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
-            msg = 'Fatal occured while running job pool: %s\n\n' % str(e)
+            msg = 'Fatal error occured while running job pool: %s\n\n' % str(e)
             msg += traceback_string
             notification = mailer.ErrorMailer(msg).send()
             sys.stderr.write("Fatal error occurred!\n")
