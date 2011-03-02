@@ -115,9 +115,9 @@ def rotate():
         assumed to be completed successfuly and upload of the results is called upon the job
     """
     create_jobs_for_new_files()
+    submit_jobs()
     update_jobs_status_from_queue()
     recover_failed_jobs()
-    submit_jobs()
 
 def update_jobs_status_from_queue():
     """
