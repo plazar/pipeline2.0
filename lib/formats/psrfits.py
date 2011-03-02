@@ -136,6 +136,34 @@ class SpectraInfo:
             self.start_subint[ii] = subint['NSUBOFFS']
             self.time_per_subint = self.dt * self.spectra_per_subint
 
+            # Now pull stuff from the columns
+            subint_hdu = hdus['SUBINT']
+            # The following is a hack to read in only the first row 
+            # from the fits file
+            subint_hdu.columns._shape = 1
+
+            # Identify the OFFS_SUB column number
+            if 'OFFS_SUB' not in subint_hdu.columns.names:
+                warnings.warn("Can't find the 'OFFS_SUB' column!")
+            else:
+                colnum = subint_hdu.columns.names.index('OFFS_SUB')
+                if ii==0:
+                    self.offs_sub_col = colnum 
+                elif self.offs_sub_col != colnum:
+                    warnings.warn("'OFFS_SUB' column changes between files 0 and %d!" % ii)
+
+                # Read the OFFS_SUB column value for the 1st row
+                offs_sub = subint_hdu.header[colnum]
+                numrows = int((offs_sub - 0.5 * self.time_per_subint) / \
+                                self.time_per_subint + 1e-7)
+                # Check to see if any rows have been deleted or are missing
+                if numrows > self.start_subint[ii]:
+                    warnings.warn("Warning: NSUBOFFS reports %d previous rows\n" \
+                                  "         but OFFS_SUB implies %s. Using OFFS_SUB.\n" \
+                                  "         Will likely be able to correct for this.\n" % \
+                                    (self.start_subint[ii], numrows))
+                self.start_subint[ii] = numrows
+
             # This is the MJD offset based on the starting subint number
             MJDf = (self.time_per_subint * self.start_subint[ii])/psr_utils.SECPERDAY
             # The start_MJD values should always be correct
@@ -147,18 +175,6 @@ class SpectraInfo:
                 raise ValueError("File %d seems to be from before file 0!" % ii)
 
             self.start_spec[ii] = (MJDf * psr_utils.SECPERDAY / self.dt + 0.5)
-
-            # Now pull stuff from the columns
-            subint_hdu = hdus['SUBINT']
-            # Identify the OFFS_SUB column number
-            if 'OFFS_SUB' not in subint_hdu.columns.names:
-                warnings.warn("Can't find the 'OFFS_SUB' column!")
-            else:
-                colnum = subint_hdu.columns.names.index('OFFS_SUB')
-                if ii==0:
-                    self.offs_sub_col = colnum 
-                elif self.offs_sub_col != colnum:
-                    warnings.warn("'OFFS_SUB' column changes between files 0 and %d!" % ii)
 
             # Identify the data column and the data type
             if 'DATA' not in subint_hdu.columns.names:
@@ -425,4 +441,5 @@ def main():
 
 
 if __name__=='__main__':
+    debug_mode(1)
     main()
