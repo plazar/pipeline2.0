@@ -179,6 +179,147 @@ The Pipeline interacts with the system's queue manager using an abstract interfa
 
 
 \subsection{Configurations}
+\label{sec:configs}
+
+The pipeline requires a series of configurations to be set in order to run. The configurations for different aspects of the pipeline are divided into the different files. The configuration files can be found in the pipeline's lib/config/ directory.
+
+Configuration checking...
+
+Each of required settings in each of the configration files are listed below:
+
+\subsubsection{basic.py}
+Basic pipeline parameters are found in \texttt{basic.py}.
+
+\begin{description}
+    \item[institution] Institution where the pipeline is being run. This is the value that will get reported in the common database.
+    \item[pipeline] The type of pipeline being run. This should be left as ``PRESTO''.
+    \item[survey] The name of the survey. This should be left as ``PALFA2.0''.
+    \item[pipelinedir] The path of the base directory containing the pipeline2.0 code.
+    \item[psrfits\_utilsdir] The path of the directory containing the installation of \texttt{psrfits\_utils} that is used by the pipeline.
+    \item[delete\_rawdata] A boolean value that determines if raw data is deleted when results for a job are successfully uploaded to the common DB, or if the maximum number of attempts for a job is reached. \textit{Set this value to False if you do not want the local copy of your data deleted.}
+    \item[coords\_table] The path to the \texttt{PALFA\_coords\_table.txt} file, which contains correct coordinates for WAPP data files.
+\end{description}
+
+\subsubsection{background.py}
+General settings for the three background scripts are found in \texttt{background.py}
+
+\begin{description}
+    \item[screen\_output] A boolean value that should be set to True if you want log information copied to the terminal.
+    \item[jobtracker\_db] The path to the SQLite job-tracker database.
+    \item[sleep] The number of seconds to sleep between iterations of the background scripts' loops.
+\end{description}
+
+
+\subsubsection{commondb.py}
+The information needed to connect to the common database is in \texttt{commondb.py}.
+
+\begin{description}
+    \item[username] The common database user name.
+    \item[password] The password used to access the common database.
+    \item[host] The computer through which a connection to the common database will be established. This should be left at ``arecibosql.tc.cornell.edu''.
+\end{description}
+
+
+\subsubsection{download.py}
+Informatation necessary to connect to the FTP server at Cornell and use the data-restore web applications are set in \texttt{download.py}, so are settings for controlling the behaviour of the downloader.
+
+\begin{description}
+    \item[api\_serice\_url] This is the URL of the data-restore web apps. This should be set to ``http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL''.
+    \item[api\_username] This is your user name used to connect to the data-restore web apps.
+    \item[api\_password] This is the password for connecting to the data-restore web apps.
+    \item[ftp\_host] This is the name of the FTP server at Cornell. It should be left at ``arecibo.tc.cornell.edu''.
+    \item[ftp\_port] This is the port to use for FTP. It should be 31001.
+    \item[ftp\_username] This is the user name to connect when FTP'ing. Currently all downloaders are using a shared account, so this should have the value ``palfadata''.
+    \item[ftp\_password] This is the password of the FTP account.
+    \item[temp] This is the directory where data are downloaded to.
+    \item[space\_to\_use] This is the space available for downloaded files, measured in bytes.
+    \item[numdownloads] This is the number of downloads that can be run in parallel. Currently the downloader is not threaded, so this setting is ignored.
+    \item[numrestores] This is the number of requests for data that can be active at any time. Since the downloader is not threaded only 1 request can be processed at a time, so this setting is also ignore.
+    \item[numretries] This is the number of times a download will be attempted before giving up and moving on to another file.
+    \item[log\_file\_path] The path of the file where the downloader logs information.
+\end{description}
+
+
+\subsubsection{email.py}
+The pipeline can be configured to send emails when failures occur. The relevant settings are in \texttt{email.py}.
+
+\begin{description}
+    \item[enabled] A boolean value that enables mailing. If False emails will not be sent.
+    \item[smtp\_host] Emails are sent using the Simple Mail Transfer Protocol (SMTP). This is the host of the SMTP server to use.
+    \item[smtp\_username] The user account to connect to the SMTP server.
+    \item[smtp\_password] The password to connect to the SMTP server.
+    \item[recipient] The email address that will be sent notifications.
+    \item[sender] The email address that should appear in the ``From'' field of the email.
+    \item[send\_on\_failures] A boolean value that determines if emails should be sent when a job fails.
+    \item[send\_on\_terminal\_failures] A boolean value that determines if emails should be sent on terminal failures (i.e. job will not be re-tried). Note: if ``\texttt{send\_on\_failures}'' is True emails will be sent on terminal failures regardless of the value of ``\texttt{send\_on\_terminal\_failures}.
+\end{description}
+
+
+\subsubsection{jobpooler.py}
+The setting that determine the behaviour of the Job Pooler are in \texttt{jobpooler.py}.
+
+\begin{description}
+    \item[base\_results\_directory] The path of where results from processing are stored. Note: the processing of each data set is in a separate subdirectory.
+    \item[max\_jobs\_running] The maximum number of jobs running at any given time.
+    \item[max\_jobs\_queue] The maximum number of jobs that are allowed to be queued at any given time. This must be at least 1, otherwise the Job Pooler will not submit jobs for fear of them being queued.
+    \item[max\_attempts] The maximum number of times a job is submitted before being abandoned.
+    \item[queue\_manager] An instance of a sub-class of \texttt{PipelineQueueManager}. This is the interface between the pipeline and the queue manager.
+\end{description}
+
+\subsubsection{processing.py}
+Setting required during processing (i.e. on the worker nodes) are provided in \texttt{processing.py}.
+
+\begin{description}
+    \item[base\_working\_directory] The directory on the worker node where temporary working and results directories will be placed.
+    \item[default\_zaplist] The path of the zaplist to use when no MJD-specific zaplist can be found.
+    \item[zaplistdir] The directory containing MJD-specific zaplists.
+\end{description}
+
+
+\subsubsection{searching.py}
+The search parameters of the pipeline are located in \texttt{searching.py}. To ensure searching is done uniformly across all processing sites most of these values shouldn't be modified.
+
+\begin{description}
+    \item[use\_subbands] A boolean value that determines if we'll dedisperse and fold using subbands. In general, it is a very good idea to use them if there is enough scratch space on the machines that are processing ($\sim$30GB/beam processed).
+    \item[fold\_rawdata] A boolean value that determines if folding should be done from the raw FITS files (as opposed to subbands or dedispersed FITS files).
+    \item[datatype\_flag] This is the flag provided to PRESTO programs to indicated the data type. This should be ``-psrfits''.
+    \item[rfifind\_chunk\_time] The duration of each chunk in \texttt{rfifind}.
+    \item[singlepulse\_threshold] The threshold SNR for singlepulse candidate determination.
+    \item[singlepulse\_plot\_SNR] The threshold SNR for displaying singlepulse candidates on plots.
+    \item[singlepulse\_maxwidth] The maximum pulse width (in seconds) for singlepulse searching.
+    \item[to\_prepfold\_sigma] The minimum incoherent sum significance required to fold a candidate.
+    \item[max\_cands\_to\_fold] The maximum number of candidates to fold per beam.
+    \item[numhits\_to\_fold] The minimum number of DMs at which a periodicity must be found to be folded.
+    \item[low\_DM\_cutoff] The lowest DM to consider when choosing candidates to fold.
+    \item[lo\_accel\_numharm] The maximum number of harmonics to sum in low acceleration searching.
+    \item[lo\_accel\_sigma] The minimum gaussian significance threshold in low acceleration searching.
+    \item[lo\_accel\_zmax] The maximum z-value (in bins) used in low acceleration searching.
+    \item[lo\_accel\_flo] The maximum frequency searched in low acceleration searching.
+    \item[hi\_accel\_numharm] The maximum number of harmonics to sum in high acceleration searching.
+    \item[hi\_accel\_sigma] The minimum gaussian significance threshold in high acceleration searching.
+    \item[hi\_accel\_zmax] The maximum z-value (in bins) used in high acceleration searching.
+    \item[hi\_accel\_flo] The maximum frequency searched in high acceleration searching.
+    \item[low\_T\_to\_search] The shortest observation that will be searched (in seconds).
+    \item[sifting\_sigma\_threshold] The minimum incoherent power sigma to consider when sifting candidates. This should be left at \texttt{to\_prepfold\_sigma}$-$1.0.
+    \item[sifting\_c\_pow\_threshold] The coherent power threshold used when sifting.
+    \item[sifting\_r\_err] The Fourier bin tolerance to consider two candidates as being at the same frequency.
+    \item[sifting\_short\_period] The shortest candidate period to consider (in seconds).
+    \item[sifting\_long\_period] The longest cndidate period to consider (in seconds).
+    \item[sifting\_harm\_pow\_cutoff] The power required in at least one harmonic.
+\end{description}
+    
+
+\subsubsection{upload.py}
+Configurations used by the uploader are set in \texttt{upload.py}.
+
+\begin{description}
+    \item[version\_num] The version number of the current version of the pipeline (including versions of \texttt{PRESTO} and \texttt{psrfits\_utils}). The preferred format is:
+    
+    \texttt{PRESTO:\{git-hash\};PIPELINE:\{git-hash\};PSRFITS\_UTILS\{git-hash\}}. 
+    
+    It is \textbf{strongly} recommended that the git-hash values are retrieved dynamically, so they are always up-to date. However, if this is not possible you are able to hard code values of the git-hashes, but they should be changed every time the versions of the software used are modified.
+\end{description}
+
 
 \subsection{Job-Tracker Database Details}
 \label{sec:dbdetails}
