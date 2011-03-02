@@ -153,7 +153,7 @@ class SpectraInfo:
                     warnings.warn("'OFFS_SUB' column changes between files 0 and %d!" % ii)
 
                 # Read the OFFS_SUB column value for the 1st row
-                offs_sub = subint_hdu.header[colnum]
+                offs_sub = subint_hdu.data[0]['OFFS_SUB']
                 numrows = int((offs_sub - 0.5 * self.time_per_subint) / \
                                 self.time_per_subint + 1e-7)
                 # Check to see if any rows have been deleted or are missing
