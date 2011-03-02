@@ -12,6 +12,7 @@ import warnings
 import re
 import types
 import tarfile
+import gc
 
 import numpy as np
 import psr_utils
@@ -225,9 +226,13 @@ class obs_info:
         self.filenms = filenms
         self.filenmstr = ' '.join(self.filenms)
         self.basefilenm = os.path.split(filenms[0])[1].rstrip(".fits")
-        
+
         # Read info from PSRFITS file
         data = datafile.autogen_dataobj(self.filenms)
+        # Correct positions in data file headers for WappPsrfitsData
+        if isinstance(data, datafile.WappPsrfitsData):
+            data.update_positions()
+        
         spec_info = data.specinfo
         self.backend = spec_info.backend
         self.MJD = spec_info.start_MJD[0]
@@ -245,11 +250,13 @@ class obs_info:
         self.samp_per_row = spec_info.spectra_per_subint
         self.fctr = spec_info.fctr
         self.numrows = np.sum(spec_info.num_subint) 
-        
-        # Correct positions in data file headers for WappPsrfitsData
-        if isinstance(data, datafile.WappPsrfitsData):
-            data.update_positions()
-        
+       
+        # Clear up some memory
+        # If this isn't done get_baryv(...) occasionally exits
+        del spec_info
+        del data
+        gc.collect()
+
         # Determine the average barycentric velocity of the observation
         self.baryv = get_baryv(self.ra_string, self.dec_string,
                                self.MJD, self.T, obs="AO")

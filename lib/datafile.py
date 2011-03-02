@@ -5,7 +5,7 @@ Data object definitions to represent PALFA data files.
 
 Patrick Lazarus, Jan. 5, 2011
 """
-
+import os
 import os.path
 import sys
 import re
@@ -19,7 +19,7 @@ import numpy as np
 from astro_utils import sextant
 from astro_utils import protractor
 from astro_utils import calendar
-
+import pipeline_utils
 import config.basic
 
 date_re = re.compile(r'^(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})$')
@@ -123,6 +123,19 @@ def group_files(fns):
         groups.append(group)
     return groups
 
+def preprocess(fns):
+    """Given a list of filenames apply any preprocessing steps
+        required. Return a list of file names of the output
+        files.
+
+        Input:
+            fns: List of names of files to preprocess.
+
+        Output:
+            outfns: List of names of preprocessed files.
+    """
+    datafile_type = get_datafile_type(fns)
+    return datafile_type.preprocess(fns)
 
 class Data(object):
     """PALFA Data object. 
@@ -236,6 +249,20 @@ class Data(object):
         raise NotImplementedError("The classmethod 'is_complete(...)' " \
                                     "must be overridden!")
 
+    @classmethod
+    def preprocess(cls, fns):
+        """Given a list of filenames apply any preprocessing steps
+            required. Return a list of file names of the output
+            files.
+
+            Input:
+                fns: List of names of files to preprocess.
+
+            Output:
+                outfns: List of names of preprocessed files.
+        """
+        # By default do nothing.
+        return fns
 
 class PsrfitsData(Data):
     """PSRFITS Data object.
@@ -441,14 +468,47 @@ class MockPsrfitsData(PsrfitsData):
             complete = False
         return complete
 
+    @classmethod
+    def preprocess(cls, fns):
+        """Given a list of filenames apply any preprocessing steps
+            required. Return a list of file names of the output
+            files.
+
+            Input:
+                fns: List of names of files to preprocess.
+
+            Output:
+                outfns: List of names of preprocessed files.
+        """
+        infiles = " ".join(fns)
+        fnmatchdict = cls.fnmatch(fns[0]).groupdict()
+        outbasenm = "4bit-%(projid)s.%(date)s.%(source)s.b%(beam)sg0.%(scan)s.merged" % \
+                        fnmatchdict
+        
+        outfile = outbasenm + ".00001.fits" # '00001' added is the filenumber
+
+        # Clobber output file
+        #if os.path.exists(outfile):
+        #    os.remove(outfile)
+        
+        # Merge mock subbands
+        mergecmd = "combine_mocks %s -o %s" % (infiles, outbasenm)
+        pipeline_utils.execute(mergecmd, stdout=outbasenm+".out")
+
+        # Remove first 7 rows from file
+        rowdelcmd = "fitsdelrow %s[SUBINT] 1 7" % outfile
+        pipeline_utils.execute(rowdelcmd)
+        
+        return [outfile]
+
 
 class MergedMockPsrfitsData(PsrfitsData):
     """PSRFITS Data object for merged MockSpec data.
     """
     filename_re = re.compile(r'^4bit-(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
                                 r'(?P<source>.*)\.b(?P<beam>[0-7])' \
-                                r'g0\.merged\.(?P<scan>\d{5})_(?P<filenum>\d{4})' \
-                                r'\.fits')
+                                r'g0\.(?P<scan>\d{5})\.merged\.' \
+                                r'(?P<filenum>\d{5})\.fits')
 
     def __init__(self, fitsfns):
         super(MergedMockPsrfitsData, self).__init__(fitsfns)

@@ -177,8 +177,10 @@ def main():
     resultsdir = None
     try:
         fns, workdir, resultsdir, outdir = set_up()
-        copy_zaplist(fns, workdir)
-        search(fns, workdir, resultsdir)
+        os.chdir(workdir)
+        ppfns = [os.path.split(fn)[-1] for fn in datafile.preprocess(fns)]
+        copy_zaplist(ppfns, workdir)
+        search(ppfns, workdir, resultsdir)
         copy_results(resultsdir, outdir)
     except:
         # Some error was encountered
