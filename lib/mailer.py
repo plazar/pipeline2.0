@@ -17,12 +17,12 @@ class ErrorMailer:
         self.client = smtplib.SMTP(config.email.smtp_host,587)
 
     def send(self):
-            if config.email.enabled:
-                self.client.ehlo()
-                self.client.starttls()
-                self.client.login(config.email.smtp_username,config.email.smtp_password)
-                self.client.sendmail(self.msg['From'], self.msg['To'], self.msg.as_string())
-                self.client.quit()
+        if config.email.enabled:
+            self.client.ehlo()
+            self.client.starttls()
+            self.client.login(config.email.smtp_username,config.email.smtp_password)
+            self.client.sendmail(self.msg['From'], self.msg['To'], self.msg.as_string())
+            self.client.quit()
 
     def __str__(self):
         return self.msg.as_string()
