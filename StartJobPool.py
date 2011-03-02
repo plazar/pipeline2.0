@@ -4,15 +4,9 @@ Background script for running pulsar search jobs.
 
 Patrick Lazarus, June 7th, 2010
 """
-import re
-import os
 import sys
 import time
-import socket
-import shutil
-import os.path
 import traceback
-import subprocess
 
 import job
 import mailer
