@@ -6,6 +6,7 @@ import PBSQuery
 
 import PipelineQueueManager
 import pipeline_utils
+import config.basic
 
 class Qsub(PipelineQueueManager.PipelineQueueManager):
     def __init__(self, job_basename, qsublogdir, resource_list):
@@ -29,10 +30,11 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
         """
         if imp_test:
             return True
-
-        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -o %s search.py' % \
+        searchscript = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
+        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -o %s %s' % \
                             (','.join(datafiles), outdir, self.resource_list, \
-                                    self.job_basename, self.qsublogdir, self.qsublogdir)
+                                    self.job_basename, self.qsublogdir, \
+                                    self.qsublogdir, searchscript)
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
         jobid = pipe.communicate()[0].strip()
         pipe.stdin.close()
@@ -126,6 +128,9 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
         """
         jobnum = jobid_str.split(".")[0]
         stderr_path = os.path.join(self.qsublogdir, self.job_basename+".e"+jobnum)
+        if not os.path.exists(stderr_path):
+            raise ValueError("Cannot find error log for job (%s): %s" % \
+                        (jobid_str, stderr_path))
         return stderr_path
 
     def had_errors(self, jobid_str):
@@ -139,14 +144,16 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
                     False - otherwise.
         """
 
-        errorlog = self._get_stderr_path(jobid_str)
-        if os.path.exists(errorlog):
-            if os.path.getsize(errorlog) > 0:
-                return True
-            else:
-                return False
+        try:
+            errorlog = self._get_stderr_path(jobid_str)
+        except ValueError:
+            errors = True
         else:
-            raise ValueError("Cannot find error log for job (%s): %s" % (jobid_str, errorlog))
+            if os.path.getsize(errorlog) > 0:
+                errors = True
+            else:
+                errors = False
+        return errors
 
     def get_errors(self, queue_id):
         """Return content of error log file for a given queue ID.
@@ -157,10 +164,14 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
             Output:
                 errors: The content of the error log for this job (a string).
         """
-        errorlog = self._get_stderr_path(queue_id)
-        if os.path.exists(errorlog):
-            err_f = open(errorlog, 'r')
-            errors = err_f.read()
-            err_f.close()
+        try:
+            errorlog = self._get_stderr_path(queue_id)
+        except ValueError, e:
+            errors = str(e)
+        else:
+            if os.path.exists(errorlog):
+                err_f = open(errorlog, 'r')
+                errors = err_f.read()
+                err_f.close()
         return errors
 

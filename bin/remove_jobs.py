@@ -29,14 +29,14 @@ def main(argv):
     print "Force Fail: %s" % force_fail_str
 
     for job_id in args:
-        if config.jobpool.queue_manager.is_running(job_id):
+        if config.jobpooler.queue_manager.is_running(job_id):
 
             job_submit = jobtracker.query("SELECT * FROM job_submits WHERE queue_id='%s' ORDER BY ID DESC LIMIT 1" % job_id)
             if len(job_submit) == 0:
                 print("Job submit with id %s not found." % job_id)
                 continue
             print "Stopping job: %s" % job_id
-            config.jobpool.queue_manager.delete(job_id)
+            config.jobpooler.queue_manager.delete(job_id)
             job = jobtracker.query("SELECT * FROM jobs WHERE id=%u" % job_submit[0]['job_id'])
             if len(job) == 0:
                 print("No Job with job submit %s was found in database table 'jobs'." % job_id)

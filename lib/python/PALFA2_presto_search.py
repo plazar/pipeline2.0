@@ -12,7 +12,6 @@ import warnings
 import re
 import types
 import tarfile
-import gc
 
 import numpy as np
 import psr_utils
@@ -251,12 +250,6 @@ class obs_info:
         self.fctr = spec_info.fctr
         self.numrows = np.sum(spec_info.num_subint) 
        
-        # Clear up some memory
-        # If this isn't done get_baryv(...) occasionally exits
-        del spec_info
-        del data
-        gc.collect()
-
         # Determine the average barycentric velocity of the observation
         self.baryv = get_baryv(self.ra_string, self.dec_string,
                                self.MJD, self.T, obs="AO")
