@@ -21,8 +21,9 @@ import config.jobpooler
 import config.email
 import config.basic
 
-jobpool_cout = OutStream.OutStream("JobPool","background.log",config.background.screen_output)
-job_cout = OutStream.OutStream("Job","background.log",config.background.screen_output)
+jobpool_cout = OutStream.OutStream("JobPool", \
+                    os.path.join(config.basic.log_dir, "jobpooler.log"), \
+                    config.background.screen_output)
 
 def status(log=True):
     """
@@ -293,7 +294,7 @@ def submit(job_row):
         msg += "\tData file(s):\n" 
         for fn in fns:
             msg += "\t%s\n" % fn
-        job_cout.outs(msg)
+        jobpool_cout.outs(msg)
         queries = []
         queries.append("INSERT INTO job_submits (" \
                             "job_id, " \

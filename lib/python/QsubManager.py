@@ -9,10 +9,10 @@ import pipeline_utils
 import config.basic
 
 class Qsub(PipelineQueueManager.PipelineQueueManager):
-    def __init__(self, job_basename, qsublogdir, resource_list):
+    def __init__(self, job_basename, resource_list):
         self.job_basename = job_basename
-        self.qsublogdir = qsublogdir
         self.resource_list = resource_list
+        self.qsublogdir = os.path.join(config.basic.log_dir, "qsublog")
 
     def submit(self, datafiles, outdir, imp_test=False):
         """Submits a job to the queue to be processed.

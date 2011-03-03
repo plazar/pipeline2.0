@@ -1,25 +1,26 @@
 import os.path
 import sys
 import os
-import threading
 import shutil
 import time
 import re
 import urllib2
 import suds
-import datafile
-import jobtracker
-import config.background
-import config.download
-import config.email
-import CornellFTP
 import M2Crypto
 
 import mailer
 import OutStream
+import datafile
+import jobtracker
+import CornellFTP
+import config.background
+import config.download
+import config.email
+import config.basic
 
-dlm_cout = OutStream.OutStream("Download Module",config.download.log_file_path, config.background.screen_output)
-dl_cout = OutStream.OutStream("Download Module: d/l thread",config.download.log_file_path,config.background.screen_output)
+dlm_cout = OutStream.OutStream("Download Module", \
+                        os.path.join(config.basic.log_dir, "downloader.log"), \
+                        config.background.screen_output)
 
 class DownloadModule:
     """
