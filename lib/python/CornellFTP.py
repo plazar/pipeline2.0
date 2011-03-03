@@ -1,9 +1,16 @@
-import M2Crypto
-import config.download
 import os
+import os.path
+
+import M2Crypto
 import mailer
 import OutStream
-cout = OutStream.OutStream("CornellFTP Module",config.download.log_file_path, config.background.screen_output).outs
+import config.basic
+import config.background
+import config.download
+
+cout = OutStream.OutStream("CornellFTP Module", \
+                os.path.join(config.basic.log_dir, "downloader.log"), \
+                config.background.screen_output)
 
 class CornellFTP():
 
@@ -53,13 +60,14 @@ class CornellFTP():
                         notification.send()
                     except Exception,e:
                         pass
-        self.downloading_file = open(os.path.join(config.download.temp,os.path.basename(ftp_file_path)),'wb')
+        localfn = os.path.join(config.download.temp,os.path.basename(ftp_file_path))
+        self.downloading_file = open(localfn, 'wb')
         myFtp.sendcmd("TYPE I")
-        cout("CornellFTP - Starting Download of: %s" % ftp_file_path)
+        cout.outs("CornellFTP - Starting Download of: %s" % ftp_file_path)
         myFtp.retrbinary("RETR "+ftp_file_path, self.write)
         self.downloading_file.close()
         myFtp.close()
-        return True
+        return localfn 
 
     def connect(self):
         try:
@@ -67,7 +75,7 @@ class CornellFTP():
             myFtp.connect(self.host, self.port)
             myFtp.auth_tls()
             myFtp.set_pasv(1)
-            cout("CornellFTP - Connected.")
+            cout.outs("CornellFTP - Connected.")
         except Exception,e:
             raise CornellFTPConnectionError( "%s" % str(e) )
         return myFtp
@@ -75,7 +83,7 @@ class CornellFTP():
     def login(self,connection):
         try:
             connection.login(self.username, self.password)
-            cout("CornellFTP - Logged in.")
+            cout.outs("CornellFTP - Logged in.")
             return connection
         except Exception, e:
             raise CornellFTPLoginError( "%s" % str(e) )
