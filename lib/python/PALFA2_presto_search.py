@@ -644,7 +644,12 @@ def clean_up(job):
     """Clean up.
         Tar results, copy them to the results director.
     """
-    # NOTE:  need to add database commands
+    # Dump search paramters to file
+    paramfn = open("search_params.txt", 'w')
+    cfgs = config.searching_check.searching.configs
+    for key in cfgs:
+        paramfn.write("%-25s = %r\n" % (key, cfgs[key]))
+    paramfn.close()
 
     # Tar up the results files 
     tar_suffixes = ["_ACCEL_%d.tgz"%config.searching.lo_accel_zmax,
@@ -671,8 +676,8 @@ def clean_up(job):
     tf.close()
     
     # Copy all the important stuff to the output directory
-    resultglobs = ["*rfifind.[bimors]*", 
-                    "*.ps.gz", "*.tgz", "*.png", "*.zaplist"]
+    resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", \
+                    "*.png", "*.zaplist", "search_params.txt"]
     for resultglob in resultglobs:
             for file in glob.glob(resultglob):
                 shutil.copy(file, job.outputdir)

@@ -235,6 +235,24 @@ class ZaplistUsed(PlotDiagnostic):
             zap_file.close()
 
 
+class SearchParameters(PlotDiagnostic):
+    name = "Search parameters"
+    description = "The search parameters used when searching data " \
+                    "with the PRESTO pipeline. (A text file)."
+
+    def get_diagnostic(self):
+        # find the search_params.txt file
+        paramfn = os.path.join(self.directory, 'search_params.txt')
+
+        if os.path.exists(paramfn):
+            raise DiagnosticError("Search parameter file doesn't exist!")
+        else:
+            self.value = os.path.split(paramfn)
+            param_file = open(paramfn, 'rb')
+            self.filedata = param_file.read()
+            param_file.close()
+
+
 def find_in_tarballs(dir, matchfunc):
     """Find all tarballs in the given directory and search
         for a filename (inside the tarballs) for which
@@ -309,6 +327,8 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
                         NumCandsDiagnostic,
                         MinSigmaFoldedDiagnostic,
                         NumAboveThreshDiagnostic,
+                        ZaplistUsed,
+                        SearchParameters,
                        ]
 
     results = []
