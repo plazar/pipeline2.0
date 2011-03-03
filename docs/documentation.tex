@@ -75,9 +75,9 @@ An overview of the pipeline.
     \item Dynamic zapping
     \item Automatic download of data files
     \item File size checks when downloading
-    \item Error emails
+    \item Notification of errors by email
     \item Automatic (configurable) retry of failed jobs
-    \item Check of results before uploading
+    \item Results are uploaded as a single transaction, so no partial uploads when errors occur
     \item Automatic (configurable) deletion of data files (upon success or terminal failure)
 \end{itemize}
 
@@ -183,7 +183,11 @@ The Pipeline interacts with the system's queue manager using an abstract interfa
 
 The pipeline requires a series of configurations to be set in order to run. The configurations for different aspects of the pipeline are divided into the different files. The configuration files can be found in the pipeline's lib/config/ directory.
 
-Configuration checking...
+A sanity check of configurations is performed each time a configuration file is imported. If there are errors (e.g. a setting isn't provided, a directory doesn't exist, etc.) a message is printed to the terminal, and an exception is raised causing the program to exit. It is possible to run the check the sanity of a configuration file by running it. For example, checking the sanity of \texttt{basic.py}:
+
+\texttt{python basic.py}
+
+If the settings are sane there will be no error message is output. \textit{NOTE: it may be necessary to check the sanity of the processing configurations on the worker nodes.}
 
 Each of required settings in each of the configration files are listed below:
 
@@ -328,7 +332,7 @@ The job-tracker database contains seven tables: requests, downloads, download\_a
 
 A description of each database table will now be presented:
 
-\paragraph{\texttt{requests}}
+\subsubsection{\texttt{requests}}
 The \texttt{requests} table tracks requests for data restores. An entry in the table is inserted when a request is made. Each entry contains the following data:
 \begin{description}
     \item[id] (UNIQUE INTEGER) A unique identifier, automatically assigned by the database upon creation of an entry.
@@ -340,9 +344,21 @@ The \texttt{requests} table tracks requests for data restores. An entry in the t
     \item[updated\_at] (TEXT) Date and time when the request entry was last updated.
 \end{description}
 
-The possible status values for requests are:
+\subsubsection{downloads}
+The \texttt{downloads} table tracks each file downloaded by the downloader. A separate entry is inserted for each file. Each entry contains the following data:
+
 \begin{description}
-    \item[waiting] ...
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[filename] (TEXT) The name of the downloaded file.
+    \item[remote\_filename] (TEXT) The name and path of the file on the FTP server.
+    \item[request\_id] (INTEGER) The identifier of the entry in the \texttt{requests} table that restored this file.
+    \item[status] (TEXT) The current status of the download.
+    \item[details] (TEXT) Details about the download.
+    \item[created\_at] (TEXT) Date and time when the download entry was created.
+    \item[updated\_at] (TEXT) Date and time when the download entry was last updated.
 \end{description}
+
+\subsubsection{download\_attempts}
+Every time one of the files
 
 \end{document}
