@@ -3,9 +3,9 @@
 ################################################################
 enabled = True
 smtp_host = 'smtp.gmail.com' # None - For use of the local smtp server
-smtp_username = 'mcgill.pipeline@gmail.com'
-smtp_password = 'mcg1592l!!'
-recipient = 'patricklazarus@gmail.com' # The address to send emails to
+smtp_username = 'username'
+smtp_password = 'password'
+recipient = 'first.last@email.com' # The address to send emails to
 sender = None # From address to show in email
 send_on_failures = True
 send_on_terminal_failures = True

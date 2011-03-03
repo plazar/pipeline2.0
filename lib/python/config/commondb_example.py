@@ -1,8 +1,8 @@
 ################################################################
 # Common Database Configuration
 ################################################################
-username = 'mcgill'
-password = 'pw4sd2mcgill!'
+username = 'username'
+password = 'password'
 host = 'arecibosql.tc.cornell.edu'
 
 import commondb_check
