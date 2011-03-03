@@ -28,8 +28,8 @@ def get_fns_for_jobid(jobid):
             fns: A list of data files associated with the job ID.
     """
     query = "SELECT filename " \
-            "FROM downloads, job_files " \
-            "WHERE job_files.file_id=downloads.id " \
+            "FROM files, job_files " \
+            "WHERE job_files.file_id=files.id " \
                 "AND job_files.job_id=%d" % jobid
     rows = jobtracker.query(query)
     fns = [str(row['filename']) for row in rows]

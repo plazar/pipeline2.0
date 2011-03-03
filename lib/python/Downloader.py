@@ -193,13 +193,13 @@ class restore:
         num_of_downloads = 0
         if files:
             for filename,filesize in files:
-                existing_file = jobtracker.query("SELECT * FROM downloads WHERE remote_filename='%s'" % filename)
+                existing_file = jobtracker.query("SELECT * FROM files WHERE remote_filename='%s'" % filename)
                 if not existing_file:
                     datafile_type = datafile.get_datafile_type([filename])
                     parsedfn = datafile_type.fnmatch(filename)
                     if parsedfn.groupdict().setdefault('beam', '-1') != '7':
                         total_size += filesize
-                        ins_query = "INSERT INTO downloads (request_id,remote_filename,filename,status,created_at,updated_at,size) VALUES ('%s','%s','%s','%s','%s','%s',%u)" % (self.values['id'],filename,os.path.join(config.download.temp,filename),'new',jobtracker.nowstr(),jobtracker.nowstr(), int(filesize))
+                        ins_query = "INSERT INTO files (request_id,remote_filename,filename,status,created_at,updated_at,size) VALUES ('%s','%s','%s','%s','%s','%s',%u)" % (self.values['id'],filename,os.path.join(config.download.temp,filename),'new',jobtracker.nowstr(),jobtracker.nowstr(), int(filesize))
                         jobtracker.query(ins_query)
                         num_of_downloads += 1
                     else:
@@ -214,18 +214,18 @@ class restore:
             return False
 
     def download_files(self):
-        downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id=%u AND status != 'downloaded'" % int(self.values['id']))
+        downloads = jobtracker.query("SELECT * FROM files WHERE request_id=%u AND status != 'downloaded'" % int(self.values['id']))
         download_failed = False
         for download in downloads:
             jobtracker.query("UPDATE download_attempts SET status='failed' WHERE download_id=%u" % int(download['id']))
-            jobtracker.query("UPDATE downloads SET status='downloading' WHERE id=%u" % int(download['id']))
+            jobtracker.query("UPDATE files SET status='downloading' WHERE id=%u" % int(download['id']))
             redownload = self.can_redownload(download)
             while redownload:
                 attempt_id = jobtracker.query("INSERT INTO download_attempts (download_id, status, created_at, updated_at) VALUES  ('%s','%s','%s','%s')" % (download['id'],'downloading',jobtracker.nowstr(), jobtracker.nowstr() ))
                 try:
                     C_FTP = CornellFTP.CornellFTP()
                     C_FTP.download(os.path.join(self.guid,download['remote_filename']))
-                    jobtracker.query("UPDATE downloads SET status='downloaded' WHERE id=%u" % int(download['id']))
+                    jobtracker.query("UPDATE files SET status='downloaded' WHERE id=%u" % int(download['id']))
                     jobtracker.query("UPDATE download_attempts SET status='downloaded' WHERE id=%u" % int(attempt_id))
                     dlm_cout.outs("Download of %s COMPLETED." % download['remote_filename'])
                     redownload = False
@@ -305,7 +305,7 @@ class restore:
         """
 
         attempt_row = jobtracker.query("SELECT * FROM download_attempts WHERE id=%u" % int(attempt_id))[0]
-        download = jobtracker.query("SELECT * FROM downloads WHERE id=%u" % int(attempt_row['download_id']))[0]
+        download = jobtracker.query("SELECT * FROM files WHERE id=%u" % int(attempt_row['download_id']))[0]
 
         if os.path.exists(download['filename']):
             return (os.path.getsize(download['filename']) == int(download['size']))
@@ -320,7 +320,7 @@ class restore:
             restore GUID , files being downlaoded for this restore and their expected size.
         """
 
-        dls = jobtracker.query("SELECT * from downloads WHERE request_id = %s" % self.values['id'])
+        dls = jobtracker.query("SELECT * from files WHERE request_id = %s" % self.values['id'])
         print "Restore: %s" % self.guid
         print "\t\tDownloading: "
         for dl in dls:
@@ -337,10 +337,10 @@ class restore:
             boolean False: if this restore failed to download all of its associated files.
         """
 
-        all_downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s" % self.values['id'])
-        finished_downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s AND status LIKE 'downloaded'" % self.values['id'])
-        failed_downloads = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s AND status LIKE 'failed'" % self.values['id'])
-        downloading = jobtracker.query("SELECT * FROM downloads WHERE request_id = %s AND status LIKE 'downloading'" % self.values['id'])
+        all_downloads = jobtracker.query("SELECT * FROM files WHERE request_id = %s" % self.values['id'])
+        finished_downloads = jobtracker.query("SELECT * FROM files WHERE request_id = %s AND status LIKE 'downloaded'" % self.values['id'])
+        failed_downloads = jobtracker.query("SELECT * FROM files WHERE request_id = %s AND status LIKE 'failed'" % self.values['id'])
+        downloading = jobtracker.query("SELECT * FROM files WHERE request_id = %s AND status LIKE 'downloading'" % self.values['id'])
 
         if len(downloading) > 0:
             return False

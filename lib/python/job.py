@@ -63,10 +63,10 @@ def create_jobs_for_new_files():
         entries in the jobs table.
     """
     # Get files that aren't already associated with a job
-    rows = jobtracker.query("SELECT filename FROM downloads " \
+    rows = jobtracker.query("SELECT filename FROM files " \
                             "LEFT JOIN job_files " \
-                                "ON job_files.file_id=downloads.id " \
-                            "WHERE downloads.status='downloaded' " \
+                                "ON job_files.file_id=files.id " \
+                            "WHERE files.status='downloaded' " \
                                 "AND job_files.id IS NULL")
     newfns = [str(row['filename']) for row in rows]
 
@@ -96,7 +96,7 @@ def create_jobs_for_new_files():
                             "job_id, " \
                             "updated_at) " \
                        "SELECT id, '%s', LAST_INSERT_ROWID(), '%s' " \
-                       "FROM downloads " \
+                       "FROM files " \
                        "WHERE filename IN ('%s')" % \
                        (jobtracker.nowstr(), jobtracker.nowstr(), \
                         "', '".join(complete)))

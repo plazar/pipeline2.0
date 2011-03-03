@@ -15,19 +15,19 @@ fail_times = jobtracker.query("SELECT JULIANDAY(updated_at) FROM jobs " \
                                     "WHERE status='terminal_failure'")
 
 bytes_downloaded = jobtracker.query("SELECT size, JULIANDAY(updated_at) " \
-                                    "FROM downloads " \
+                                    "FROM files " \
                                     "WHERE status='downloaded'")
-bytes_deleted_pass = jobtracker.query("SELECT -SUM(downloads.size), " \
+bytes_deleted_pass = jobtracker.query("SELECT -SUM(files.size), " \
                                             "MAX(JULIANDAY(jobs.updated_at)) " \
-                                      "FROM jobs, downloads, job_files " \
-                                      "WHERE downloads.id=job_files.file_id " \
+                                      "FROM jobs, files, job_files " \
+                                      "WHERE files.id=job_files.file_id " \
                                             "AND jobs.id=job_files.job_id " \
                                             "AND jobs.status='uploaded'" \
                                       "GROUP BY jobs.id")
-bytes_deleted_fail = jobtracker.query("SELECT -SUM(downloads.size), " \
+bytes_deleted_fail = jobtracker.query("SELECT -SUM(files.size), " \
                                             "MAX(JULIANDAY(jobs.updated_at)) " \
-                                      "FROM jobs, downloads, job_files " \
-                                      "WHERE downloads.id=job_files.file_id " \
+                                      "FROM jobs, files, job_files " \
+                                      "WHERE files.id=job_files.file_id " \
                                             "AND jobs.id=job_files.job_id " \
                                             "AND jobs.status='terminal_failure'" \
                                       "GROUP BY jobs.id")

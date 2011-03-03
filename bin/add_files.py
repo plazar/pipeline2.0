@@ -20,7 +20,7 @@ def get_files(dir_in):
 
 def get_downloads():
     files = list()
-    downloads = jobtracker.query("SELECT * FROM downloads")
+    downloads = jobtracker.query("SELECT * FROM files")
     for download in downloads:
         files.append(download['filename'])
     return files
@@ -28,7 +28,7 @@ def get_downloads():
 def create_download(file_path):
     filename = os.path.basename(file_path)
     filesize = os.path.getsize(file_path)
-    in_query = "INSERT INTO downloads (remote_filename,filename,status,created_at,updated_at,size,details) VALUES ('%s','%s','%s','%s','%s',%u,'%s')"\
+    in_query = "INSERT INTO files (remote_filename,filename,status,created_at,updated_at,size,details) VALUES ('%s','%s','%s','%s','%s',%u,'%s')"\
                         % (filename,file_path,'downloaded',datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), int(filesize),"Manually added via add_files.py")
     return jobtracker.query(in_query)
 

@@ -19,7 +19,7 @@ creates.append("CREATE TABLE download_attempts ( " \
                     "id INTEGER PRIMARY KEY, " \
                     "status TEXT, " \
                     "updated_at TEXT)")
-creates.append("CREATE TABLE downloads ( " \
+creates.append("CREATE TABLE files ( " \
                     "created_at TEXT, " \
                     "details TEXT, " \
                     "filename TEXT, "\
