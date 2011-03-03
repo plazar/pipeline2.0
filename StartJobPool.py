@@ -11,6 +11,7 @@ import traceback
 import job
 import mailer
 import config.background
+import config.email
 
 def main():
     while True:
@@ -20,10 +21,11 @@ def main():
             job.status()
             job.rotate()
         except Exception, e:
-            traceback_string = ''.join(traceback.format_exception(*sys.exc_info()))
-            msg = 'Fatal error occured while running job pool: %s\n\n' % str(e)
-            msg += traceback_string
-            notification = mailer.ErrorMailer(msg).send()
+            if config.email.send_on_crash:
+                msg = '*** Job pooler has crashed! ***\n\n'
+                msg += 'Fatal error occured while running job pool: %s\n\n' % str(e)
+                msg += ''.join(traceback.format_exception(*sys.exc_info()))
+                notification = mailer.ErrorMailer(msg).send()
             sys.stderr.write("Fatal error occurred!\n")
             raise
         time.sleep(config.background.sleep)       
