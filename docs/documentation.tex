@@ -46,11 +46,13 @@ Here we will present basic step-by-step instructions for setting up the pipeline
 
     \item[Step 3] Add the pipeline directory to your PYTHONPATH environment variable. 
 
-    \item[Step 4] Create configuration files using the examples provided. Modify the settings so they are appropriate for your system. Run the \texttt{sanity\_check.py} script to ensure all your configurations have the correct types, the neccessary directories exist and you have the correct privileges for files that must be read/written. 
+    \item[Step 4] Create configuration files using the examples provided. Modify the settings so they are appropriate for your system. It is possible to check the sanity of your configurations by calling a configuration file with the python interpreter. An error message will be displayed if a configuration type or value is invalid.  
 
-    \item[Step 5] Set up the database. This is done using the \texttt{create\_database.py} script. 
+    \item[Step 5] Set up the database. This is done using the \texttt{create\_database.py} script.
 
-    \item[Step 6] Start the downloader using \texttt{StartDownloader.py}.
+    \item[Step 6] Perform tests. In the \texttt{test/} directory there are some tests that can be run to see if you can connect to the common DB (\texttt{commondb\_test.py}), e-mail system (\texttt{MailerTest.py}), and FTP server (\texttt{cornellftp\_test.py}). To perform the tests call each script with the python interpreter.
+
+    \item[Step 7] Start the downloader using \texttt{StartDownloader.py}.
         
         \smallskip
         
@@ -60,9 +62,9 @@ Here we will present basic step-by-step instructions for setting up the pipeline
         
         Alternatively, it is possible to add files to the job-tracker database without using the downloader. To do this use \texttt{add\_files.py}. Be sure to set the \texttt{delete\_rawdata} configuration to \texttt{False} if you do not want raw data files to be deleted when the pipeline no longer requires them. 
 
-    \item[Step 7] Start the job pooler using \texttt{StartJobPool.py}. The job pooler will start submitting jobs when data files are finished downloading. 
+    \item[Step 8] Start the job pooler using \texttt{StartJobPool.py}. The job pooler will start submitting jobs when data files are finished downloading. 
 
-    \item[Step 8] Start the uploader using \texttt{StartJobUploader.py}. The uploader will upload results to the common database when jobs are successfully processed.
+    \item[Step 9] Start the uploader using \texttt{StartJobUploader.py}. The uploader will upload results to the common database when jobs are successfully processed.
 \end{description}
 
 
