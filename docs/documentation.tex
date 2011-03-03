@@ -168,13 +168,13 @@ The Pipeline interacts with the system's queue manager using an abstract interfa
 
     \item[is\_running] Given a unique identifier for a job, must return True or False whether the job is running or not, respectively.
 
-    \item[is\_processing\_file] Given a string path of a file, return True or False whether or not the job processing the input filename is running.
-
     \item[delete] Given a unique identifier for a job, remove the corresponding job from the queue. Returns True if the job was delete, False if an error occured.
 
     \item[status] Return the status of the queue, i.e. the number of jobs running and the number of jobs queued.
 
     \item[had\_errors] Given a unique identifier for a job, return True, or False whether the job terminated with an error, or not, respectively.
+
+    \item[get\_errors] Given a unique identifier for a job, return the contents of the error log. If there were not errors return an empty string.
 \end{description}
 
 
@@ -328,7 +328,7 @@ Configurations used by the uploader are set in \texttt{upload.py}.
 \subsection{Job-Tracker Database Details}
 \label{sec:dbdetails}
 
-The job-tracker database contains seven tables: requests, downloads, download\_attempts, jobs, job\_files, job\_submits, and job\_uploads. Each of these tables is meant to track a particular object (e.g. jobs), or events (e.g. job submissions to the queue).
+The job-tracker database contains six tables: \texttt{requests}, \texttt{files}, \texttt{download\_attempts}, \texttt{jobs}, \texttt{job\_files}, and \texttt{job\_submits}. Each of these tables is meant to track a particular object (e.g. jobs), or events (e.g. job submissions to the queue).
 
 A description of each database table will now be presented:
 
@@ -344,21 +344,66 @@ The \texttt{requests} table tracks requests for data restores. An entry in the t
     \item[updated\_at] (TEXT) Date and time when the request entry was last updated.
 \end{description}
 
-\subsubsection{downloads}
-The \texttt{downloads} table tracks each file downloaded by the downloader. A separate entry is inserted for each file. Each entry contains the following data:
+\subsubsection{files}
+The \texttt{files} table tracks each file available to the pipeline. A separate entry is inserted for each file. Each entry contains the following data:
 
 \begin{description}
     \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
-    \item[filename] (TEXT) The name of the downloaded file.
-    \item[remote\_filename] (TEXT) The name and path of the file on the FTP server.
+    \item[filename] (TEXT) The name of the file.
+    \item[remote\_filename] (TEXT) The name and path of the downloaded file on the FTP server.
     \item[request\_id] (INTEGER) The identifier of the entry in the \texttt{requests} table that restored this file.
-    \item[status] (TEXT) The current status of the download.
-    \item[details] (TEXT) Details about the download.
-    \item[created\_at] (TEXT) Date and time when the download entry was created.
-    \item[updated\_at] (TEXT) Date and time when the download entry was last updated.
+    \item[status] (TEXT) The current status of the file.
+    \item[details] (TEXT) Details about the file.
+    \item[created\_at] (TEXT) Date and time when the file entry was created.
+    \item[updated\_at] (TEXT) Date and time when the file entry was last updated.
 \end{description}
 
 \subsubsection{download\_attempts}
-Every time one of the files
+Every time one an attempt to download one of the files listed in the \texttt{files} table an entry is created in the \texttt{download\_attempts} table. Each download attempt entry has the following data:
+
+\begin{description}
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[request\_id] (INTEGER) The identifier of the entry in the \texttt{files} table that this download attempt corresponds to.
+    \item[status] (TEXT) The current status of the download attempt.
+    \item[details] (TEXT) Details about the current status of the download attempt.
+    \item[created\_at] (TEXT) Date and time when the download attempt entry was created.
+    \item[updated\_at] (TEXT) Date and time when the download attempt entry was last updated.
+\end{description}
+
+\subsubsection{jobs}
+Each beam-worth of data gets submitted to be processed as a single job. These jobs are tracked in the \texttt{jobs} table, and have the following data:
+
+\begin{description}
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[status] (TEXT) The current status of the job.
+    \item[details] (TEXT) Details about the current status of the job.
+    \item[created\_at] (TEXT) Date and time when the job entry was created.
+    \item[updated\_at] (TEXT) Date and time when the job entry was last updated.
+\end{description}
+
+\subsubsection{job\_files}
+Because a job can have multiple files a mapping between jobs and files is required. The \texttt{job\_files} table serves this purpose. Each row in the table has the following data:
+
+\begin{description}
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[file\_id] (INTEGER) The indentifier of an entry in the \texttt{files} table.
+    \item[job\_id] (INTEGER) The identifier of an entry in the \texttt{jobs} table that the file referred to by \texttt{file\_id} belongs to.
+    \item[created\_at] (TEXT) Date and time when the entry was created.
+    \item[updated\_at] (TEXT) Date and time when the entry was last updated.
+\end{description}
+
+\subsubsection{job\_submits}
+Each submission of a job to the queue to be processed is tracked in the \texttt{job\_submits} table. Each job submission has the following information:
+
+\begin{description}
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[queue\_id] (TEXT) The unique identifier assigned to the job by the queue manager when it is submitted. This identified is used to check if the submission is still being processed.
+    \item[job\_id] (INTEGER) The identifier of the job (from the \texttt{jobs} table) that was submitted for processing.
+    \item[output\_dir] (TEXT) The directory where the results of processing will be output.
+    \item[status] (TEXT) The current status of the job.
+    \item[details] (TEXT) Details about the current status of the job.
+    \item[created\_at] (TEXT) Date and time when the entry was created.
+    \item[updated\_at] (TEXT) Date and time when the entry was last updated.
+\end{description}
 
 \end{document}
