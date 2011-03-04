@@ -340,9 +340,9 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
             d = diagnostic_type(obsname, beamnum, \
                             versionnum, directory)
         except Exception:
-            raise DiagnosticsError("Could not create %s object for " \
+            raise DiagnosticError("Could not create %s object for " \
                                     "observation: %s (beam: %d)" % \
-                                    (obsname, beamnum))
+                                    (diagnostic_type.__name__, obsname, beamnum))
         if dry_run:
             d.get_upload_sproc_call()
             if verbose:
