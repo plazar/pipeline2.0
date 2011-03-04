@@ -14,7 +14,7 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
         self.resource_list = resource_list
         self.qsublogdir = os.path.join(config.basic.log_dir, "qsublog")
 
-    def submit(self, datafiles, outdir, imp_test=False):
+    def submit(self, datafiles, outdir):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
 
@@ -28,84 +28,70 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
             *** NOTE: A pipeline_utils.PipelineError is raised if
                         the queue submission fails.
         """
-        if imp_test:
-            return True
         searchscript = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
-        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -o %s %s' % \
-                            (','.join(datafiles), outdir, self.resource_list, \
-                                    self.job_basename, self.qsublogdir, \
-                                    self.qsublogdir, searchscript)
-        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
-        jobid = pipe.communicate()[0].strip()
+        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -k e %s' % \
+                        (','.join(datafiles), outdir, self.resource_list, \
+                            self.job_basename, self.qsublogdir, searchscript)
+        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
+                                stdin=subprocess.PIPE)
+        queue_id = pipe.communicate()[0].strip()
         pipe.stdin.close()
-        if not jobid:
+        if not queue_id:
             errormsg  = "No job identifier returned by qsub!\n"
             errormsg += "\tCommand executed: %s\n" % cmd
             raise pipeline_utils.PipelineError(errormsg)
-        return jobid
+        return queue_id
 
-    def is_running(self, jobid_str=None, imp_test=False):
-        """Returns True/False wheather the job is in the Queue or not
-            respectively
+    def is_running(self, queue_id):
+        """Must return True/False whether the job is in the queue or not
+            respectively.
 
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-            imp_test: boolean for testing if the derived class implemented this function
-                        (in the derived class if set to True, the function must return
-                        from the first line.
-        Output(s):
-            Boolean: True - if the job is still managed by queue manager
-                    False - otherwise
+        Input:
+            queue_id: Unique identifier for a job.
+        
+        Output:
+            in_queue: Boolean value. True if the job identified by 'queue_id'
+                        is still running.
         """
-        if imp_test:
-            return True
-
         batch = PBSQuery.PBSQuery().getjobs()
-        if jobid_str in batch:
-            return True
-        else:
-            return False
+        return (queue_id in batch)
 
-    def delete(self, jobid_str=None, imp_test=False):
-        """Must guarantee the removal of the job from the Queue.
+    def delete(self, queue_id):
+        """Remove the job identified by 'queue_id' from the queue.
 
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-            imp_test: boolean for testing if the derived class implemented this function
-                        (in the derived class if set to True, the function must return
-                        from the first line.
-        Output(s):
-            Boolean: True - if the job having given jobid_str was removed by from the queue manager
-                    False - if the error occurred and the job was not removed.
+        Input:
+            queue_id: Unique identifier for a job.
+        
+        Output:
+            None
+            
+            *** NOTE: A pipeline_utils.PipelineError is raised if
+                        the job removal fails.
         """
-
-        if imp_test:
-            return True
-
-        cmd = "qdel %s" % jobid_str
-        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stdin=subprocess.PIPE)
-        response = pipe.communicate()[0]
-        pipe.stdin.close()
+        cmd = "qdel %s" % queue_id
+        pipe = subprocess.Popen(cmd, shell=True)
+        
+        # Wait 3 seconds a see if the job is still being tracked by
+        # the queue manager, or if it marked as exiting.
         time.sleep(3)
         batch = PBSQuery.PBSQuery().getjobs()
-        if not (jobid_str in batch) or 'E' in batch[jobid_str]['job_state']:
-            return True
-        return False
+        if (queue_id in batch) and ('E' not in batch[queue_id]['job_state']):
+            errormsg  = "The job (%s) is still in the queue " % queue_id
+            errormsg += "and is not marked as exiting (status = 'E')!\n"
+            raise pipeline_utils.PipelineError(errormsg)
 
-    def status(self, imp_test=False):
-        """Must return a tuple of number of jobs running and queued for the pipeline
+    def status(self):
+        """Return a tuple of number of jobs running and queued for the pipeline
 
-        Input(s):
-            imp_test: boolean for testing if the derived class implemented this function
-                        (in the derived class if set to True, the function must return
-                        from the first line.
-        Output(s):
-            Tuple: (running, queued); running - number of jobs currently being run by queue manager,
-                                    queued - number of jobs queued by queue manager
+        Inputs:
+            None
+
+        Outputs:
+            running: The number of pipeline jobs currently marked as running 
+                        by the queue manager.
+            queued: The number of pipeline jobs currently marked as queued 
+                        by the queue manager.
         """
-        if imp_test:
-            return True
-
         numrunning = 0
         numqueued = 0
         batch = PBSQuery.PBSQuery().getjobs()
@@ -118,13 +104,18 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
         return (numrunning, numqueued)
 
     def _get_stderr_path(self, jobid_str):
-        """Must return a string file path to the error log of the given job
-        defined by input jobid_str
+        """A private method not required by the PipelineQueueManager interface.
+            Return the path to the error log of the given job, 
+            defined by its queue ID.
 
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            String: Path to the error log file provided by queue manger for this job .
+            Input:
+                queue_id: Unique identifier for a job.
+
+            Output:
+                stderr_path: Path to the error log file provided by queue 
+                        manger for this job.
+        
+            NOTE: A ValueError is raised if the error log cannot be found.
         """
         jobnum = jobid_str.split(".")[0]
         stderr_path = os.path.join(self.qsublogdir, self.job_basename+".e"+jobnum)
@@ -133,19 +124,20 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
                         (jobid_str, stderr_path))
         return stderr_path
 
-    def had_errors(self, jobid_str):
-        """Must return True/False if the job terminated with an error or without
-        accordingly, given the unique string identifier for a job.
+    def had_errors(self, queue_id):
+        """Given the unique identifier for a job, return if the job 
+            terminated with an error or not.
 
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            Boolean: True - if this job terminated with an error,
-                    False - otherwise.
+        Input:
+            queue_id: Unique identifier for a job.
+        
+        Output:
+            errors: A boolean value. True if this job terminated with an error.
+                    False otherwise.
         """
 
         try:
-            errorlog = self._get_stderr_path(jobid_str)
+            errorlog = self._get_stderr_path(queue_id)
         except ValueError:
             errors = True
         else:

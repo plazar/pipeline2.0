@@ -4,63 +4,71 @@ class PipelineQueueManager(object):
         """
         raise NotImplementedError
 
-    def submit(self, files_str_array=None, output_dir_str=None, imp_test=False):
-        """Must return a unique identifier for the job.
+    def submit(self, datafiles, outdir):
+        """Submits a job to the queue to be processed.
+            Returns a unique identifier for the job.
 
-        Input(s):
-            files_str_array: String array of file paths
-            output_dir_Str: String specifying the output directory for the job
-            imp_test: boolean for testing if the derived class implemented this function
-                        (in the derived class if set to True, the function must return
-                        from the first line.
-        Output(s):
-            String: unique string identifier for this submitted job in queue manager.
-                    later used to get information about the job.
+            Inputs:
+                datafiles: A list of the datafiles being processed.
+                outdir: The directory where results will be copied to.
+
+            Output:
+                jobid: A unique job identifier.
         
-        *** NOTE: A pipeline_utils.PipelineError should be raised if
-                    the queue submission fails.
+            *** NOTE: A pipeline_utils.PipelineError is raised if
+                        the queue submission fails.
         """
         raise NotImplementedError
 
-    def is_running(self, jobid_str=None, imp_test=False):
-        """Must return True/False whether the job is in the Queue or not
+    def is_running(self, queue_id):
+        """Must return True/False whether the job is in the queue or not
             respectively.
 
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-            imp_test: boolean for testing if the derived class implemented this function
-                        (in the derived class if set to True, the function must return
-                        from the first line.
-        Output(s):
-            Boolean: True - if the job is still managed by queue manager
-                    False - otherwise
+        Input:
+            queue_id: Unique identifier for a job.
+        
+        Output:
+            in_queue: Boolean value. True if the job identified by 'queue_id'
+                        is still running.
         """
         raise NotImplementedError
 
-    def delete(self, jobid_str=None, imp_test=False):
-        """Must guarantee the removal of the job from the Queue.
+    def delete(self, queue_id):
+        """Remove the job identified by 'queue_id' from the queue.
 
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-            imp_test: boolean for testing if the derived class implemented this function
-                        (in the derived class if set to True, the function must return
-                        from the first line.
-        Output(s):
-            Boolean: True - if the job having given jobid_str was removed by from the queue manager
-                    False - if the error occurred and the job was not removed
+        Input:
+            queue_id: Unique identifier for a job.
+        
+        Output:
+            is_removed: A boolean value. Is True if the job was removed from 
+                        the queue, False otherwise.
         """
         raise NotImplementedError
 
-    def status(self, imp_test=False):
-        """Must return a tuple of number of jobs running and queued for the pipeline
+    def status(self):
+        """Return a tuple of number of jobs running and queued for the pipeline
 
-        Input(s):
-            imp_test: boolean for testing if the derived class implemented this function
-                        (in the derived class if set to True, the function must return
-                        from the first line.
-        Output(s):
-            Tuple: (running, queued); running - number of jobs currently being run by queue manager,
-                                    queued - number of jobs queued by queue manager
+        Inputs:
+            None
+
+        Outputs:
+            running: The number of pipeline jobs currently marked as running 
+                        by the queue manager.
+            queued: The number of pipeline jobs currently marked as queued 
+                        by the queue manager.
+        """
+        raise NotImplementedError
+
+    def had_errors(self, queue_id):
+        """Given the unique identifier for a job, return if the job 
+            terminated with an error or not.
+
+        Input:
+            queue_id: Unique identifier for a job.
+        
+        Output:
+            errors: A boolean value. True if this job terminated with an error.
+                    False otherwise.
         """
         raise NotImplementedError
 
@@ -72,18 +80,6 @@ class PipelineQueueManager(object):
 
             Output:
                 errors: The content of the error log for this job (a string).
-        """
-        raise NotImplementedError
-
-    def had_errors(self, jobid_str):
-        """Must return True/False if the job terminated with an error or without
-        accordingly, given the unique string identifier for a job.
-
-        Input(s):
-            jobid_str: Unique String identifier for a job.
-        Output(s):
-            Boolean: True - if this job terminated with an error,
-                    False - otherwise.
         """
         raise NotImplementedError
 
