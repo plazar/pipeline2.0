@@ -245,12 +245,12 @@ class SearchParameters(PlotDiagnostic):
         paramfn = os.path.join(self.directory, 'search_params.txt')
 
         if os.path.exists(paramfn):
-            raise DiagnosticError("Search parameter file doesn't exist!")
-        else:
-            self.value = os.path.split(paramfn)
+            self.value = os.path.split(paramfn)[-1]
             param_file = open(paramfn, 'rb')
             self.filedata = param_file.read()
             param_file.close()
+        else:
+            raise DiagnosticError("Search parameter file doesn't exist!")
 
 
 def find_in_tarballs(dir, matchfunc):
