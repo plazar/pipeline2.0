@@ -43,35 +43,58 @@ class DownloadModule:
         """
 
         while True:
-            restore_entry = jobtracker.query("SELECT * FROM requests WHERE status NOT IN ('finished','failed')",fetchone=True)
-            if self.can_request_more() or restore_entry:
-                if restore_entry:
-                    dlm_cout.outs("Found existing restore: %s" % restore_entry['guid'])
-                    myRestore = restore(num_beams=1,guid=restore_entry['guid'])
-                    request = True
-                else:
-                    myRestore = restore(num_beams=1)
-                    request = myRestore.request()
-
-                if request:
-                    having_location = False
-                    while not having_location:
-                        having_location = myRestore.getLocation()
-                        dlm_cout.outs("Files are ready for restore %s: %s" % (str(myRestore.guid), str(having_location) ))
-                        if not having_location:
-                            time.sleep(5)
-
-                    downloads_created = myRestore.create_downloads()
-                    dlm_cout.outs("Num. of Created Downloads for %s: %s" % (myRestore.values['guid'],str(downloads_created)))
-                    if downloads_created:
-                        if myRestore.download_files():
-                            dlm_cout.outs("Marking Request as downloaded: %s" % myRestore.values['guid'])
-                            update_query = "UPDATE requests SET status='finished' WHERE id=%u" % int(myRestore.values['id'])
-                            jobtracker.query(update_query)
+            requests = jobtracker.query("SELECT * FROM requests WHERE status NOT IN ('finished','failed')")
+            if requests:
+                for request in requests:
+                    dlm_cout.outs("Found existing restore: %s" % request['guid'])
+                    myRestore = restore(num_beams=1,guid=request['guid'])
+                    location = myRestore.getLocation()
+                    dlm_cout.outs("Files are ready for restore %s: %s" % \
+                                    (myRestore.guid, location))
+                    if location:
+                        downloads_created = myRestore.create_downloads()
+                        dlm_cout.outs("Num. of Created Downloads for %s: %s" % (myRestore.values['guid'],str(downloads_created)))
+                        if downloads_created:
+                            if myRestore.download_files():
+                                dlm_cout.outs("Marking Request as downloaded: %s" % \
+                                                    myRestore.values['guid'])
+                                query = "UPDATE requests " \
+                                        "SET status='finished', " \
+                                            "updated_at='%s' " \
+                                        "WHERE id=%d" % \
+                                    (jobtracker.nowstr(), myRestore.values['id'])
+                                jobtracker.query(query)
+                        else:
+                            dlm_cout.outs("Marking Request as failed: %s" % \
+                                                    myRestore.values['guid'])
+                            query = "UPDATE requests " \
+                                    "SET status='failed', " \
+                                        "updated_at='%s' " \
+                                    "WHERE id=%d" % \
+                                (jobtracker.nowstr(), myRestore.values['id'])
+                            jobtracker.query(query)
                     else:
-                        dlm_cout.outs("Marking Request as failed: %s" % myRestore.values['guid'])
-                        update_query = "UPDATE requests SET status='failed' WHERE id=%u" % int(myRestore.values['id'])
-                        jobtracker.query(update_query)
+                        query = "SELECT (julianday('%s')-julianday(created_at)) " \
+                                    "AS deltaT " \
+                                "FROM requests " \
+                                "WHERE guid='%s'" % \
+                                    (jobtracker.nowstr(), myRestore.guid)
+                        row = jobtracker.query(query, fetchone=True)
+                        if row['deltaT'] > 1:
+                            dlm_cout.outs("Restore (%s) is over a day old " \
+                                            "and still not ready. Marking " \
+                                            "it as failed." % myRestore.guid)
+                            jobtracker.query("UPDATE requests " \
+                                             "SET status='failed', " \
+                                                "details='Restore took too long (> 1 day)', " \
+                                                "updated_at='%s' " \
+                                             "WHERE guid='%s'" % \
+                                        (jobtracker.nowstr(), myRestore.guid))
+            elif self.can_request_more():
+                # No requests currently being processed and we can request more 
+                myRestore = restore(num_beams=1)
+                request = myRestore.request()
+
             time.sleep(config.background.sleep)
 
     def get_space_used(self):
