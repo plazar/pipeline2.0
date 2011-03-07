@@ -29,7 +29,7 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
                         the queue submission fails.
         """
         searchscript = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
-        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -k e %s' % \
+        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -o /dev/null %s' % \
                         (','.join(datafiles), outdir, self.resource_list, \
                             self.job_basename, self.qsublogdir, searchscript)
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
