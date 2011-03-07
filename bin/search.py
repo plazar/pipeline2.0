@@ -184,7 +184,7 @@ def main():
         copy_results(resultsdir, outdir)
     except:
         # Some error was encountered
-        sys.stderr.write("\nErrors! Job ran on %s\n\n" % socket.gethostname())
+        sys.stderr.write("\nProcessing errors! Job ran on %s\n\n" % socket.gethostname())
         # Now, simply re-raise the error so it gets reported in the error logs
         raise
     finally:
