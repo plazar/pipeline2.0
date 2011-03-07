@@ -257,6 +257,8 @@ class obs_info:
         self.hostname = socket.gethostname()
         # The fraction of the data recommended to be masked by rfifind
         self.masked_fraction = 0.0
+        # The number of candidates folded
+        self.num_cands_folded = 0
         # Initialize our timers
         self.rfifind_time = 0.0
         self.downsample_time = 0.0
@@ -326,6 +328,8 @@ class obs_info:
                           (self.total_time, self.total_time/3600.0))
         report_file.write("Fraction of data masked:  %.2f%%\n"%\
                           (self.masked_fraction*100.0))
+        report_file.write("Number of candidates folded: %d\n"%\
+                          self.num_cands_folded)
         report_file.write("---------------------------------------------------------\n")
         report_file.write("          rfifind time = %7.1f sec (%5.2f%%)\n"%\
                           (self.rfifind_time, self.rfifind_time/self.total_time*100.0))
@@ -629,6 +633,7 @@ def search_job(job):
         if cand.sigma > config.searching.to_prepfold_sigma:
             job.folding_time += timed_execute(get_folding_command(cand, job))
             cands_folded += 1
+    job.num_cands_folded = cands_folded
 
     # Now step through the .ps files and convert them to .png and gzip them
 
@@ -648,7 +653,7 @@ def clean_up(job):
     paramfn = open("search_params.txt", 'w')
     cfgs = config.searching_check.searching.configs
     for key in cfgs:
-        paramfn.write("%-25s = %r\n" % (key, cfgs[key]))
+        paramfn.write("%-25s = %r\n" % (key, cfgs[key].value))
     paramfn.close()
 
     # Tar up the results files 
