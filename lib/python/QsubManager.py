@@ -40,6 +40,10 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
             errormsg  = "No job identifier returned by qsub!\n"
             errormsg += "\tCommand executed: %s\n" % cmd
             raise pipeline_utils.PipelineError(errormsg)
+        else:
+            # There is occasionally a short delay between submission and 
+            # the job appearing on the queue, so sleep for 1 second. 
+            time.sleep(1)
         return queue_id
 
     def is_running(self, queue_id):
