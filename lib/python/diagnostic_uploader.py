@@ -14,7 +14,6 @@ import optparse
 import upload
 from formats import accelcands
 import config.basic
-import config.searching
 
 
 class Diagnostic(upload.Uploadable):
@@ -212,8 +211,16 @@ class NumAboveThreshDiagnostic(FloatDiagnostic):
             raise DiagnosticError("Wrong number of candidate lists found (%d)!" % \
                                     len(candlists))
         candlist = accelcands.parse_candlist(candlists[0])
+        
+        # find the search_params.txt file
+        paramfn = os.path.join(self.directory, 'search_params.txt')
+        if os.path.exists(paramfn):
+            tmp, params = {}, {}
+            execfile(paramfn, tmp, params)
+        else:
+            raise DiagnosticError("Search parameter file doesn't exist!")
         self.value = len([c for c in candlist \
-                            if c.sigma > config.searching.to_prepfold_sigma])
+                            if c.sigma > params['to_prepfold_sigma']])
 
 
 class ZaplistUsed(PlotDiagnostic):
