@@ -20,7 +20,7 @@ The PALFA pipeline has various dependencies. All of the following packages are r
     \item psrfits\_utils (be sure to pull Kevin Stovall's version of psrfits\_utils. It contains the merging code required to analyse PALFA Mock spectrometer data. https://github.com/kstovall/psrfits\_utils.git)
     \item numpy (http://numpy.scipy.org/)
     \item M2Crypto (http://pypi.python.org/pypi/M2Crypto)
-    \item PBSQuery (http://subtrac.sara.nl/oss/pbs\_python/wiki/TorqueInstallation)
+    \item PBSQuery (if PBS is being used - http://subtrac.sara.nl/oss/pbs\_python/wiki/TorqueInstallation)
     \item pyfits (http://www.stsci.edu/resources/software\_hardware/pyfits)
     \item pyodbc (http://pypi.python.org/pypi/pyodbc/)
     \item suds (http://pypi.python.org/pypi/suds)
@@ -44,7 +44,7 @@ Here we will present basic step-by-step instructions for setting up the pipeline
         
         \textit{NOTE: This will create a sub-directory called ``pipeline2.0".} 
 
-    \item[Step 3] Add the pipeline directory to your PYTHONPATH environment variable. 
+    \item[Step 3] Add the pipeline's lib/python directory to your PYTHONPATH environment variable. 
 
     \item[Step 4] Create configuration files using the examples provided. Modify the settings so they are appropriate for your system. It is possible to check the sanity of your configurations by calling a configuration file with the python interpreter. An error message will be displayed if a configuration type or value is invalid.  
 
@@ -183,7 +183,7 @@ The Pipeline interacts with the system's queue manager using an abstract interfa
 \subsection{Configurations}
 \label{sec:configs}
 
-The pipeline requires a series of configurations to be set in order to run. The configurations for different aspects of the pipeline are divided into the different files. The configuration files can be found in the pipeline's lib/config/ directory.
+The pipeline requires a series of configurations to be set in order to run. The configurations for different aspects of the pipeline are divided into the different files. The configuration files can be found in the pipeline's lib/python/config/ directory.
 
 A sanity check of configurations is performed each time a configuration file is imported. If there are errors (e.g. a setting isn't provided, a directory doesn't exist, etc.) a message is printed to the terminal, and an exception is raised causing the program to exit. It is possible to run the check the sanity of a configuration file by running it. For example, checking the sanity of \texttt{basic.py}:
 
