@@ -182,6 +182,19 @@ class FileConfig(Configurable):
                     os.path.isfile(self.value)
 
 
+class DatabaseConfig(Configurable):
+    msg = "Must be an absolute path. " \
+            "If path exists file must be readable and writeable"
+    def isvalid(self):
+        valid = super(DatabaseConfig, self).isvalid() and \
+                    os.path.isabs(self.value) 
+        if os.path.exists(self.value):
+            valid = valid and os.access(self.value, os.R_OK | os.W_OK)
+        else:
+            pass
+        return valid
+
+
 class QManagerConfig(Configurable):
     msg = "Must be a subclass of PipelineQueueManager."
     def isvalid(self):
