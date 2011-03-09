@@ -189,7 +189,8 @@ class DatabaseConfig(Configurable):
         valid = super(DatabaseConfig, self).isvalid() and \
                     os.path.isabs(self.value) 
         if os.path.exists(self.value):
-            valid = valid and os.access(self.value, os.R_OK | os.W_OK)
+            valid = valid and os.path.isfile(self.value) and \
+                        os.access(self.value, os.R_OK | os.W_OK)
         else:
             pass
         return valid
