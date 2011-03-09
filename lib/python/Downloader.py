@@ -74,22 +74,23 @@ class DownloadModule:
                                 (jobtracker.nowstr(), myRestore.values['id'])
                             jobtracker.query(query)
                     else:
-                        query = "SELECT (julianday('%s')-julianday(created_at)) " \
-                                    "AS deltaT " \
+                        query = "SELECT (julianday('%s')-julianday(created_at))*24 " \
+                                    "AS deltaT_hours " \
                                 "FROM requests " \
                                 "WHERE guid='%s'" % \
                                     (jobtracker.nowstr(), myRestore.guid)
                         row = jobtracker.query(query, fetchone=True)
-                        if row['deltaT'] > 1:
-                            dlm_cout.outs("Restore (%s) is over a day old " \
+                        if row['deltaT_hours'] > config.download.request_timeout:
+                            dlm_cout.outs("Restore (%s) is over %d hr old " \
                                             "and still not ready. Marking " \
                                             "it as failed." % myRestore.guid)
                             jobtracker.query("UPDATE requests " \
                                              "SET status='failed', " \
-                                                "details='Restore took too long (> 1 day)', " \
+                                                "details='Request took too long (> %d hr)', " \
                                                 "updated_at='%s' " \
                                              "WHERE guid='%s'" % \
-                                        (jobtracker.nowstr(), myRestore.guid))
+                                (config.download.request_timeout, jobtracker.nowstr(), \
+                                        myRestore.guid))
             elif self.can_request_more():
                 # No requests currently being processed and we can request more 
                 myRestore = restore(num_beams=1)

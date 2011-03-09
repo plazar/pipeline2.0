@@ -16,6 +16,8 @@ numdownloads = 2
 numrestores = 2
 numretries = 3
 log_file_path = os.path.join(config.basic.pipelinedir, "logs", "downloader.log")
+request_timeout = 1 # Integer number of hours before an un-restored request 
+                    # is marked as failed
 
 import download_check
 download_check.download.populate_configs(locals())
