@@ -43,11 +43,12 @@ class DownloadModule:
         """
 
         while True:
+            self.status()
             requests = jobtracker.query("SELECT * FROM requests WHERE status NOT IN ('finished','failed')")
             if requests:
                 for request in requests:
                     dlm_cout.outs("Found existing restore: %s" % request['guid'])
-                    myRestore = restore(num_beams=1,guid=request['guid'])
+                    myRestore = restore(num_beams=10,guid=request['guid'])
                     location = myRestore.getLocation()
                     dlm_cout.outs("Files are ready for restore %s: %s" % \
                                     (myRestore.guid, location))
@@ -83,7 +84,8 @@ class DownloadModule:
                         if row['deltaT_hours'] > config.download.request_timeout:
                             dlm_cout.outs("Restore (%s) is over %d hr old " \
                                             "and still not ready. Marking " \
-                                            "it as failed." % myRestore.guid)
+                                            "it as failed." % \
+                                    (myRestore.guid, config.download.request_timeout))
                             jobtracker.query("UPDATE requests " \
                                              "SET status='failed', " \
                                                 "details='Request took too long (> %d hr)', " \
@@ -93,10 +95,54 @@ class DownloadModule:
                                         myRestore.guid))
             elif self.can_request_more():
                 # No requests currently being processed and we can request more 
-                myRestore = restore(num_beams=1)
+                myRestore = restore(num_beams=10)
                 request = myRestore.request()
 
             time.sleep(config.background.sleep)
+
+
+    def status(self):
+        """Print downloader's status to screen.
+        """
+        used = self.get_space_used()
+        avail = self.get_space_available()
+        allowed = config.download.space_to_use
+        print "Space used by downloaded files: %.2f GB of %.2f GB (%.2f%%)" % \
+                (used/1024.0**3, allowed/1024.0**3, 100.0*used/allowed)
+        print "Space available on file system: %.2f GB" % (avail/1024.0**3)
+
+        numwait = jobtracker.query("SELECT COUNT(*) FROM requests " \
+                                   "WHERE status='waiting'", \
+                                   fetchone=True)[0]
+        numfail = jobtracker.query("SELECT COUNT(*) FROM requests " \
+                                   "WHERE status='failed'", \
+                                   fetchone=True)[0]
+        print "Number of requests waiting: %d" % numwait
+        print "Number of failed requests: %d" % numfail
+
+        numdlactive = jobtracker.query("SELECT COUNT(*) FROM files " \
+                                       "WHERE status='downloading'", \
+                                       fetchone=True)[0]
+        numdlfail = jobtracker.query("SELECT COUNT(*) FROM files " \
+                                     "WHERE status='failed'", \
+                                     fetchone=True)[0]
+        print "Number of active downloads: %d" % numdlactive
+        print "Number of failed downloads: %d" % numdlfail
+        
+    
+    def get_space_available(self):
+        """Return space available on the file system where files
+            are being downloaded.
+        
+            Inputs:
+                None
+            Output:
+                avail: Number of bytes available on the file system.
+        """
+        s = os.statvfs(os.path.abspath(config.download.temp))
+        total = s.f_bavail*s.f_frsize
+        return total
+
 
     def get_space_used(self):
         """
@@ -168,7 +214,7 @@ class DownloadModule:
             int : size in bytes available for Downloader storage
         """
 
-        dlm_cout.outs("Calculating available space...")
+        # dlm_cout.outs("Calculating available space...")
         folder_size = 0
         if config.download.temp == "":
             path_to_size = os.path.dirname(__file__)
