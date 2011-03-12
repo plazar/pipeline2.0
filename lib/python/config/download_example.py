@@ -12,6 +12,8 @@ ftp_username = "username"
 ftp_password = "password"
 temp = "/data/alfa/test_pipeline_clean/"
 space_to_use = 228748364800
+min_free_space = 10737418240 # Minimum amount of disk space on the file system
+                             # that must be kept free.
 numdownloads = 2
 numrestores = 2
 numretries = 3
