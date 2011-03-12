@@ -57,10 +57,9 @@ def query(queries, fetchone=False):
             except NameError:
                 # Connection wasn't established, 'db_conn' is not defined.
                 pass
-            if count > 59:
-                print "Couldn't connect to DB for 1 minute. Will continue trying. " \
-                        "Error message: %s" % str(e)
-                count = 0
+            if (count % 60) == 0:
+                print "Couldn't connect to DB for %d seconds. Will continue trying. " \
+                        "Error message: %s" % (count, str(e))
             time.sleep(1)
             count+=1
     return results
@@ -114,10 +113,9 @@ def execute(queries, arglists, fetchone=False):
             except NameError:
                 # Connection wasn't established, 'db_conn' is not defined.
                 pass
-            if count > 59:
-                print "Couldn't connect to DB for 1 minute. Will continue trying. " \
-                        "Error message: %s" % str(e)
-                count = 0
+            if (count % 60) == 0:
+                print "Couldn't connect to DB for %d seconds. Will continue trying. " \
+                        "Error message: %s" % (count, str(e))
             time.sleep(1)
             count+=1
     return results
