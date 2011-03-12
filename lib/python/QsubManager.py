@@ -72,12 +72,12 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
             *** NOTE: A pipeline_utils.PipelineError is raised if
                         the job removal fails.
         """
-        cmd = "qdel %s" % queue_id
+        cmd = "qsig -s SIGINT %s" % queue_id
         pipe = subprocess.Popen(cmd, shell=True)
         
-        # Wait 3 seconds a see if the job is still being tracked by
+        # Wait a few seconds a see if the job is still being tracked by
         # the queue manager, or if it marked as exiting.
-        time.sleep(3)
+        time.sleep(5)
         batch = PBSQuery.PBSQuery().getjobs()
         if (queue_id in batch) and ('E' not in batch[queue_id]['job_state']):
             errormsg  = "The job (%s) is still in the queue " % queue_id
