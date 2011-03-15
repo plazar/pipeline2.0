@@ -10,15 +10,14 @@ This script allows safe/force-fail removal of the job from the Pipeline
 
 def main():
     for queue_id in args:
-        if config.jobpooler.queue_manager.is_running(queue_id):
-            job_submits = jobtracker.query("SELECT id, job_id " \
-                                           "FROM job_submits " \
-                                           "WHERE queue_id='%s'" % queue_id)
-            if len(job_submits) != 1:
-                sys.stderr.write("Bad number (%d) of job submissions for queue " \
-                                    "ID provided: %s" % (len(job_submits), queue_id))
-            else:
-                print "Stopping job: %s" % queue_id
+        job_submits = jobtracker.query("SELECT id, job_id, queue_id " \
+                                       "FROM job_submits " \
+                                       "WHERE queue_id LIKE '%s'" % queue_id)
+        if len(job_submits) != 1:
+            sys.stderr.write("Bad number (%d) of job submissions for queue " \
+                                "ID provided: %s\n" % (len(job_submits), queue_id))
+        elif config.jobpooler.queue_manager.is_running(job_submits[0]['queue_id']):
+            print "Stopping job: %s" % job_submits[0]['queue_id']
 
             queries = []
             if options.fail:
@@ -44,11 +43,11 @@ def main():
                                "WHERE id=%d" % \
                                 (jobtracker.nowstr(), job_submits[0]['job_id']))
             jobtracker.query(queries)
-            config.jobpooler.queue_manager.delete(queue_id)
+            config.jobpooler.queue_manager.delete(job_submits[0]['queue_id'])
 
         else:
             sys.stderr.write("There is no job currently in the queue with " \
-                                "the ID provided: %s\n" % queue_id)
+                                "the ID provided: %s\n" % job_submits[0]['queue_id'])
 
 
 if __name__ == "__main__":
