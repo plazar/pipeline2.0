@@ -93,7 +93,7 @@ class CornellFTP():
             raise Exception('CornellFTP - Not Connected')
         return login_connection.nlst(ftp_path)
 
-    def write(self,block):
+    def write(self, block):
         self.downloading_file.write(block)
 
 
