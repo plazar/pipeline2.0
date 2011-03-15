@@ -25,24 +25,32 @@ dlm_cout = OutStream.OutStream("Download Module", \
                         config.background.screen_output)
 
 
-def recover():
-    """Recover from crash/exit.
-        Set all files with status='downloading' to 'unverified'.
-        Also set all download_attempts with status 'downloading' to
-        'aborted'.
+def check_download_attempts():
+    """For each download attempt with status 'downloading' check
+        to see that its thread is still active. If not, mark it
+        as 'unknown', and mark the file as 'unverified'.
     """
-    queries = []
-    queries.append("UPDATE files " \
-                   "SET status='unverified', " \
-                        "updated_at='%s', " \
-                        "details='Recovering from crash/exit' "
-                   "WHERE status='downloading'" % jobtracker.nowstr())
-    queries.append("UPDATE download_attempts " \
-                   "SET status='aborted', " \
-                        "updated_at='%s', " \
-                        "details='Recovering from crash/exit' "
-                   "WHERE status='downloading'" % jobtracker.nowstr())
-    jobtracker.query(queries)
+    attempts = jobtracker.query("SELECT * FROM download_attempts " \
+                                "WHERE status='downloading'")
+
+    active_ids = [t.name for t in threading.enumerate() \
+                            if isinstance(t, DownloadThread)]
+
+    for attempt in attempts:
+        print "Checking: ", attempt
+        if attempt['id'] not in active_ids:
+            queries = []
+            queries.append("UPDATE files " \
+                           "SET status='unverified', " \
+                                "updated_at='%s', " \
+                                "details='Download thread is no longer running' "
+                           "WHERE id=%d" % (jobtracker.nowstr(), attempt['download_id']))
+            queries.append("UPDATE download_attempts " \
+                           "SET status='unknown', " \
+                                "updated_at='%s', " \
+                                "details='Download thread is no longer running' "
+                           "WHERE id=%d" % (jobtracker.nowstr(), attempt['id']))
+            jobtracker.query(queries)
 
 
 def can_request_more():
@@ -62,10 +70,11 @@ def can_request_more():
     numactive = len(active_requests)
     used = get_space_used()
     avail = get_space_available()
-    
+    reserved = get_space_committed()
+
     can_request = (numactive < config.download.numrestores) and \
-            (avail > config.download.min_free_space) and \
-            (used < config.download.space_to_use)
+            (avail-reserved > config.download.min_free_space) and \
+            (used+reserved < config.download.space_to_use)
     return can_request
 
 
@@ -77,7 +86,8 @@ def get_space_used():
     Output:
         used: Size of download directory (in bytes)
     """
-    files = jobtracker.query("SELECT * FROM files")
+    files = jobtracker.query("SELECT * FROM files " \
+                             "WHERE status IN ('downloaded', 'unverified')")
 
     total_size = 0
     for file in files:
@@ -100,20 +110,38 @@ def get_space_available():
     return total
 
 
+def get_space_committed():
+    """Return space reserved to files to be downloaded.
+
+        Inputs:
+            None
+        Outputs:
+            reserved: Number of bytes reserved by files to be downloaded.
+    """
+    reserved = jobtracker.query("SELECT SUM(size) FROM files " \
+                                "WHERE status IN ('downloading', 'new', " \
+                                                 "'retrying', 'failed')", \
+                                fetchone=True)[0]
+    if reserved is None:
+        reserved = 0
+    return reserved
+
+
 def run():
     """Perform a single iteration of the downloader's loop.
     """
-    if can_request_more():
-        print "Making a request"
-        make_request()
     print "Checking active requests"
     check_active_requests()
     print "Starting downloads"
     start_downloads()
+    check_download_attempts()
     print "Verifying files"
     verify_files()
     print "Recovering failed downloads"
     recover_failed_downloads()
+    if can_request_more():
+        print "Making a request"
+        make_request()
 
 
 def make_request():
@@ -176,7 +204,7 @@ def check_active_requests():
                 dlm_cout.outs("Restore (%s) is over %d hr old " \
                                 "and still not ready. Marking " \
                                 "it as failed." % \
-                        (myRestore.guid, config.download.request_timeout))
+                        (request['guid'], config.download.request_timeout))
                 jobtracker.query("UPDATE requests " \
                                  "SET status='failed', " \
                                     "details='Request took too long (> %d hr)', " \
@@ -248,9 +276,11 @@ def start_downloads():
         or 'new' and start the downloads.
     """
     todownload  = jobtracker.query("SELECT * FROM files " \
-                                   "WHERE status='retrying'")
+                                   "WHERE status='retrying' " \
+                                   "ORDER BY created_at ASC")
     todownload += jobtracker.query("SELECT * FROM files " \
-                                   "WHERE status='new'")
+                                   "WHERE status='new' " \
+                                   "ORDER BY created_at ASC")
 
     for file in todownload:
         if can_download():
@@ -275,8 +305,8 @@ def start_downloads():
                                        "WHERE id=%d" % insert_id, \
                                        fetchone=True)
     
-            download(attempt)
-            # DownloadThread(attempt).start()
+            # download(attempt)
+            DownloadThread(attempt).start()
 
 
 def can_download():
@@ -471,7 +501,7 @@ class DownloadThread(threading.Thread):
             Output:
                 self: The DownloadThread object constructed.
         """
-        super(DownloadThread, self).__init__()
+        super(DownloadThread, self).__init__(name=attempt['id'])
         self.attempt = attempt
 
     def run(self):

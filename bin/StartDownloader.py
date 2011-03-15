@@ -7,7 +7,6 @@ import Downloader
 import config.background
 import config.email
 
-Downloader.recover()
 while True:
     try:
         Downloader.status()
