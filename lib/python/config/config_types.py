@@ -126,10 +126,18 @@ class BoolConfig(Configurable):
 
 
 class IntConfig(Configurable):
-    msg = "Must be a integer value."
+    msg = "Must be an integer value."
     def isvalid(self):
         return super(IntConfig, self).isvalid() and \
                     (type(self.value) == types.IntType)
+
+
+class IntOrLongConfig(Configurable):
+    msg = "Must be an integer or long value."
+    def isvalid(self):
+        return super(IntConfig, self).isvalid() and \
+                    (type(self.value) == types.IntType or \
+                        type(self.value) == types.LongType)
 
 
 class PosIntConfig(IntConfig):
