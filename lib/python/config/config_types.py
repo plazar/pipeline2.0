@@ -135,7 +135,7 @@ class IntConfig(Configurable):
 class IntOrLongConfig(Configurable):
     msg = "Must be an integer or long value."
     def isvalid(self):
-        return super(IntConfig, self).isvalid() and \
+        return super(IntOrLongConfig, self).isvalid() and \
                     (type(self.value) == types.IntType or \
                         type(self.value) == types.LongType)
 
