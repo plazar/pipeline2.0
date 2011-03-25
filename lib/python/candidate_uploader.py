@@ -81,7 +81,28 @@ class PeridocityCandidate(upload.Uploadable):
             "@presto_sigma=%.12g" % self.sigma
         return sprocstr
 
+    def __cmp__(self, other):
+        return ('%d' % self.header_id == '%d' % other.header_id) and \
+                ('%d' % self.cand_num == '%d' % other.cand_num) and \
+                ('%.12g' % self.topo_freq == '%.12g' % other.topo_freq) and \
+                ('%.12g' % self.bary_freq == '%.12g' % other.bary_freq) and \
+                ('%.12g' % self.topo_period == '%.12g' % other.topo_period) and \
+                ('%.12g' % self.bary_period == '%.12g' % other.bary_period) and \
+                ('%.12g' % self.topo_f_dot == '%.12g' % other.topo_f_dot) and \
+                ('%.12g' % self.bary_f_dot == '%.12g' % other.bary_f_dot) and \
+                ('%.12g' % self.dm == '%.12g' % other.dm) and \
+                ('%.12g' % self.snr == '%.12g' % other.snr) and \
+                ('%.12g' % self.coherent_power == '%.12g' % other.coherent_power) and \
+                ('%.12g' % self.incoherent_power == '%.12g' % other.incoherent_power) and \
+                ('%d' % self.num_hits == '%d' % other.num_hits) and \
+                ('%d' % self.num_harmonics == '%d' % other.num_harmonics) and \
+                (lower(self.institution) == lower(other.institution)) and \
+                (lower(self.pipeline) == lower(other.pipeline)) and \
+                (lower(self.version_number) == lower(other.version_number)) and \
+                (lower(self.institution) == lower(other.institution)) and \
+                ('%.12g' % self.sigma == '%.12g' % other.sigma)
 
+                
 class PeriodicityCandidatePlot(upload.Uploadable):
     """A class to represent the plot of a PALFA periodicity candidate.
     """
@@ -102,6 +123,12 @@ class PeriodicityCandidatePlot(upload.Uploadable):
             "@filename='%s', " % os.path.split(self.filename)[-1] + \
             "@filedata=0x%s" % self.filedata.encode('hex')
         return sprocstr
+
+    def __cmp__(self, other):
+        return ('%d' % self.cand_id == '%d' % other.cand_id) and \
+                ('%s' % self.plot_type == '%s' % other.plot_type) and \
+                ('%s' % os.path.split(self.filename)[-1] == '%s' % os.path.split(other.filename)[-1]) and \
+                ('0x%s' % self.filedata.encode('hex') == '0x%s' % other.filedata.encode('hex'))
 
 
 class PeriodicityCandidatePNG(PeriodicityCandidatePlot):
