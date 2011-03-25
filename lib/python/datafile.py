@@ -482,7 +482,7 @@ class MockPsrfitsData(PsrfitsData):
         """
         infiles = " ".join(fns)
         fnmatchdict = cls.fnmatch(fns[0]).groupdict()
-        outbasenm = "4bit-%(projid)s.%(date)s.%(source)s.b%(beam)sg0.%(scan)s.merged" % \
+        outbasenm = "%(projid)s.%(date)s.%(source)s.b%(beam)s.%(scan)s" % \
                         fnmatchdict
         
         outfile = outbasenm + ".00001.fits" # '00001' added is the filenumber
@@ -499,16 +499,18 @@ class MockPsrfitsData(PsrfitsData):
         rowdelcmd = "fitsdelrow %s[SUBINT] 1 7" % outfile
         pipeline_utils.execute(rowdelcmd)
         
-        return [outfile]
+        # Rename file to remove the '00001' that was added
+        os.rename(outfile, outbasenm+'.fits')
+
+        return [outbasenm+'.fits']
 
 
 class MergedMockPsrfitsData(PsrfitsData):
     """PSRFITS Data object for merged MockSpec data.
     """
-    filename_re = re.compile(r'^4bit-(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
+    filename_re = re.compile(r'^(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
                                 r'(?P<source>.*)\.b(?P<beam>[0-7])' \
-                                r'g0\.(?P<scan>\d{5})\.merged\.' \
-                                r'(?P<filenum>\d{5})\.fits')
+                                r'\.(?P<scan>\d{5})\.fits')
 
     def __init__(self, fitsfns):
         super(MergedMockPsrfitsData, self).__init__(fitsfns)
