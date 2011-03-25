@@ -32,7 +32,7 @@ def get_datafns():
         fns = sys.argv[2:]
     else:
         # Files provided with environment variable
-        fns = os.getenv("DATAFILES", "").split(',')
+        fns = os.getenv("DATAFILES", "").split(';')
 
     # Ensure all files exist
     # for fn in fns:

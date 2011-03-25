@@ -95,7 +95,7 @@ def create_jobs_for_new_files():
                             "created_at, " \
                             "job_id, " \
                             "updated_at) " \
-                       "SELECT id, '%s', LAST_INSERT_ROWID(), '%s' " \
+                       "SELECT id, '%s', (SELECT LAST_INSERT_ROWID()), '%s' " \
                        "FROM files " \
                        "WHERE filename IN ('%s')" % \
                        (jobtracker.nowstr(), jobtracker.nowstr(), \
@@ -246,10 +246,12 @@ def submit_jobs():
     ***NOTE: Priority is given to jobs with status 'retrying'.
     """
     jobs = []
-    jobs.extend(jobtracker.query("SELECT * FROM jobs "
-                                 "WHERE status='retrying'"))
-    jobs.extend(jobtracker.query("SELECT * FROM jobs "
-                                 "WHERE status='new'"))
+    jobs.extend(jobtracker.query("SELECT * FROM jobs " \
+                                 "WHERE status='retrying' " \
+                                 "ORDER BY updated_at ASC"))
+    jobs.extend(jobtracker.query("SELECT * FROM jobs " \
+                                 "WHERE status='new'" \
+                                 "ORDER BY updated_at ASC"))
     for job in jobs:
         if can_submit():
             submit(job)
@@ -364,7 +366,7 @@ def get_output_dir(fns):
         raise pipeline_utils.PipelineError(errormsg)
 
     # Get info from datafile headers
-    data = datafile.autogen_dataobj(fns)
+    data = datafile.autogen_dataobj([fns[0]])
     if not isinstance(data, datafile.PsrfitsData):
         errormsg  = "Data must be of PSRFITS format.\n"
         errormsg += "\tData type: %s\n" % type(data)
