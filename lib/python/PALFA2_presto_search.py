@@ -616,16 +616,11 @@ def search_job(job):
         # Note:  the candidates will be sorted in _sigma_ order, not _SNR_!
         all_accel_cands.sort(sifting.cmp_sigma)
         sifting.write_candlist(all_accel_cands, job.basefilenm+".accelcands")
-
-    try:
-        cmd = "cp *.accelcands "+job.outputdir
-        timed_execute(cmd)
-    except: pass
+        shutil.copy(job.basefilenm+".accelcands", job.outputdir)
 
     job.sifting_time = time.time() - job.sifting_time
 
     # Fold the best candidates
-
     cands_folded = 0
     for cand in all_accel_cands:
         if cands_folded == config.searching.max_cands_to_fold:
