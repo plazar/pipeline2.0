@@ -625,7 +625,7 @@ def search_job(job):
     for cand in all_accel_cands:
         if cands_folded == config.searching.max_cands_to_fold:
             break
-        if cand.sigma > config.searching.to_prepfold_sigma:
+        if cand.sigma >= config.searching.to_prepfold_sigma:
             job.folding_time += timed_execute(get_folding_command(cand, job))
             cands_folded += 1
     job.num_cands_folded = cands_folded

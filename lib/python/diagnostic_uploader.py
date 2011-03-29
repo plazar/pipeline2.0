@@ -220,7 +220,7 @@ class NumAboveThreshDiagnostic(FloatDiagnostic):
         else:
             raise DiagnosticError("Search parameter file doesn't exist!")
         self.value = len([c for c in candlist \
-                            if c.sigma > params['to_prepfold_sigma']])
+                            if c.sigma >= params['to_prepfold_sigma']])
 
 
 class ZaplistUsed(PlotDiagnostic):
