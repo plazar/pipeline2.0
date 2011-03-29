@@ -37,8 +37,9 @@ def check_download_attempts():
                             if isinstance(t, DownloadThread)]
 
     for attempt in attempts:
-        print "Checking: ", attempt
         if attempt['id'] not in active_ids:
+            dlm_cout.outs("Download attempt (ID: %d) is no longer running." % \
+                            attempt['id'])
             queries = []
             queries.append("UPDATE files " \
                            "SET status='unverified', " \
@@ -130,17 +131,12 @@ def get_space_committed():
 def run():
     """Perform a single iteration of the downloader's loop.
     """
-    print "Checking active requests"
     check_active_requests()
-    print "Starting downloads"
     start_downloads()
     check_download_attempts()
-    print "Verifying files"
     verify_files()
-    print "Recovering failed downloads"
     recover_failed_downloads()
     if can_request_more():
-        print "Making a request"
         make_request()
 
 
@@ -148,6 +144,7 @@ def make_request():
     """Make a request for data to be restored by connecting to the
         web services at Cornell.
     """
+    dlm_cout.outs("Requesting data")
     num_beams = 1
     web_service = suds.client.Client(config.download.api_service_url).service
     try:
@@ -178,7 +175,8 @@ def make_request():
                      "VALUES ('%s', '%s', '%s', '%s', '%s')" % \
                      (guid, jobtracker.nowstr(), jobtracker.nowstr(), 'waiting', \
                         'Newly created request'))
-   
+  
+
 def check_active_requests():
     """Check for any requests with status='waiting'. If there are
         some, check if the files are ready for download.
@@ -254,6 +252,9 @@ def create_file_entries(request):
         num_files += 1
 
     if num_files:
+        dlm_cout.outs("Request (GUID: %s) has succeeded.\n" \
+                        "\tNumber of files to be downloaded: %d" % \
+                        (request['guid'], num_files))
         queries.append("UPDATE requests " \
                        "SET size=%d, " \
                             "updated_at='%s', " \
@@ -262,6 +263,9 @@ def create_file_entries(request):
                        "WHERE id=%d" % \
                        (total_size, jobtracker.nowstr(), request['id']))
     else:
+        dlm_cout.outs("Request (GUID: %s) has failed.\n" \
+                        "\tThere are no files to be downloaded." % \
+                        (request['guid'], num_files))
         queries.append("UPDATE requests " \
                        "SET updated_at='%s', " \
                             "status='failed', " \
@@ -284,6 +288,9 @@ def start_downloads():
 
     for file in todownload:
         if can_download():
+            dlm_cout.outs("Initiating download of %s" % \
+                            os.path.split(file['filename'])[-1])
+
             # Update file status and insert entry into download_attempts
             queries = []
             queries.append("UPDATE files " \
@@ -342,7 +349,6 @@ def download(attempt):
                                "WHERE id=%d" % file['request_id'], \
                                fetchone=True)
 
-    print "Initiating download of %s" % os.path.split(file['filename'])[-1]
     queries = []
     try:
         cftp = CornellFTP.CornellFTP()
@@ -398,6 +404,8 @@ def verify_files():
                                                 
         queries = []
         if actualsize == expectedsize:
+            dlm_cout.outs("Download of %s is complete and verified." % \
+                            os.path.split(file['filename'])[-1])
             # Everything checks out!
             queries.append("UPDATE files " \
                            "SET status='downloaded', " \
@@ -412,6 +420,10 @@ def verify_files():
                            "WHERE id=%d" % \
                            (jobtracker.nowstr(), last_attempt_id))
         else:
+            dlm_cout.outs("Verification of %s failed. \n" \
+                            "\tActual size (%d bytes) != Expected size (%d bytes)" % \
+                            (os.path.split(file['filename'])[-1], actualsize, expectedsize))
+            
             # Boo... verification failed.
             queries.append("UPDATE files " \
                            "SET status='failed', " \
