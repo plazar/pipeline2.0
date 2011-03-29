@@ -33,7 +33,7 @@ def check_download_attempts():
     attempts = jobtracker.query("SELECT * FROM download_attempts " \
                                 "WHERE status='downloading'")
 
-    active_ids = [t.name for t in threading.enumerate() \
+    active_ids = [int(t.name) for t in threading.enumerate() \
                             if isinstance(t, DownloadThread)]
 
     for attempt in attempts:
