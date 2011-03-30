@@ -5,6 +5,7 @@ import shutil
 import time
 import re
 import threading
+import traceback
 import urllib2
 import suds
 import M2Crypto
@@ -225,7 +226,15 @@ def create_file_entries(request):
             None
     """
     cftp = CornellFTP.CornellFTP()
-    files = cftp.get_files(request['guid'])
+    try:
+        files = cftp.get_files(request['guid'])
+    except CornellFTP.M2Crypto.ftpslib.error_perm:
+        exctype, excvalue, exctb = sys.exc_info()
+        dlm_cout.outs("FTP error getting file information.\n" \
+                        "\tGUID: %s\n\tError: %s" % \
+                        (request['guid'], \
+                        "".join(traceback.format_exception_only(exctype, excvalue)).strip()))
+        files = []
     
     total_size = 0
     num_files = 0
