@@ -190,6 +190,8 @@ def check_active_requests():
                                         username=config.download.api_username, \
                                         pw=config.download.api_password)
         if location == "done":
+            dlm_cout.outs("Restore (%s) is done. Will create file entries." % \
+                            request['guid'])
             create_file_entries(request)
         else:
             query = "SELECT (julianday('%s')-julianday(created_at))*24 " \
