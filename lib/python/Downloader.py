@@ -276,7 +276,7 @@ def create_file_entries(request):
     else:
         dlm_cout.outs("Request (GUID: %s) has failed.\n" \
                         "\tThere are no files to be downloaded." % \
-                        (request['guid'], num_files))
+                        request['guid'])
         queries.append("UPDATE requests " \
                        "SET updated_at='%s', " \
                             "status='failed', " \
