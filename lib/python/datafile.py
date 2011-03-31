@@ -317,6 +317,7 @@ class WappPsrfitsData(PsrfitsData):
 
     def __init__(self, fitsfns):
         super(WappPsrfitsData, self).__init__(fitsfns)
+        self.obstype = 'WAPP'
         self.beam_id = self.specinfo.beam_id
         if self.beam_id is None:
             raise ValueError("Beam number not encoded in PSR fits header.")
@@ -399,6 +400,7 @@ class MockPsrfitsData(PsrfitsData):
 
     def __init__(self, fitsfns):
         super(MockPsrfitsData, self).__init__(fitsfns)
+        self.obstype = 'Mock'
         self.beam_id = self.specinfo.beam_id
         if self.beam_id is None:
             raise ValueError("Beam number not encoded in PSR fits header.")
@@ -514,6 +516,7 @@ class MergedMockPsrfitsData(PsrfitsData):
 
     def __init__(self, fitsfns):
         super(MergedMockPsrfitsData, self).__init__(fitsfns)
+        self.obstype = 'Mock'
         # Note Puerto Rico doesn't observe daylight savings time
         # so it is 4 hours behind UTC all year
         dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1

@@ -18,6 +18,8 @@ import config.basic
 # (typically because data, weights, scales, offsets are missing
 #       from PSRFITS files)
 warnings.filterwarnings("ignore", message="Can't find the .* column")
+warnings.filterwarnings("ignore", message=".*NSUBOFFS reports 0 previous rows.*")
+warnings.filterwarnings("ignore", message="Channel spacing changes in file 0!")
 
 def run():
     """
@@ -69,8 +71,9 @@ def upload_results(job_submit):
         data = datafile.autogen_dataobj(fitsfiles)
         diagnostic_uploader.upload_diagnostics(data.obs_name, 
                                              data.beam_id, \
+                                             data.obstype, \
                                              config.upload.version_num, \
-                                             dir,dbname=db)
+                                             dir, dbname=db)
         print "\tDiagnostics uploaded."
     except (header.HeaderError, \
             candidate_uploader.PeriodicityCandidateError, \
