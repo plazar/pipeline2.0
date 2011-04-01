@@ -16,7 +16,7 @@
 \subsection{Dependencies}
 The PALFA pipeline has various dependencies. All of the following packages are required to run the pipeline.
 \begin{itemize}
-    \item PRESTO (https://github.com/scottransom/presto)
+    \item PRESTO (a recent version is required. The new executable \texttt{fitsdelcol} must be included - https://github.com/scottransom/presto)
     \item psrfits\_utils (be sure to pull Kevin Stovall's version of psrfits\_utils. It contains the merging code required to analyse PALFA Mock spectrometer data. https://github.com/kstovall/psrfits\_utils.git)
     \item numpy (http://numpy.scipy.org/)
     \item M2Crypto (http://pypi.python.org/pypi/M2Crypto)
@@ -24,6 +24,10 @@ The PALFA pipeline has various dependencies. All of the following packages are r
     \item pyfits (http://www.stsci.edu/resources/software\_hardware/pyfits)
     \item pyodbc (http://pypi.python.org/pypi/pyodbc/)
     \item suds (http://pypi.python.org/pypi/suds)
+    \item python2.6 (for the Downloader)
+    \item ImageMagick (on worker nodes - http://www.imagemagick.org/script/index.php)
+    \item FreeTDS (required by pyodbc to connect to common-DB - http://www.freetds.org/)
+    \item UnixODBC (required by pyodbc to connect to common-DB - http://www.unixodbc.org/)
 \end{itemize}
 
 \textit{NOTE: Some of these dependencies have requirements of their own. For example, PRESTO requires cfitsio, TEMPO, numpy, scipy, etc. Be sure to follow the installation instructions for each packages.}
