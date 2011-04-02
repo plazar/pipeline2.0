@@ -207,9 +207,9 @@ class DatabaseConfig(Configurable):
 class QManagerConfig(Configurable):
     msg = "Must be a subclass of PipelineQueueManager."
     def isvalid(self):
-        import PipelineQueueManager
+        import queue_managers.generic_interface
         if super(QManagerConfig, self).isvalid() and \
-                isinstance(self.value, PipelineQueueManager.PipelineQueueManager):
+                isinstance(self.value, queue_managers.generic_interface.PipelineQueueManager):
             # Check if appropriate functions are defined.
             methods = ['submit', \
                         'is_running', \

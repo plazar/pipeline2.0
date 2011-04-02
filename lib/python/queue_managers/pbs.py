@@ -4,11 +4,11 @@ import time
 
 import PBSQuery
 
-import PipelineQueueManager
+import queue_managers.generic_interface
 import pipeline_utils
 import config.basic
 
-class Qsub(PipelineQueueManager.PipelineQueueManager):
+class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
     def __init__(self, job_basename, resource_list):
         self.job_basename = job_basename
         self.resource_list = resource_list
