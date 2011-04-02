@@ -151,7 +151,9 @@ def make_request():
     try:
         guid = web_service.Restore(username=config.download.api_username, \
                                    pw=config.download.api_password, \
-                                   number=num_beams, bits=4, fileType='wapp')
+                                   number=num_beams, \
+                                   bits=config.download.request_numbits, \
+                                   fileType=config.download.request_datatype)
     except urllib2.URLError, e:
         raise pipeline_utils.PipelineError("urllib2.URLError caught when " \
                                            "making a request for restore: %s" % \

@@ -21,6 +21,10 @@ log_file_path = os.path.join(config.basic.pipelinedir, "logs", "downloader.log")
 request_timeout = 1 # Integer number of hours before an un-restored request 
                     # is marked as failed
 
+# The following control the data requested from Cornell
+request_numbits = 4
+request_datatype = 'mock'
+
 import download_check
 download_check.download.populate_configs(locals())
 download_check.download.check_sanity()
