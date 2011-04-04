@@ -1,5 +1,5 @@
 import os.path
-import QsubManager
+import queue_managers.pbs
 import config.basic
 ################################################################
 # JobPooler Configurations
@@ -8,7 +8,7 @@ base_results_directory = "/data/data7/PALFA/test_new_pipeline_clean/"
 max_jobs_running = 50
 max_jobs_queued = 1
 max_attempts = 2 # Maximum number of times a job is attempted due to errors
-queue_manager = QsubManager.Qsub("%s_batchjob" % config.basic.survey, \
+queue_manager = queue_managers.pbs.PBSManager("%s_batchjob" % config.basic.survey, \
                                     "nodes=P248:ppn=1")
 
 import jobpooler_check
