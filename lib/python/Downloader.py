@@ -81,7 +81,7 @@ def can_request_more():
 
 
 def get_space_used():
-    """Return space used by the download directory (config.download.temp)
+    """Return space used by the download directory (config.download.datadir)
 
     Inputs:
         None
@@ -107,7 +107,7 @@ def get_space_available():
         Output:
             avail: Number of bytes available on the file system.
     """
-    s = os.statvfs(os.path.abspath(config.download.temp))
+    s = os.statvfs(os.path.abspath(config.download.datadir))
     total = s.f_bavail*s.f_frsize
     return total
 
@@ -259,7 +259,7 @@ def create_file_entries(request):
                             "updated_at, " \
                             "size) " \
                        "VALUES ('%s', '%s', '%s', '%s', '%s', '%s', %d)" % \
-                       (request['id'], fn, os.path.join(config.download.temp, fn), \
+                       (request['id'], fn, os.path.join(config.download.datadir, fn), \
                         'new', jobtracker.nowstr(), jobtracker.nowstr(), size))
         total_size += size
         num_files += 1

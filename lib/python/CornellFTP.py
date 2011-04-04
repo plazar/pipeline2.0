@@ -60,7 +60,7 @@ class CornellFTP():
                         notification.send()
                     except Exception,e:
                         pass
-        localfn = os.path.join(config.download.temp,os.path.basename(ftp_file_path))
+        localfn = os.path.join(config.download.datadir,os.path.basename(ftp_file_path))
         self.downloading_file = open(localfn, 'wb')
         myFtp.sendcmd("TYPE I")
         cout.outs("CornellFTP - Starting Download of: %s" % \

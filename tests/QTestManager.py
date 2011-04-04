@@ -4,11 +4,11 @@ import subprocess
 import os
 
 fake_queue = [
-{'job_name':'job0','datafile':config.download.temp + '/file0'},
-{'job_name':'job1','datafile':config.download.temp + '/file1'},
-{'job_name':'job2','datafile':config.download.temp + '/file2'},
-{'job_name':'job3','datafile':config.download.temp + '/file3'},
-{'job_name':'job4','datafile':config.download.temp + '/file4'}
+{'job_name':'job0','datafile':config.download.datadir + '/file0'},
+{'job_name':'job1','datafile':config.download.datadir + '/file1'},
+{'job_name':'job2','datafile':config.download.datadir + '/file2'},
+{'job_name':'job3','datafile':config.download.datadir + '/file3'},
+{'job_name':'job4','datafile':config.download.datadir + '/file4'}
 ]
 
 class QTest(PipelineQueueManager):
