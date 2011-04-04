@@ -18,15 +18,15 @@ ftp_password = "password"
 # This is the directory where the raw data is downloaded to
 # it needs read/write perms for whoever is running the downloaded
 datadir = "/data/alfa/test_pipeline_clean/"
-space_to_use = 60 * 2**32    # max size of downloaded data in bytes
-min_free_space = 10 * 2**32  # Minimum amount of disk space on the file system
+space_to_use = 60 * 2**30    # max size of downloaded data in bytes
+min_free_space = 10 * 2**30  # Minimum amount of disk space on the file system
                              # that must be kept free (bytes)
 
 numdownloads = 2  # max number of files to download at once
 numrestores = 2   # max number of active (i.e. open) restore requests at Cornell
 numretries = 3    # max number of times to try to download before failing
 
-# The following should not necessarilly need to be changed
+# The following is the name of the logfile.  Should not need changing.
 log_file_path = os.path.join(config.basic.pipelinedir, "logs", "downloader.log")
 request_timeout = 1 # Integer number of hours before an un-restored request 
                     # is marked as failed
