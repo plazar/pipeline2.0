@@ -161,6 +161,13 @@ class StrConfig(Configurable):
                     (type(self.value) == types.StringType)
 
 
+class FuncConfig(Configurable):
+    msg = "Must be a function."
+    def isvalid(self):
+        return super(FuncConfig, self).isvalid() and \
+                    (type(self.value) == types.FunctionType)
+
+
 class StrOrNoneConfig(Configurable):
     msg = "Must be a string value."
     def isvalid(self):

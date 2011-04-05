@@ -65,14 +65,14 @@ def upload_results(job_submit):
         header_id = header.upload_header(fitsfiles, dbname=db)
         print "\tHeader ID: %d" % header_id
         candidate_uploader.upload_candidates(header_id, \
-                                             config.upload.version_num, \
+                                             config.upload.version_num(), \
                                              dir, dbname=db)
         print "\tCandidates uploaded."
         data = datafile.autogen_dataobj(fitsfiles)
         diagnostic_uploader.upload_diagnostics(data.obs_name, 
                                              data.beam_id, \
                                              data.obstype, \
-                                             config.upload.version_num, \
+                                             config.upload.version_num(), \
                                              dir, dbname=db)
         print "\tDiagnostics uploaded."
     except (header.HeaderError, \

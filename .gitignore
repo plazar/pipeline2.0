@@ -29,5 +29,3 @@ lib/python/config/email.py
 lib/python/config/download.py
 lib/python/config/jobpooler.py
 lib/python/config/searching.py
-lib/python/config/upload.py
-
