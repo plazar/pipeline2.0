@@ -12,7 +12,7 @@ class ErrorMailer:
         self.msg['To'] = config.email.recipient
         
         if config.email.smtp_host is None:
-            self.msg['From'] = '%s@localhost' % os.getlogin()
+            self.msg['From'] = '%s@localhost' % os.getenv('USER')
             self.client = smtplib.SMTP('localhost', 587)
         else:
             self.msg['From'] = None
