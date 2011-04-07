@@ -110,7 +110,10 @@ def upload_results(job_submit):
     except database.DatabaseConnectionError, e:
         # Connection error while uploading. We will try again later.
         sys.stderr.write(str(e))
-        sys.stderr.write("\tWill re-try.\n")
+        sys.stderr.write("\tRolling back DB transaction and will re-try later.\n")
+        
+        # Rolling back changes. 
+        db.rollback()
     except:
         # Unexpected error!
         sys.stderr.write("Unexpected error!\n")
