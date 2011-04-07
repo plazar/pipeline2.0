@@ -1,3 +1,4 @@
+*~
 *.pth
 *.log
 *.pyc
@@ -20,3 +21,11 @@ upload_db
 *.out
 .pydevproject
 .project
+lib/python/config/basic.py
+lib/python/config/background.py
+lib/python/config/commondb.py
+lib/python/config/processing.py
+lib/python/config/email.py
+lib/python/config/download.py
+lib/python/config/jobpooler.py
+lib/python/config/searching.py

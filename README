@@ -1,43 +1,28 @@
 A logistical pulsar search pipeline using Scott Ransom's PRESTO.
 
-A brief listing of contents:
-----------------------------
-PALFA.zaplist           - A list of frequencies to zap from the power spectrum 
-                            (in PRESTO-readable format)
+Documentation:
+--------------
+The documentation includes information about how the pipeline is set up, 
+how to install it, dependencies, etc.
 
-PALFA2_presto_search.py - Search script for PALFA2.0 (MockSpec) data.
-
-PALFA_presto_search.py  - Search script for PALFA (WAPP) data.
-
-README                  - This read-me file
-
-config.py               - Survey-specific configurations and preferences
-
-job.py                  - Definition of PulsarSearchJob, JobLog and LogEntry objects
-
-psrfits.py              - Definition of SpecInfo object for collecting useful 
-                            information from PSR FITS files.
-
-search.py               - Logistical search script that calls one of the 
-                            *_presto_search.py scripts.
-
-background.py           - Background script for running pulsar search jobs.
+Detailed documentation can be found in docs/documentation.pdf.
 
 
-Dependencies:
--------------
+Some key dependencies:
+----------------------
 PRESTO, a suite of pulsar search programs by Scott Ransom.
     - Available on GitHub: http://github.com/scottransom/presto
     - Python scripts and wrappers must be set up. (See PRESTO's documentation.)
 
-pySLALIB, python wrappers for SLALIB created by Scott Ransom.
-    - Available at: http://www.cv.nrao.edu/~sransom/
+psrfits_utils, a suite of utilities to read/write/manipulate PSRFITS files.
+    - Availble at: https://github.com/kstovall/psrfits_utils
+    - NOTE: Kevin Stovall's branch of psrfits_utils is required until 'combine_mocks'
+            is merged into the main stream.
 
-pbs_python, python wrappers for PBS created by sara.nl
-    - Available at: http://subtrac.sara.nl/oss/pbs_python/wiki/TorqueInstallation
+Additional dependencies are listed docs/documentation.pdf.
 
 
 About:
 ------
 GitHub address: http://github.com/plazar/pipeline2.0
-Patrick Lazarus, June 17, 2010
+Patrick Lazarus, March 9th, 2011

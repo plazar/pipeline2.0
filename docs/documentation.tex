@@ -16,14 +16,19 @@
 \subsection{Dependencies}
 The PALFA pipeline has various dependencies. All of the following packages are required to run the pipeline.
 \begin{itemize}
-    \item PRESTO (https://github.com/scottransom/presto)
+    \item PRESTO (a recent version is required. The new executable \texttt{fitsdelcol} must be included - https://github.com/scottransom/presto)
     \item psrfits\_utils (be sure to pull Kevin Stovall's version of psrfits\_utils. It contains the merging code required to analyse PALFA Mock spectrometer data. https://github.com/kstovall/psrfits\_utils.git)
     \item numpy (http://numpy.scipy.org/)
     \item M2Crypto (http://pypi.python.org/pypi/M2Crypto)
-    \item PBSQuery (http://subtrac.sara.nl/oss/pbs\_python/wiki/TorqueInstallation)
+    \item PBSQuery (if PBS is being used - http://subtrac.sara.nl/oss/pbs\_python/wiki/TorqueInstallation)
     \item pyfits (http://www.stsci.edu/resources/software\_hardware/pyfits)
     \item pyodbc (http://pypi.python.org/pypi/pyodbc/)
     \item suds (http://pypi.python.org/pypi/suds)
+    \item python2.6 (for the Downloader)
+    \item ImageMagick (on worker nodes - http://www.imagemagick.org/script/index.php)
+    \item FreeTDS (required by pyodbc to connect to common-DB - http://www.freetds.org/)
+    \item UnixODBC (required by pyodbc to connect to common-DB - http://www.unixodbc.org/)
+    \item prettytable (http://code.google.com/p/prettytable/)
 \end{itemize}
 
 \textit{NOTE: Some of these dependencies have requirements of their own. For example, PRESTO requires cfitsio, TEMPO, numpy, scipy, etc. Be sure to follow the installation instructions for each packages.}
@@ -44,13 +49,15 @@ Here we will present basic step-by-step instructions for setting up the pipeline
         
         \textit{NOTE: This will create a sub-directory called ``pipeline2.0".} 
 
-    \item[Step 3] Add the pipeline directory to your PYTHONPATH environment variable. 
+    \item[Step 3] Add the pipeline's lib/python directory to your PYTHONPATH environment variable. 
 
-    \item[Step 4] Create configuration files using the examples provided. Modify the settings so they are appropriate for your system. Run the \texttt{sanity\_check.py} script to ensure all your configurations have the correct types, the neccessary directories exist and you have the correct privileges for files that must be read/written. 
+    \item[Step 4] Create configuration files using the examples provided. Modify the settings so they are appropriate for your system. It is possible to check the sanity of your configurations by calling a configuration file with the python interpreter. An error message will be displayed if a configuration type or value is invalid.  
 
-    \item[Step 5] Set up the database. This is done using the \texttt{create\_database.py} script. 
+    \item[Step 5] Set up the database. This is done using the \texttt{create\_database.py} script.
 
-    \item[Step 6] Start the downloader using \texttt{StartDownloader.py}.
+    \item[Step 6] Perform tests. In the \texttt{test/} directory there are some tests that can be run to see if you can connect to the common DB (\texttt{commondb\_test.py}), e-mail system (\texttt{MailerTest.py}), and FTP server (\texttt{cornellftp\_test.py}). To perform the tests call each script with the python interpreter.
+
+    \item[Step 7] Start the downloader using \texttt{StartDownloader.py}.
         
         \smallskip
         
@@ -60,9 +67,9 @@ Here we will present basic step-by-step instructions for setting up the pipeline
         
         Alternatively, it is possible to add files to the job-tracker database without using the downloader. To do this use \texttt{add\_files.py}. Be sure to set the \texttt{delete\_rawdata} configuration to \texttt{False} if you do not want raw data files to be deleted when the pipeline no longer requires them. 
 
-    \item[Step 7] Start the job pooler using \texttt{StartJobPool.py}. The job pooler will start submitting jobs when data files are finished downloading. 
+    \item[Step 8] Start the job pooler using \texttt{StartJobPool.py}. The job pooler will start submitting jobs when data files are finished downloading. 
 
-    \item[Step 8] Start the uploader using \texttt{StartJobUploader.py}. The uploader will upload results to the common database when jobs are successfully processed.
+    \item[Step 9] Start the uploader using \texttt{StartJobUploader.py}. The uploader will upload results to the common database when jobs are successfully processed.
 \end{description}
 
 
@@ -75,9 +82,9 @@ An overview of the pipeline.
     \item Dynamic zapping
     \item Automatic download of data files
     \item File size checks when downloading
-    \item Error emails
+    \item Notification of errors by email
     \item Automatic (configurable) retry of failed jobs
-    \item Check of results before uploading
+    \item Results are uploaded as a single transaction, so no partial uploads when errors occur
     \item Automatic (configurable) deletion of data files (upon success or terminal failure)
 \end{itemize}
 
@@ -168,19 +175,243 @@ The Pipeline interacts with the system's queue manager using an abstract interfa
 
     \item[is\_running] Given a unique identifier for a job, must return True or False whether the job is running or not, respectively.
 
-    \item[is\_processing\_file] Given a string path of a file, return True or False whether or not the job processing the input filename is running.
-
     \item[delete] Given a unique identifier for a job, remove the corresponding job from the queue. Returns True if the job was delete, False if an error occured.
 
     \item[status] Return the status of the queue, i.e. the number of jobs running and the number of jobs queued.
 
     \item[had\_errors] Given a unique identifier for a job, return True, or False whether the job terminated with an error, or not, respectively.
+
+    \item[get\_errors] Given a unique identifier for a job, return the contents of the error log. If there were not errors return an empty string.
 \end{description}
 
 
 \subsection{Configurations}
+\label{sec:configs}
 
-\subsection{Database Details}
+The pipeline requires a series of configurations to be set in order to run. The configurations for different aspects of the pipeline are divided into the different files. The configuration files can be found in the pipeline's lib/python/config/ directory.
+
+A sanity check of configurations is performed each time a configuration file is imported. If there are errors (e.g. a setting isn't provided, a directory doesn't exist, etc.) a message is printed to the terminal, and an exception is raised causing the program to exit. It is possible to run the check the sanity of a configuration file by running it. For example, checking the sanity of \texttt{basic.py}:
+
+\texttt{python basic.py}
+
+If the settings are sane there will be no error message is output. \textit{NOTE: it may be necessary to check the sanity of the processing configurations on the worker nodes.}
+
+Each of required settings in each of the configration files are listed below:
+
+\subsubsection{basic.py}
+Basic pipeline parameters are found in \texttt{basic.py}.
+
+\begin{description}
+    \item[institution] Institution where the pipeline is being run. This is the value that will get reported in the common database.
+    \item[pipeline] The type of pipeline being run. This should be left as ``PRESTO''.
+    \item[survey] The name of the survey. This should be left as ``PALFA2.0''.
+    \item[pipelinedir] The path of the base directory containing the pipeline2.0 code.
+    \item[psrfits\_utilsdir] The path of the directory containing the installation of \texttt{psrfits\_utils} that is used by the pipeline.
+    \item[delete\_rawdata] A boolean value that determines if raw data is deleted when results for a job are successfully uploaded to the common DB, or if the maximum number of attempts for a job is reached. \textit{Set this value to False if you do not want the local copy of your data deleted.}
+    \item[coords\_table] The path to the \texttt{PALFA\_coords\_table.txt} file, which contains correct coordinates for WAPP data files.
+\end{description}
+
+\subsubsection{background.py}
+General settings for the three background scripts are found in \texttt{background.py}
+
+\begin{description}
+    \item[screen\_output] A boolean value that should be set to True if you want log information copied to the terminal.
+    \item[jobtracker\_db] The path to the SQLite job-tracker database.
+    \item[sleep] The number of seconds to sleep between iterations of the background scripts' loops.
+\end{description}
+
+
+\subsubsection{commondb.py}
+The information needed to connect to the common database is in \texttt{commondb.py}.
+
+\begin{description}
+    \item[username] The common database user name.
+    \item[password] The password used to access the common database.
+    \item[host] The computer through which a connection to the common database will be established. This should be left at ``arecibosql.tc.cornell.edu''.
+\end{description}
+
+
+\subsubsection{download.py}
+Informatation necessary to connect to the FTP server at Cornell and use the data-restore web applications are set in \texttt{download.py}, so are settings for controlling the behaviour of the downloader.
+
+\begin{description}
+    \item[api\_serice\_url] This is the URL of the data-restore web apps. This should be set to ``http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL''.
+    \item[api\_username] This is your user name used to connect to the data-restore web apps.
+    \item[api\_password] This is the password for connecting to the data-restore web apps.
+    \item[ftp\_host] This is the name of the FTP server at Cornell. It should be left at ``arecibo.tc.cornell.edu''.
+    \item[ftp\_port] This is the port to use for FTP. It should be 31001.
+    \item[ftp\_username] This is the user name to connect when FTP'ing. Currently all downloaders are using a shared account, so this should have the value ``palfadata''.
+    \item[ftp\_password] This is the password of the FTP account.
+    \item[temp] This is the directory where data are downloaded to.
+    \item[space\_to\_use] This is the space available for downloaded files, measured in bytes.
+    \item[numdownloads] This is the number of downloads that can be run in parallel. Currently the downloader is not threaded, so this setting is ignored.
+    \item[numrestores] This is the number of requests for data that can be active at any time. Since the downloader is not threaded only 1 request can be processed at a time, so this setting is also ignore.
+    \item[numretries] This is the number of times a download will be attempted before giving up and moving on to another file.
+    \item[log\_file\_path] The path of the file where the downloader logs information.
+\end{description}
+
+
+\subsubsection{email.py}
+The pipeline can be configured to send emails when failures occur. The relevant settings are in \texttt{email.py}.
+
+\begin{description}
+    \item[enabled] A boolean value that enables mailing. If False emails will not be sent.
+    \item[smtp\_host] Emails are sent using the Simple Mail Transfer Protocol (SMTP). This is the host of the SMTP server to use. If set to \texttt{None} the localhost will be used as a SMTP server to send the emails.
+    \item[smtp\_port] The emailer connects to the SMTP server using this port. Either 25 or 587 should work, possibly both.
+    \item[smtp\_username] The user account to connect to the SMTP server.
+    \item[smtp\_password] The password to connect to the SMTP server.
+    \item[recipient] The email address that will be sent notifications.
+    \item[sender] The email address that should appear in the ``From'' field of the email.
+    \item[send\_on\_failures] A boolean value that determines if emails should be sent when a job fails.
+    \item[send\_on\_terminal\_failures] A boolean value that determines if emails should be sent on terminal failures (i.e. job will not be re-tried). Note: if ``\texttt{send\_on\_failures}'' is True emails will be sent on terminal failures regardless of the value of ``\texttt{send\_on\_terminal\_failures}.
+\end{description}
+
+
+\subsubsection{jobpooler.py}
+The setting that determine the behaviour of the Job Pooler are in \texttt{jobpooler.py}.
+
+\begin{description}
+    \item[base\_results\_directory] The path of where results from processing are stored. Note: the processing of each data set is in a separate subdirectory.
+    \item[max\_jobs\_running] The maximum number of jobs running at any given time.
+    \item[max\_jobs\_queue] The maximum number of jobs that are allowed to be queued at any given time. This must be at least 1, otherwise the Job Pooler will not submit jobs for fear of them being queued.
+    \item[max\_attempts] The maximum number of times a job is submitted before being abandoned.
+    \item[queue\_manager] An instance of a sub-class of \texttt{PipelineQueueManager}. This is the interface between the pipeline and the queue manager.
+\end{description}
+
+\subsubsection{processing.py}
+Setting required during processing (i.e. on the worker nodes) are provided in \texttt{processing.py}.
+
+\begin{description}
+    \item[base\_working\_directory] The directory on the worker node where temporary working and results directories will be placed.
+    \item[default\_zaplist] The path of the zaplist to use when no MJD-specific zaplist can be found.
+    \item[zaplistdir] The directory containing MJD-specific zaplists.
+\end{description}
+
+
+\subsubsection{searching.py}
+The search parameters of the pipeline are located in \texttt{searching.py}. To ensure searching is done uniformly across all processing sites most of these values shouldn't be modified.
+
+\begin{description}
+    \item[use\_subbands] A boolean value that determines if we'll dedisperse and fold using subbands. In general, it is a very good idea to use them if there is enough scratch space on the machines that are processing ($\sim$30GB/beam processed).
+    \item[fold\_rawdata] A boolean value that determines if folding should be done from the raw FITS files (as opposed to subbands or dedispersed FITS files).
+    \item[datatype\_flag] This is the flag provided to PRESTO programs to indicated the data type. This should be ``-psrfits''.
+    \item[rfifind\_chunk\_time] The duration of each chunk in \texttt{rfifind}.
+    \item[singlepulse\_threshold] The threshold SNR for singlepulse candidate determination.
+    \item[singlepulse\_plot\_SNR] The threshold SNR for displaying singlepulse candidates on plots.
+    \item[singlepulse\_maxwidth] The maximum pulse width (in seconds) for singlepulse searching.
+    \item[to\_prepfold\_sigma] The minimum incoherent sum significance required to fold a candidate.
+    \item[max\_cands\_to\_fold] The maximum number of candidates to fold per beam.
+    \item[numhits\_to\_fold] The minimum number of DMs at which a periodicity must be found to be folded.
+    \item[low\_DM\_cutoff] The lowest DM to consider when choosing candidates to fold.
+    \item[lo\_accel\_numharm] The maximum number of harmonics to sum in low acceleration searching.
+    \item[lo\_accel\_sigma] The minimum gaussian significance threshold in low acceleration searching.
+    \item[lo\_accel\_zmax] The maximum z-value (in bins) used in low acceleration searching.
+    \item[lo\_accel\_flo] The maximum frequency searched in low acceleration searching.
+    \item[hi\_accel\_numharm] The maximum number of harmonics to sum in high acceleration searching.
+    \item[hi\_accel\_sigma] The minimum gaussian significance threshold in high acceleration searching.
+    \item[hi\_accel\_zmax] The maximum z-value (in bins) used in high acceleration searching.
+    \item[hi\_accel\_flo] The maximum frequency searched in high acceleration searching.
+    \item[low\_T\_to\_search] The shortest observation that will be searched (in seconds).
+    \item[sifting\_sigma\_threshold] The minimum incoherent power sigma to consider when sifting candidates. This should be left at \texttt{to\_prepfold\_sigma}$-$1.0.
+    \item[sifting\_c\_pow\_threshold] The coherent power threshold used when sifting.
+    \item[sifting\_r\_err] The Fourier bin tolerance to consider two candidates as being at the same frequency.
+    \item[sifting\_short\_period] The shortest candidate period to consider (in seconds).
+    \item[sifting\_long\_period] The longest cndidate period to consider (in seconds).
+    \item[sifting\_harm\_pow\_cutoff] The power required in at least one harmonic.
+\end{description}
+    
+
+\subsubsection{upload.py}
+Configurations used by the uploader are set in \texttt{upload.py}.
+
+\begin{description}
+    \item[version\_num] The version number of the current version of the pipeline (including versions of \texttt{PRESTO} and \texttt{psrfits\_utils}). The preferred format is:
+    
+    \texttt{PRESTO:\{git-hash\};PIPELINE:\{git-hash\};PSRFITS\_UTILS\{git-hash\}}. 
+    
+    It is \textbf{strongly} recommended that the git-hash values are retrieved dynamically, so they are always up-to date. However, if this is not possible you are able to hard code values of the git-hashes, but they should be changed every time the versions of the software used are modified.
+\end{description}
+
+
+\subsection{Job-Tracker Database Details}
 \label{sec:dbdetails}
+
+The job-tracker database contains six tables: \texttt{requests}, \texttt{files}, \texttt{download\_attempts}, \texttt{jobs}, \texttt{job\_files}, and \texttt{job\_submits}. Each of these tables is meant to track a particular object (e.g. jobs), or events (e.g. job submissions to the queue).
+
+A description of each database table will now be presented:
+
+\subsubsection{\texttt{requests}}
+The \texttt{requests} table tracks requests for data restores. An entry in the table is inserted when a request is made. Each entry contains the following data:
+\begin{description}
+    \item[id] (UNIQUE INTEGER) A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[size] (INTEGER) Total size of the files restored, in bytes.
+    \item[guid] (TEXT) A globally unique identifier for the restore. This serves as the directory name on the FTP server where the restored files will be placed.
+    \item[status] (TEXT) The current status of the request.
+    \item[details] (TEXT) Details about the request.
+    \item[created\_at] (TEXT) Date and time when the request entry was created.
+    \item[updated\_at] (TEXT) Date and time when the request entry was last updated.
+\end{description}
+
+\subsubsection{files}
+The \texttt{files} table tracks each file available to the pipeline. A separate entry is inserted for each file. Each entry contains the following data:
+
+\begin{description}
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[filename] (TEXT) The name of the file.
+    \item[remote\_filename] (TEXT) The name and path of the downloaded file on the FTP server.
+    \item[request\_id] (INTEGER) The identifier of the entry in the \texttt{requests} table that restored this file.
+    \item[status] (TEXT) The current status of the file.
+    \item[details] (TEXT) Details about the file.
+    \item[created\_at] (TEXT) Date and time when the file entry was created.
+    \item[updated\_at] (TEXT) Date and time when the file entry was last updated.
+\end{description}
+
+\subsubsection{download\_attempts}
+Every time one an attempt to download one of the files listed in the \texttt{files} table an entry is created in the \texttt{download\_attempts} table. Each download attempt entry has the following data:
+
+\begin{description}
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[request\_id] (INTEGER) The identifier of the entry in the \texttt{files} table that this download attempt corresponds to.
+    \item[status] (TEXT) The current status of the download attempt.
+    \item[details] (TEXT) Details about the current status of the download attempt.
+    \item[created\_at] (TEXT) Date and time when the download attempt entry was created.
+    \item[updated\_at] (TEXT) Date and time when the download attempt entry was last updated.
+\end{description}
+
+\subsubsection{jobs}
+Each beam-worth of data gets submitted to be processed as a single job. These jobs are tracked in the \texttt{jobs} table, and have the following data:
+
+\begin{description}
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[status] (TEXT) The current status of the job.
+    \item[details] (TEXT) Details about the current status of the job.
+    \item[created\_at] (TEXT) Date and time when the job entry was created.
+    \item[updated\_at] (TEXT) Date and time when the job entry was last updated.
+\end{description}
+
+\subsubsection{job\_files}
+Because a job can have multiple files a mapping between jobs and files is required. The \texttt{job\_files} table serves this purpose. Each row in the table has the following data:
+
+\begin{description}
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[file\_id] (INTEGER) The indentifier of an entry in the \texttt{files} table.
+    \item[job\_id] (INTEGER) The identifier of an entry in the \texttt{jobs} table that the file referred to by \texttt{file\_id} belongs to.
+    \item[created\_at] (TEXT) Date and time when the entry was created.
+    \item[updated\_at] (TEXT) Date and time when the entry was last updated.
+\end{description}
+
+\subsubsection{job\_submits}
+Each submission of a job to the queue to be processed is tracked in the \texttt{job\_submits} table. Each job submission has the following information:
+
+\begin{description}
+    \item[id] (UNIQUE INTEGER)  A unique identifier, automatically assigned by the database upon creation of an entry.
+    \item[queue\_id] (TEXT) The unique identifier assigned to the job by the queue manager when it is submitted. This identified is used to check if the submission is still being processed.
+    \item[job\_id] (INTEGER) The identifier of the job (from the \texttt{jobs} table) that was submitted for processing.
+    \item[output\_dir] (TEXT) The directory where the results of processing will be output.
+    \item[status] (TEXT) The current status of the job.
+    \item[details] (TEXT) Details about the current status of the job.
+    \item[created\_at] (TEXT) Date and time when the entry was created.
+    \item[updated\_at] (TEXT) Date and time when the entry was last updated.
+\end{description}
 
 \end{document}
