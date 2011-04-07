@@ -1,26 +1,33 @@
 import M2Crypto
 import suds.client
-from time import sleep
+
+import config.download
 
 myFtp = M2Crypto.ftpslib.FTP_TLS()
-myFtp.connect('arecibo.tc.cornell.edu', 31001)
+myFtp.connect(config.download.ftp_host, config.download.ftp_port)
 myFtp.auth_tls()
 myFtp.set_pasv(1)
-print "Login Response: %s" % myFtp.login('palfadata', 'NAIC305m')
+response = myFtp.login(config.download.ftp_username, config.download.ftp_password)
+print "Login Response: %s" % response
 
 del(myFtp)
 
 myFtp = M2Crypto.ftpslib.FTP_TLS()
-myFtp.connect('arecibo.tc.cornell.edu', 31001)
+myFtp.connect(config.download.ftp_host, config.download.ftp_port)
 myFtp.auth_tls()
 myFtp.set_pasv(1)
-print "Login Response: %s" %  myFtp.login('palfadata', 'NAIC305m')
+response = myFtp.login(config.download.ftp_username, config.download.ftp_password)
+print "Login Response: %s" % response
 
-WebService =  suds.client.Client("http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL").service
-print "WebService Response: %s" %  WebService.Location(username="mcgill",pw="palfa@Mc61!!", guid='e96ea139361740eca91f0f82ed4d889f')
+web_service =  suds.client.Client(config.download.api_service_url).service
+response = web_service.Location(username=config.download.api_username, \
+                                pw=config.download.api_password, \
+                                guid='ftpTest4BitMock')
+print "Web service Response: %s" % response
 
 myFtp = M2Crypto.ftpslib.FTP_TLS()
-myFtp.connect('arecibo.tc.cornell.edu', 31001)
+myFtp.connect(config.download.ftp_host, config.download.ftp_port)
 myFtp.auth_tls()
 myFtp.set_pasv(1)
-print "Login Response: %s" %  myFtp.login('palfadata', 'NAIC305m')
+response = myFtp.login(config.download.ftp_username, config.download.ftp_password)
+print "Login Response: %s" % response
