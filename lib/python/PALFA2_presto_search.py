@@ -433,7 +433,9 @@ def set_up_job(filenms, workdir, resultsdir):
     # Get information on the observation and the job
     job = obs_info(filenms, resultsdir)
     if job.T < config.searching.low_T_to_search:
-        sys.exit("The observation is too short (%.2f s) to search."%job.T)
+        raise PrestoError("The observation is too short to search. " \
+                            "(%.2f s < %.2f s)" % \
+                            (job.T, config.searching.low_T_to_search))
     job.total_time = time.time()
     
     # Make sure the output directory (and parent directories) exist
