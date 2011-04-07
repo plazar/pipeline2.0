@@ -256,7 +256,8 @@ The pipeline can be configured to send emails when failures occur. The relevant 
 
 \begin{description}
     \item[enabled] A boolean value that enables mailing. If False emails will not be sent.
-    \item[smtp\_host] Emails are sent using the Simple Mail Transfer Protocol (SMTP). This is the host of the SMTP server to use.
+    \item[smtp\_host] Emails are sent using the Simple Mail Transfer Protocol (SMTP). This is the host of the SMTP server to use. If set to \texttt{None} the localhost will be used as a SMTP server to send the emails.
+    \item[smtp\_port] The emailer connects to the SMTP server using this port. Either 25 or 587 should work, possibly both.
     \item[smtp\_username] The user account to connect to the SMTP server.
     \item[smtp\_password] The password to connect to the SMTP server.
     \item[recipient] The email address that will be sent notifications.

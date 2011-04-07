@@ -3,6 +3,7 @@
 ################################################################
 enabled = True   # whether error email is sent or not
 smtp_host = 'smtp.gmail.com' # None - For use of the local smtp server
+smtp_port = 25 # Port to use for connecting to SMTP mail server (should be 25 or 587)
 smtp_username = 'username'
 smtp_password = 'password'
 recipient = 'first.last@email.com' # The address to send emails to

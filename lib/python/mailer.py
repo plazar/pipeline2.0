@@ -13,10 +13,10 @@ class ErrorMailer:
         
         if config.email.smtp_host is None:
             self.msg['From'] = '%s@localhost' % os.getenv('USER')
-            self.client = smtplib.SMTP('localhost', 587)
+            self.client = smtplib.SMTP('localhost', config.email.smtp_port)
         else:
             self.msg['From'] = None
-            self.client = smtplib.SMTP(config.email.smtp_host, 587)
+            self.client = smtplib.SMTP(config.email.smtp_host, config.email.smtp_port)
 
     def send(self):
         if config.email.enabled:
