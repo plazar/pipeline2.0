@@ -312,6 +312,7 @@ The search parameters of the pipeline are located in \texttt{searching.py}. To e
     \item[hi\_accel\_zmax] The maximum z-value (in bins) used in high acceleration searching.
     \item[hi\_accel\_flo] The maximum frequency searched in high acceleration searching.
     \item[low\_T\_to\_search] The shortest observation that will be searched (in seconds).
+    \item[base\_tmp\_dir] The path where the temporary working directory should be created. This could be /dev/shm, for example. If /dev/shm doesn't exist, or is too small, this path could simply be another path in the scratch area of the worker node.
     \item[sifting\_sigma\_threshold] The minimum incoherent power sigma to consider when sifting candidates. This should be left at \texttt{to\_prepfold\_sigma}$-$1.0.
     \item[sifting\_c\_pow\_threshold] The coherent power threshold used when sifting.
     \item[sifting\_r\_err] The Fourier bin tolerance to consider two candidates as being at the same frequency.
