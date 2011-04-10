@@ -152,32 +152,70 @@ The following per-beam diagnostics are uploaded to the common database:
 
 \section{Reference}
 \subsection{Executables}
-\paragraph{\texttt{StartDownloader.py}}
-A script to start the downloader background process.
+The pipeline has a series of executables located in the 'bin/' directory. There are two categories of executables: background scripts, and utilities.
 
-usage: \texttt{StartDownloader.py}
+\subsubsection{Background scripts}
+The following background scripts are used to run the Downloader, Job Pooler and Uploader.
+\begin{itemize}
+    \item \texttt{StartDownloader.py} \hfill \\
+        A script to start the downloader background process.
 
-\paragraph{\texttt{StartJobPool.py}}
-A script to start the job pooler background process.
+        usage: \texttt{StartDownloader.py}
 
-usage: \texttt{StartJobPool.py}
+    \item \texttt{StartJobPool.py} \hfill \\
+        A script to start the job pooler background process.
 
-\paragraph{\texttt{StartJobUploader.py}}
-A script to start the results uploader background process.
+        usage: \texttt{StartJobPool.py}
 
-usage: \texttt{StartJobUploader.py}
+    \item \texttt{StartJobUploader.py} \hfill \\
+        A script to start the results uploader background process.
+
+        usage: \texttt{StartJobUploader.py}
+\end{itemize}
+
+\subsubsection{Utilities}
+The following utility scripts are used to interact with the job-tracker database in a safe way. This includes creating the database, editing the entries in the database, and compiling and displaying information from the database entries.
+\begin{itemize}
+    \item \texttt{add\_files.py} \hfill \\
+        A utility to add files from a given directory to be tracked. This is useful for tracking files that are copied over from an external disk, as opposed to downloaded by the Downloader. Note that added files will be deleted just like downloaded files.
+
+        \textbf{usage:} \texttt{add\_files.py DIRECTORY} \\
+
+    \item \texttt{stop\_processing\_jobs.py} \hfill \\
+        Stop a job running in the queue. There are two ways to stop jobs: 1) Failing the job (i.e. the submission counts towards the job's number of retries, and 2) Removing the job (the submission doesn't count towards retries). Both possibilities are done safely, with respect to the job-tracker DB. The default is to remove the jobs (not fail).
+
+        \textbf{usage:} \texttt{stop\_processing\_jobs.py [OPTIONS] QUEUE\_ID [QUEUE\_ID ...]} \\
+        \textbf{options:} \\
+            \texttt{-h, --help}  Show help message and exit. \\
+            \texttt{-f, --fail}  Remove jobs from the queue and mark them as 'failed' in the job-tracker database. (Default: Remove jobs and don't mark them as'failed').
+
+    \item \texttt{create\_database.py} \hfill \\
+        Create the sqlite job-tracker database. Note that the script will do nothing if the database already exists. The location of the database is taken from the database configuration file.
+
+        \textbf{usage:} \texttt{create\_database.py}
+
+    \item \texttt{kill\_jobs.py} \hfill \\
+        Kill a job. That is set its status as 'terminal\_failure', and clean up its datafiles (if applicable).
+
+        \textbf{usage:} \texttt{kill\_jobs.py ID [ID ...]} \\
+        \textbf{options:} \\
+          \texttt{-h, --help}            Show help message and exit. \\
+          \texttt{-f FILES, --file=FILES}  File belonging to a job that should be killed. \\
+          \texttt{-i JOBIDS, --id=JOBIDS}  ID number of a job that should be killed.
+
+\end{itemize}
 
 \subsection{Generic Queue Manager Interface}
-The Pipeline interacts with the system's queue manager using an abstract interface. This generic interface can be implemented with the specific queue manager installed on the system. The system-specific queue manager class must be derived from the \texttt{PipelineQueueManager} class. Each of the following methods of \texttt{PipelineQueueManager} must be implemented in the derived class:
+The Pipeline interacts with the system's queue manager using an abstract interface. This generic interface can be implemented with the specific queue manager installed on the system. The system-specific queue manager class must be derived from the \texttt{generic\_interface.PipelineQueueManager} class. Each of the following methods must be implemented in the derived class:
 
 \begin{description}
-    \item[submit] Submits a job to queue manager with files list and output directory. Must return a unique string identifier for the submitted job. Raises ValueError if job was not submitted by queue manager.
+    \item[submit] Submits a job to queue manager with files list and output directory. Must return a unique string identifier for the submitted job. Raises \texttt{pipeline\_utils.PipelineError} if job submission fails.
 
     \item[is\_running] Given a unique identifier for a job, must return True or False whether the job is running or not, respectively.
 
-    \item[delete] Given a unique identifier for a job, remove the corresponding job from the queue. Returns True if the job was delete, False if an error occured.
+    \item[delete] Given a unique identifier for a job, remove the corresponding job from the queue. Raises \texttt{pipeline\_utils.PipelineError} if job removal isn't successful.
 
-    \item[status] Return the status of the queue, i.e. the number of jobs running and the number of jobs queued.
+    \item[status] Return the status of the queue as a tuple containing the number of jobs running and the number of jobs queued.
 
     \item[had\_errors] Given a unique identifier for a job, return True, or False whether the job terminated with an error, or not, respectively.
 
