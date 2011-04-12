@@ -2,6 +2,7 @@ import sys
 import optparse
 
 import jobtracker
+import pipeline_utils
 import config.jobpooler
 
 """
@@ -43,7 +44,10 @@ def main():
                                "WHERE id=%d" % \
                                 (jobtracker.nowstr(), job_submits[0]['job_id']))
             jobtracker.query(queries)
-            config.jobpooler.queue_manager.delete(job_submits[0]['queue_id'])
+            try:
+                config.jobpooler.queue_manager.delete(job_submits[0]['queue_id'])
+            except pipeline_utils.PipelineError, e:
+                print "PipelineError: %s" % str(e)
 
         else:
             sys.stderr.write("There is no job currently in the queue with " \
