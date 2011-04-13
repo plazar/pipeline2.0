@@ -22,7 +22,7 @@ creates.append("CREATE TABLE download_attempts ( " \
 creates.append("CREATE TABLE files ( " \
                     "created_at TEXT, " \
                     "details TEXT, " \
-                    "filename TEXT, "\
+                    "filename TEXT, " \
                     "id INTEGER PRIMARY KEY, " \
                     "remote_filename TEXT, " \
                     "request_id INTEGER, " \
@@ -35,7 +35,7 @@ creates.append("CREATE TABLE job_files ( " \
                     "id INTEGER PRIMARY KEY, " \
                     "job_id INTEGER, " \
                     "updated_at TEXT)")
-creates.append("CREATE TABLE job_submits ( "
+creates.append("CREATE TABLE job_submits ( " \
                     "created_at TEXT, " \
                     "details TEXT, " \
                     "id INTEGER PRIMARY KEY, " \
@@ -43,8 +43,7 @@ creates.append("CREATE TABLE job_submits ( "
                     "queue_id TEXT, " \
                     "status TEXT, " \
                     "updated_at TEXT, " \
-                    "output_dir TEXT, " \
-                    "base_output_dir TEXT)")
+                    "output_dir TEXT)")
 creates.append("CREATE TABLE jobs ( " \
                     "created_at TEXT, " \
                     "details TEXT, " \

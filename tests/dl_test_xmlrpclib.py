@@ -1,5 +1,5 @@
 import M2Crypto
-import suds.client
+import xmlrpclib
 import sys
 sys.path.append('../lib/python/')
 import config.download
@@ -20,13 +20,17 @@ myFtp.set_pasv(1)
 response = myFtp.login(config.download.ftp_username, config.download.ftp_password)
 print "Login Response: %s" % response
 
-web_service =  suds.client.Client(config.download.api_service_url).service
-response = web_service.Location(username=config.download.api_username, \
+web_service =  xmlrpclib.ServerProxy(config.download.api_service_url)
+multicall  = xmlrpclib.MultiCall(web_service)
+print web_service.system
+
+response = multicall.Location(username=config.download.api_username, \
                                 pw=config.download.api_password, \
                                 guid='ftpTest4BitMock')
-print "Web service Response: %s" % response
 
-del(web_service)
+
+print "XMLRPCLIB: Web service Response: %s" % response
+
 del(myFtp)
 
 myFtp = M2Crypto.ftpslib.FTP_TLS()
