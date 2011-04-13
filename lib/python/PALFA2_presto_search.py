@@ -564,11 +564,13 @@ def search_job(job):
                          config.searching.lo_accel_flo, fftnm)
                 job.lo_accelsearch_time += timed_execute(cmd)
                 try:
-                    os.remove(basenm+"_ACCEL_%d.txtcand"%config.searching.lo_accel_zmax)
+                    os.remove(basenm+"_ACCEL_%d.txtcand" % config.searching.lo_accel_zmax)
                 except: pass
                 try:  # This prevents errors if there are no cand files to copy
-                    shutil.move(basenm+"_ACCEL_%d.cand"%lo_accel_zmax, job.workdir)
-                    shutil.move(basenm+"_ACCEL_%d"%lo_accel_zmax, job.workdir)
+                    shutil.move(basenm+"_ACCEL_%d.cand" % config.searching.lo_accel_zmax, \
+                                    job.workdir)
+                    shutil.move(basenm+"_ACCEL_%d" % config.searching.lo_accel_zmax, \
+                                    job.workdir)
                 except: pass
         
                 # Do the high-acceleration search
@@ -580,11 +582,13 @@ def search_job(job):
                          config.searching.hi_accel_flo, fftnm)
                 job.hi_accelsearch_time += timed_execute(cmd)
                 try:
-                    os.remove(basenm+"_ACCEL_%d.txtcand"%config.searching.hi_accel_zmax)
+                    os.remove(basenm+"_ACCEL_%d.txtcand" % config.searching.hi_accel_zmax)
                 except: pass
                 try:  # This prevents errors if there are no cand files to copy
-                    shutil.move(basenm+"_ACCEL_%d.cand"%hi_accel_zmax, job.workdir)
-                    shutil.move(basenm+"_ACCEL_%d"%hi_accel_zmax, job.workdir)
+                    shutil.move(basenm+"_ACCEL_%d.cand" % config.searching.hi_accel_zmax, \
+                                    job.workdir)
+                    shutil.move(basenm+"_ACCEL_%d" % config.searching.hi_accel_zmax, \
+                                    job.workdir)
                 except: pass
 
                 # Move the .inf files
@@ -632,19 +636,19 @@ def search_job(job):
                 (config.searching.singlepulse_plot_SNR, dmglob)
             job.singlepulse_time += timed_execute(cmd)
             os.rename(psname,
-                        job.basefilenm+"_DMs%s_singlepulse.ps"%dmrangestr)
+                        job.basefilenm+"_DMs%s_singlepulse.ps" % dmrangestr)
 
     # Sift through the candidates to choose the best to fold
     job.sifting_time = time.time()
 
-    lo_accel_cands = sifting.read_candidates(glob.glob("*ACCEL_%d"%config.searching.lo_accel_zmax))
+    lo_accel_cands = sifting.read_candidates(glob.glob("*ACCEL_%d" % config.searching.lo_accel_zmax))
     if len(lo_accel_cands):
         lo_accel_cands = sifting.remove_duplicate_candidates(lo_accel_cands)
     if len(lo_accel_cands):
         lo_accel_cands = sifting.remove_DM_problems(lo_accel_cands, config.searching.numhits_to_fold,
                                                     dmstrs, config.searching.low_DM_cutoff)
 
-    hi_accel_cands = sifting.read_candidates(glob.glob("*ACCEL_%d"%config.searching.hi_accel_zmax))
+    hi_accel_cands = sifting.read_candidates(glob.glob("*ACCEL_%d" % config.searching.hi_accel_zmax))
     if len(hi_accel_cands):
         hi_accel_cands = sifting.remove_duplicate_candidates(hi_accel_cands)
     if len(hi_accel_cands):
