@@ -140,6 +140,9 @@ def update_jobs_status_from_queue():
                 # Errors during processing...
                 errormsg = config.jobpooler.queue_manager.get_errors(submit['queue_id'])
 
+                jobpool_cout.outs("Processing of Job #%d (%s) had errors." % \
+                                (submit['job_id'], submit['queue_id']))
+
                 # Mark job entry with status 'failed'
                 # Mark job_submit entry with status 'processing_failed'
                 queries = []
@@ -211,6 +214,7 @@ def recover_failed_jobs():
                                   "details='Job will be retried' " \
                              "WHERE id=%d" % \
                              (jobtracker.nowstr(), job['id']))
+            jobpool_cout.outs("Job #%d will be retried." % job['id'])
         else:
             # We've run out of attempts for this job
             if config.email.send_on_terminal_failures or \
@@ -224,7 +228,11 @@ def recover_failed_jobs():
                 msg += "\n*** No more attempts for this job. ***\n"
                 msg += "*** Job will NOT be re-submitted! ***\n"
                 if config.basic.delete_rawdata:
+                    jobpool_cout.outs("Job #%d will NOT be retried. " \
+                                        "Data files will be deleted." % job['id'])
                     msg += "*** Raw data files will be deleted. ***\n"
+                else:
+                    jobpool_cout.outs("Job #%d will NOT be retried. " % job['id'])
                 mailer.ErrorMailer(msg).send()
 
             if config.basic.delete_rawdata:
