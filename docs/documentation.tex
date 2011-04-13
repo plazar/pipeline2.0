@@ -53,11 +53,13 @@ Here we will present basic step-by-step instructions for setting up the pipeline
 
     \item[Step 4] Create configuration files using the examples provided. Modify the settings so they are appropriate for your system. It is possible to check the sanity of your configurations by calling a configuration file with the python interpreter. An error message will be displayed if a configuration type or value is invalid.  
 
-    \item[Step 5] Set up the database. This is done using the \texttt{create\_database.py} script.
+    \item[Step 5] Configure ODBC and FreeTDS. This can be done by creating the appropriate files (\texttt{.odbc.ini} and \texttt{.freetds.conf}, respectively) in your home area. See Section \ref{sec:dbconf} for details.
 
-    \item[Step 6] Perform tests. In the \texttt{test/} directory there are some tests that can be run to see if you can connect to the common DB (\texttt{commondb\_test.py}), e-mail system (\texttt{MailerTest.py}), and FTP server (\texttt{cornellftp\_test.py}). To perform the tests call each script with the python interpreter.
+    \item[Step 6] Set up the database. This is done using the \texttt{create\_database.py} script.
 
-    \item[Step 7] Start the downloader using \texttt{StartDownloader.py}.
+    \item[Step 7] Perform tests. In the \texttt{test/} directory there are some tests that can be run to see if you can connect to the common DB (\texttt{commondb\_test.py}), e-mail system (\texttt{mailer\_test.py}), and FTP server (\texttt{cornellftp\_test.py}). To perform the tests call each script with the python interpreter. Additional information about the tests can be found in Section \ref{sec:tests}.
+
+    \item[Step 8] Start the downloader using \texttt{StartDownloader.py}.
         
         \smallskip
         
@@ -151,6 +153,93 @@ The following per-beam diagnostics are uploaded to the common database:
 
 
 \section{Reference}
+\subsection{Database Configuration}
+\label{sec:dbconf}
+UnixODBC and FreeTDS need to be properly configured to be able to connect to the common database. The following configuration files are required (at McGill). These files can be placed in your home area. It is also possible to put these configurations in a system configuration directory so all users will have access to them automatically.
+
+\paragraph{\texttt{.obdc.ini}}
+\begin{verbatim}
+    [ODBC Data Sources]
+    FreeTDSDSN = FreeTDS
+    MySQLDSN   = MySQL
+
+    [FreeTDSDSN]
+    Driver          = /usr/lib/odbc/libtdsodbc.so
+    Servername      = Cornell
+    Description     = FreeTDS
+    Database        = palfa-common-copy
+
+    [MySQLDSN]
+    Driver          = /usr/lib/odbc/libmyodbc.so
+    Description     = MySQL
+
+    [Default]
+    Driver          = /usr/lib/odbc/libtdsodbc.so
+\end{verbatim}
+
+\paragraph{\texttt{.freetds.conf}}
+\begin{verbatim}
+    #   $Id: freetds.conf,v 1.12 2007/12/25 06:02:36 jklowden Exp $
+    #
+    # This file is installed by FreeTDS if no file by the same 
+    # name is found in the installation directory.  
+    #
+    # For information about the layout of this file and its settings, 
+    # see the freetds.conf manpage "man freetds.conf".  
+
+    # Global settings are overridden by those in a database
+    # server specific section
+    [global]
+            # TDS protocol version
+    ;       tds version = 4.2
+
+            # Whether to write a TDSDUMP file for diagnostic purposes
+            # (setting this to /tmp is insecure on a multi-user system)
+    ;       dump file = /tmp/freetds.log
+    ;       debug flags = 0xffff
+
+            # Command and connection timeouts
+    ;       timeout = 10
+    ;       connect timeout = 10
+            
+            # If you get out-of-memory errors, it may mean that your client
+            # is trying to allocate a huge buffer for a TEXT field.  
+            # Try setting 'text size' to a more reasonable limit 
+            text size = 16777215
+
+    # A typical Sybase server
+    [egServer50]
+            host = symachine.domain.com
+            port = 5000
+            tds version = 5.0
+
+    # A typical Microsoft server
+    [egServer70]
+            host = ntmachine.domain.com
+            port = 1433
+            tds version = 7.0
+
+    [Cornell]
+            host = arecibosql.tc.cornell.edu
+            port = 1433
+\end{verbatim}
+
+\subsection{Tests}
+\label{sec:tests}
+The pipeline contains several tests that can be used to confirm certain tricky aspects of the pipeline are configured properly. These tests are located in \texttt{tests/}.
+
+\begin{description}
+    \item[commondb\_test.py] This script tests that connections to the common database. It also verifies that it is possible to read from the database, as well as insert entries into the database.
+
+    \item[cornellftp\_test.py] This test confirms that it is possible to connect to the FTP server at Cornell, access information about files available, and retrieve files.
+
+    \item[install\_test.py] This script attempts to import all python modules necessary by the pipeline. If any modules were not successfully imported they are reported to the user.
+
+    \item[mailer\_test.py] This script attempts to send an email using the SMTP server defined in the configuration file \texttt{email.py}.
+
+    \item[restore\_test.py] This script verifies that the pipeline can connect to the data-restore web services, make requests and check when data are available.
+\end{description}
+
 \subsection{Executables}
 The pipeline has a series of executables located in the 'bin/' directory. There are two categories of executables: background scripts, and utilities.
 
