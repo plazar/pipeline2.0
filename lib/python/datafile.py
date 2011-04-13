@@ -193,7 +193,8 @@ class Data(object):
             self.galactic_longitude = float(l[0])
             self.galactic_latitude = float(b[0])
         else:
-            raise ValueError("Bad number of matches (%d) in coords table!" % len(matches))
+            raise ValueError("Bad number of matches (%d) in coords table! " \
+                             "(Files: %s)" % (len(matches), ", ".join(self.fns)))
 
     # These are class methods.
     # They don't need to be called with an instance.
@@ -526,7 +527,7 @@ class MergedMockPsrfitsData(PsrfitsData):
         # Parse filename to get the scan number
         m = self.fnmatch(fitsfns[0])
         self.beam_id = int(m.groupdict()['beam'])
-        self.get_correct_positions()
+        self.get_correct_positions() # This sets self.right_ascension, etc.
         self.scan_num = m.groupdict()['scan']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
