@@ -12,6 +12,7 @@ import warnings
 import re
 import types
 import tarfile
+import tempfile
 
 import numpy as np
 import psr_utils
@@ -87,7 +88,7 @@ def find_closest_subbands(obs, subdms, DM):
         given an obs_info class and a sorted array of the subdms.
     """
     subdm = subdms[np.fabs(subdms - DM).argmin()]
-    return "subbands/%s_DM%.2f.sub[0-6]*"%(obs.basefilenm, subdm)
+    return "obs.tempdir/%s_DM%.2f.sub[0-6]*"%(obs.basefilenm, subdm)
 
 
 def timed_execute(cmd, stdout=None, stderr=sys.stderr): 
@@ -443,12 +444,10 @@ def set_up_job(filenms, workdir, resultsdir):
         os.makedirs(job.outputdir)
     except: pass
 
+    job.workdir = workdir
     # Create a directory to hold all the subbands
-    if config.searching.use_subbands:
-        try:
-            os.makedirs("subbands")
-        except: pass
-    
+    job.tempdir = tempfile.mkdtemp(suffix="_tmp", prefix=job.basefilenm, \
+                        dir=config.searching.base_tmp_dir)
     return job
 
 
@@ -459,6 +458,11 @@ def search_job(job):
     # Use whatever .zaplist is found in the current directory
     zaplist = glob.glob("*.zaplist")[0]
     print "Using %s as zaplist" % zaplist
+    if config.searching.use_subbands and config.searching.fold_rawdata:
+        # make a directory to keep subbands so they can be used to fold later
+        try:
+            os.makedirs(os.path.join(job.workdir, 'subbands'))
+        except: pass
 
     # rfifind the data file
     cmd = "rfifind %s -time %.17g -o %s %s" % \
@@ -493,43 +497,51 @@ def search_job(job):
             subbasenm = "%s_DM%s"%(job.basefilenm, ddplan.subdmlist[passnum])
 
             if config.searching.use_subbands:
+                try:
+                    os.makedirs(os.path.join(job.tempdir, 'subbands'))
+                except: pass
+    
                 # Create a set of subbands
                 cmd = "prepsubband %s -sub -subdm %s -downsamp %d -nsub %d -mask %s " \
-                        "-o subbands/%s %s" % \
+                        "-o %s/subbands/%s %s" % \
                         (config.searching.datatype_flag, ddplan.subdmlist[passnum], ddplan.sub_downsamp,
-                        ddplan.numsub, maskfilenm, job.basefilenm,
+                        ddplan.numsub, maskfilenm, job.tempdir, job.basefilenm,
                         job.filenmstr)
                 job.subbanding_time += timed_execute(cmd, stdout="%s.subout" % subbasenm)
             
                 # Now de-disperse using the subbands
                 cmd = "prepsubband -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
-                        "-numout %d -o %s subbands/%s.sub[0-9]*" % \
+                        "-numout %d -o %s/%s %s/subbands/%s.sub[0-9]*" % \
                         (ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
                         ddplan.dmsperpass, ddplan.dd_downsamp, 
                         psr_utils.choose_N(job.orig_N/ddplan.downsamp),
-                        job.basefilenm, subbasenm)
+                        job.tempdir, job.basefilenm, job.tempdir, subbasenm)
                 job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
             
             else:  # Not using subbands
                 cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d " \
-                        "-numout %d -o %s %s"%\
+                        "-numout %d -o %s/%s %s"%\
                         (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
                         ddplan.dmsperpass, psr_utils.choose_N(job.orig_N/ddplan.downsamp),
-                        job.basefilenm, filenmstr)
+                        job.tempdir, job.basefilenm, filenmstr)
                 job.dedispersing_time += timed_execute(cmd)
             
             # Iterate over all the new DMs
             for dmstr in ddplan.dmlist[passnum]:
                 dmstrs.append(dmstr)
-                basenm = job.basefilenm+"_DM"+dmstr
+                basenm = os.path.join(job.tempdir, job.basefilenm+"_DM"+dmstr)
                 datnm = basenm+".dat"
                 fftnm = basenm+".fft"
                 infnm = basenm+".inf"
 
                 # Do the single-pulse search
                 cmd = "single_pulse_search.py -p -m %f -t %f %s"%\
-                      (config.searching.singlepulse_maxwidth, config.searching.singlepulse_threshold, datnm)
+                      (config.searching.singlepulse_maxwidth, \
+                       config.searching.singlepulse_threshold, datnm)
                 job.singlepulse_time += timed_execute(cmd)
+                try:
+                    shutil.move(basenm+".singlepulse", job.workdir)
+                except: pass
 
                 # FFT, zap, and de-redden
                 cmd = "realfft %s"%datnm
@@ -546,28 +558,55 @@ def search_job(job):
                 # Do the low-acceleration search
                 cmd = "accelsearch -harmpolish -numharm %d -sigma %f " \
                         "-zmax %d -flo %f %s"%\
-                        (config.searching.lo_accel_numharm, config.searching.lo_accel_sigma, config.searching.lo_accel_zmax, \
-                        config.searching.lo_accel_flo, fftnm)
+                        (config.searching.lo_accel_numharm, \
+                         config.searching.lo_accel_sigma, \
+                         config.searching.lo_accel_zmax, \
+                         config.searching.lo_accel_flo, fftnm)
                 job.lo_accelsearch_time += timed_execute(cmd)
                 try:
                     os.remove(basenm+"_ACCEL_%d.txtcand"%config.searching.lo_accel_zmax)
+                except: pass
+                try:  # This prevents errors if there are no cand files to copy
+                    shutil.move(basenm+"_ACCEL_%d.cand"%lo_accel_zmax, job.workdir)
+                    shutil.move(basenm+"_ACCEL_%d"%lo_accel_zmax, job.workdir)
                 except: pass
         
                 # Do the high-acceleration search
                 cmd = "accelsearch -harmpolish -numharm %d -sigma %f " \
                         "-zmax %d -flo %f %s"%\
-                        (config.searching.hi_accel_numharm, config.searching.hi_accel_sigma, config.searching.hi_accel_zmax, \
-                        config.searching.hi_accel_flo, fftnm)
+                        (config.searching.hi_accel_numharm, \
+                         config.searching.hi_accel_sigma, \
+                         config.searching.hi_accel_zmax, \
+                         config.searching.hi_accel_flo, fftnm)
                 job.hi_accelsearch_time += timed_execute(cmd)
                 try:
                     os.remove(basenm+"_ACCEL_%d.txtcand"%config.searching.hi_accel_zmax)
                 except: pass
+                try:  # This prevents errors if there are no cand files to copy
+                    shutil.move(basenm+"_ACCEL_%d.cand"%hi_accel_zmax, job.workdir)
+                    shutil.move(basenm+"_ACCEL_%d"%hi_accel_zmax, job.workdir)
+                except: pass
 
+                # Move the .inf files
+                try:
+                    shutil.move(infnm, job.workdir)
+                except: pass
                 # Remove the .dat and .fft files
                 try:
                     os.remove(datnm)
+                except: pass
+                try:
                     os.remove(fftnm)
                 except: pass
+
+            if config.searching.use_subbands:
+                if config.searching.fold_rawdata:
+                    # Subband files are no longer needed
+                    shutil.rmtree(os.path.join(job.tempdir, 'subbands'))
+                else:
+                    # Move subbands to workdir
+                    for sub in glob.glob(os.path.join(job.tempdir, 'subbands', "*")):
+                        shutil.move(sub, os.path.join(job.workdir, 'subbands'))
 
     # Make the single-pulse plots
     basedmb = job.basefilenm+"_DM"
@@ -618,7 +657,8 @@ def search_job(job):
         # Note:  the candidates will be sorted in _sigma_ order, not _SNR_!
         all_accel_cands.sort(sifting.cmp_sigma)
         sifting.write_candlist(all_accel_cands, job.basefilenm+".accelcands")
-        shutil.copy(job.basefilenm+".accelcands", job.outputdir)
+        # Moving of results to resultsdir now happens in clean_up(...)
+        # shutil.copy(job.basefilenm+".accelcands", job.outputdir)
 
     job.sifting_time = time.time() - job.sifting_time
 
@@ -678,11 +718,16 @@ def clean_up(job):
     tf.close()
     
     # Copy all the important stuff to the output directory
-    resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", \
-                    "*.png", "*.zaplist", "search_params.txt"]
+    resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", "*.png", \
+                    "*.zaplist", "search_params.txt", "*.accelcands"]
     for resultglob in resultglobs:
             for file in glob.glob(resultglob):
-                shutil.copy(file, job.outputdir)
+                shutil.move(file, job.outputdir)
+
+    # Remove the tmp directory (in a tmpfs mount)
+    try:
+        shutil.rmtree(job.tempdir)
+    except: pass
    
 
 class PrestoError(Exception):
