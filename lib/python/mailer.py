@@ -6,20 +6,22 @@ from email.mime.text import MIMEText
 import config.email
 
 class ErrorMailer:
-    def __init__(self,message):
+    def __init__(self, message, enabled=config.email.enabled):
+        self.enabled = enabled
         self.msg = MIMEText(message.strip())
-        self.msg['Subject'] = 'Pipeline notification at: '+ datetime.datetime.now().strftime("%a %d %b, %I:%M:%S%P")
+        self.msg['Subject'] = 'Pipeline notification at: ' + \
+                    datetime.datetime.now().strftime("%a %d %b, %I:%M:%S%P")
         self.msg['To'] = config.email.recipient
-        
-        if config.email.smtp_host is None:
-            self.msg['From'] = '%s@localhost' % os.getenv('USER')
-            self.client = smtplib.SMTP('localhost', config.email.smtp_port)
-        else:
-            self.msg['From'] = None
-            self.client = smtplib.SMTP(config.email.smtp_host, config.email.smtp_port)
+        if self.enabled:
+            if config.email.smtp_host is None:
+                self.msg['From'] = '%s@localhost' % os.getenv('USER')
+                self.client = smtplib.SMTP('localhost', config.email.smtp_port)
+            else:
+                self.msg['From'] = None
+                self.client = smtplib.SMTP(config.email.smtp_host, config.email.smtp_port)
 
     def send(self):
-        if config.email.enabled:
+        if self.enabled:
             self.client.ehlo()
             self.client.starttls()
             if config.email.smtp_host is not None:
