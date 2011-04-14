@@ -34,7 +34,7 @@ def check_download_attempts():
     attempts = jobtracker.query("SELECT * FROM download_attempts " \
                                 "WHERE status='downloading'")
 
-    active_ids = [int(t.name) for t in threading.enumerate() \
+    active_ids = [int(t.getName()) for t in threading.enumerate() \
                             if isinstance(t, DownloadThread)]
 
     for attempt in attempts:
@@ -148,12 +148,11 @@ def make_request():
     dlm_cout.outs("Requesting data")
     num_beams = 1
     web_service = CornellWebservice.Client()
-    try:
-        guid = web_service.Restore(username=config.download.api_username, \
-                                   pw=config.download.api_password, \
-                                   number=num_beams, \
-                                   bits=config.download.request_numbits, \
-                                   fileType=config.download.request_datatype)
+    guid = web_service.Restore(username=config.download.api_username, \
+                               pw=config.download.api_password, \
+                               number=num_beams, \
+                               bits=config.download.request_numbits, \
+                               fileType=config.download.request_datatype)
     if guid == "fail":
         raise pipeline_utils.PipelineError("Request for restore returned 'fail'.")
 
