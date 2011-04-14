@@ -4,7 +4,7 @@ import config.basic
 # Downloader Configuration
 ################################################################
 # The url is from Adam and is unlikely to need changing
-api_service_url = "http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL"
+api_service_url = "http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx"
 # These are from Adam and are different from the database ones...
 api_username = "username"
 api_password = "password"
