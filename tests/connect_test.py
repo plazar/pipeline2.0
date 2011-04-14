@@ -1,8 +1,6 @@
 import M2Crypto
-import sys
-sys.path.append('../lib/python/')
 import config.download
-import urllib
+import CornellWebservice
 
 myFtp = M2Crypto.ftpslib.FTP_TLS()
 myFtp.connect(config.download.ftp_host, config.download.ftp_port)
@@ -21,9 +19,11 @@ response = myFtp.login(config.download.ftp_username, config.download.ftp_passwor
 print "Login Response: %s" % response
 
 
-params =  urllib.urlencode({'username':config.download.api_username,'pw':config.download.api_password,'guid':'ftpTest4BitMock'})
-response = urllib.urlopen("http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx/Location?%s" % params )
-print response.read()
+web_service = CornellWebservice.Client()
+guid = web_service.RestoreTest(username=config.download.api_username, \
+                                pw=config.download.api_password, \
+                                number=1, bits=config.download.request_numbits, \
+                                fileType=config.download.request_datatype)
 
 
 del(myFtp)

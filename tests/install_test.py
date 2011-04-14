@@ -22,7 +22,6 @@ BUILTIN = ["datetime", \
            "glob", \
            "tarfile", \
            "threading", \
-           "urllib2", \
            "sqlite3", \
            "email", \
            "smtplib", \
@@ -30,7 +29,9 @@ BUILTIN = ["datetime", \
            "socket", \
            "struct", \
            "atexit", \
-           "random"]
+           "random", \
+           "urllib", \
+           "xml.dom.minidom"]
 
 THIRDPARTY = [("presto", "Part of PRESTO - Available at: https://github.com/scottransom/presto"), \
               ("PBSQuery", "Only needed if using PBS queue manager - Available at: http://subtrac.sara.nl/oss/pbs_python/wiki/TorqueInstallation"), \
@@ -43,8 +44,7 @@ THIRDPARTY = [("presto", "Part of PRESTO - Available at: https://github.com/scot
               ("psr_utils", "Part of PRESTO - Available at: https://github.com/scottransom/presto"), \
               ("M2Crypto", "Available at: http://chandlerproject.org/Projects/MeTooCrypto"), \
               ("prettytable", "Available at: http://code.google.com/p/prettytable/"), \
-              ("sifting", "Part of PRESTO - Available at: https://github.com/scottransom/presto"), \
-              ("suds", "Available at: https://fedorahosted.org/suds/")]
+              ("sifting", "Part of PRESTO - Available at: https://github.com/scottransom/presto")]
 
 errors = []
 

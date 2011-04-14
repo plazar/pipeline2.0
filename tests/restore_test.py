@@ -1,8 +1,8 @@
-import suds
+import CornellWebservice
 import config.download
 
 print "Connecting to web service."
-web_service = suds.client.Client(config.download.api_service_url, cache=None).service
+web_service = CornellWebservice.Client()
 
 # Define test cases. 
 # Each tuple contains arguments for (bits, fileType) options.

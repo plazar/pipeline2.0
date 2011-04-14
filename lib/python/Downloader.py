@@ -6,8 +6,7 @@ import time
 import re
 import threading
 import traceback
-import urllib2
-import suds
+
 import M2Crypto
 
 import mailer
@@ -15,6 +14,7 @@ import OutStream
 import datafile
 import jobtracker
 import CornellFTP
+import CornellWebservice
 import pipeline_utils
 import config.background
 import config.download
@@ -147,17 +147,13 @@ def make_request():
     """
     dlm_cout.outs("Requesting data")
     num_beams = 1
-    web_service = suds.client.Client(config.download.api_service_url).service
+    web_service = CornellWebservice.Client()
     try:
         guid = web_service.Restore(username=config.download.api_username, \
                                    pw=config.download.api_password, \
                                    number=num_beams, \
                                    bits=config.download.request_numbits, \
                                    fileType=config.download.request_datatype)
-    except urllib2.URLError, e:
-        raise pipeline_utils.PipelineError("urllib2.URLError caught when " \
-                                           "making a request for restore: %s" % \
-                                           str(e))
     if guid == "fail":
         raise pipeline_utils.PipelineError("Request for restore returned 'fail'.")
 
@@ -187,7 +183,7 @@ def check_active_requests():
     active_requests = jobtracker.query("SELECT * FROM requests " \
                                        "WHERE status='waiting'")
     
-    web_service = suds.client.Client(config.download.api_service_url).service
+    web_service = CornellWebservice.Client()
     for request in active_requests:
         location = web_service.Location(guid=request['guid'], \
                                         username=config.download.api_username, \
