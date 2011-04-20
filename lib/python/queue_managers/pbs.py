@@ -1,5 +1,6 @@
 import subprocess
 import os
+import os.path
 import time
 
 import PBSQuery
@@ -30,9 +31,11 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
                         the queue submission fails.
         """
         searchscript = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
-        cmd = 'qsub -M %s -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -o /dev/null %s' % \
-                        (config.email.recipient, ';'.join(datafiles), outdir, self.resource_list, \
-                            self.job_basename, self.qsublogdir, searchscript)
+        errorlog = os.path.join(self.qsublogdir, "'$PBS_JOBID'.ER")
+        stdoutlog = os.devnull
+        cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' -l %s -N %s -e %s -o %s %s" % \
+                        (';'.join(datafiles), outdir, self.resource_list, \
+                            self.job_basename, errorlog, stdoutlog, searchscript)
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
                                 stdin=subprocess.PIPE)
         queue_id = pipe.communicate()[0].strip()
@@ -122,9 +125,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         
             NOTE: A ValueError is raised if the error log cannot be found.
         """
-        jobnum = jobid_str.split(".")[0]
-        #stderr_path = os.path.join(self.qsublogdir, self.job_basename+".e"+jobnum)
-        stderr_path = os.path.join(self.qsublogdir, "%s.nimrod.ER"%jobnum)
+        stderr_path = os.path.join(self.qsublogdir, "%s.ER" % job_str)
         if not os.path.exists(stderr_path):
             raise ValueError("Cannot find error log for job (%s): %s" % \
                         (jobid_str, stderr_path))
