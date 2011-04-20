@@ -334,6 +334,8 @@ Basic pipeline parameters are found in \texttt{basic.py}.
     \item[psrfits\_utilsdir] The path of the directory containing the installation of \texttt{psrfits\_utils} that is used by the pipeline.
     \item[delete\_rawdata] A boolean value that determines if raw data is deleted when results for a job are successfully uploaded to the common DB, or if the maximum number of attempts for a job is reached. \textit{Set this value to False if you do not want the local copy of your data deleted.}
     \item[coords\_table] The path to the \texttt{PALFA\_coords\_table.txt} file, which contains correct coordinates for WAPP data files.
+    \item[log\_dir] The path of the directory where log files are stored.
+    \item[qsublog\_dir] The path where stderr streams from processing jobs are sent.
 \end{description}
 
 \subsubsection{background.py}
