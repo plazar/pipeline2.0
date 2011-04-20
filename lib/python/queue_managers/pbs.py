@@ -16,13 +16,16 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         self.resource_list = resource_list
         self.qsublogdir = os.path.join(config.basic.log_dir, "qsublog")
 
-    def submit(self, datafiles, outdir):
+    def submit(self, datafiles, outdir, \
+                script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
 
             Inputs:
                 datafiles: A list of the datafiles being processed.
                 outdir: The directory where results will be copied to.
+                script: The script to submit to the queue. (Default:
+                        '{config.basic.pipelinedir}/bin/search.py')
 
             Output:
                 jobid: A unique job identifier.
@@ -30,12 +33,11 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             *** NOTE: A pipeline_utils.PipelineError is raised if
                         the queue submission fails.
         """
-        searchscript = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
         errorlog = os.path.join(self.qsublogdir, "'$PBS_JOBID'.ER")
         stdoutlog = os.devnull
         cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' -l %s -N %s -e %s -o %s %s" % \
                         (';'.join(datafiles), outdir, self.resource_list, \
-                            self.job_basename, errorlog, stdoutlog, searchscript)
+                            self.job_basename, errorlog, stdoutlog, script)
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
                                 stdin=subprocess.PIPE)
         queue_id = pipe.communicate()[0].strip()

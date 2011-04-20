@@ -4,13 +4,15 @@ class PipelineQueueManager(object):
         """
         raise NotImplementedError
 
-    def submit(self, datafiles, outdir):
+    def submit(self, datafiles, outdir, script):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
 
             Inputs:
                 datafiles: A list of the datafiles being processed.
                 outdir: The directory where results will be copied to.
+                script: The script to submit to the queue. It should 
+                        default to '{config.basic.pipelinedir}/bin/search.py'
 
             Output:
                 jobid: A unique job identifier.
