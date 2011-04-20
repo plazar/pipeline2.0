@@ -14,7 +14,6 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
     def __init__(self, job_basename, resource_list):
         self.job_basename = job_basename
         self.resource_list = resource_list
-        self.qsublogdir = os.path.join(config.basic.log_dir, "qsublog")
 
     def submit(self, datafiles, outdir, \
                 script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
@@ -33,7 +32,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             *** NOTE: A pipeline_utils.PipelineError is raised if
                         the queue submission fails.
         """
-        errorlog = os.path.join(self.qsublogdir, "'$PBS_JOBID'.ER")
+        errorlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.ER")
         stdoutlog = os.devnull
         cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' -l %s -N %s -e %s -o %s %s" % \
                         (';'.join(datafiles), outdir, self.resource_list, \
@@ -127,7 +126,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         
             NOTE: A ValueError is raised if the error log cannot be found.
         """
-        stderr_path = os.path.join(self.qsublogdir, "%s.ER" % job_str)
+        stderr_path = os.path.join(config.basic.qsublog_dir, "%s.ER" % job_str)
         if not os.path.exists(stderr_path):
             raise ValueError("Cannot find error log for job (%s): %s" % \
                         (jobid_str, stderr_path))

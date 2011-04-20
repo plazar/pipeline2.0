@@ -22,6 +22,7 @@ delete_rawdata = True
 # Should not need to change this unless you rearrange the pipeline filesystem
 coords_table = os.path.join(pipelinedir, "lib", "PALFA_coords_table.txt")
 log_dir = os.path.join(pipelinedir, "logs")
+qsublog_dir = os.path.join(log_dir, "qsublog")
 
 import basic_check
 basic_check.basic.populate_configs(locals())

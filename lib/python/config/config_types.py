@@ -182,6 +182,13 @@ class DirConfig(Configurable):
                     os.path.isdir(self.value)
 
 
+class ReadWriteDirConfig(DirConfig):
+    msg = "Must be an existing read/write-able directory."
+    def isvalue(self):
+        return super(ReadWriteDirConfig, self).isvalid() and \
+                    os.access(self.value, os.R_OK | os.W_OK)
+
+
 class ReadWriteConfig(Configurable):
     msg = "Must be able to read-write path."
     def isvalid(self):
