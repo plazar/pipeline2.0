@@ -22,6 +22,18 @@ class PipelineQueueManager(object):
         """
         raise NotImplementedError
 
+    def can_submit(self):
+        """Check if we can submit a job
+            (i.e. limits imposed in config file aren't met)
+
+            Inputs:
+                None
+
+            Output:
+                Boolean value. True if submission is allowed.
+        """
+        raise NotImplementedError
+
     def is_running(self, queue_id):
         """Must return True/False whether the job is in the queue or not
             respectively.

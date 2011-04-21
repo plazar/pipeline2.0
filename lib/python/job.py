@@ -262,27 +262,10 @@ def submit_jobs():
                                  "WHERE status='new'" \
                                  "ORDER BY updated_at ASC"))
     for job in jobs:
-        if can_submit():
+        if config.jobpooler.queue_manager.can_submit():
             submit(job)
         else:
             break
-
-def can_submit():
-    """Check if we can submit a job
-        (i.e. limits imposed in config file aren't met)
-
-        Inputs:
-            None
-
-        Output:
-            Boolean value. True if submission is allowed.
-    """
-    running, queued = config.jobpooler.queue_manager.status()
-    if ((running + queued) < config.jobpooler.max_jobs_running) and \
-        (queued < config.jobpooler.max_jobs_queued):
-        return True
-    else:
-        return False
 
 def submit(job_row):
     """

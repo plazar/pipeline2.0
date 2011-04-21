@@ -227,6 +227,7 @@ class QManagerConfig(Configurable):
             # Check if appropriate functions are defined.
             methods = ['submit', \
                         'is_running', \
+                        'can_submit', \
                         'delete', \
                         'status', \
                         'had_errors', \
