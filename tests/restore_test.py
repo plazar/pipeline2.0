@@ -16,6 +16,7 @@ for bits, ftype in TESTCASES:
             "with bits=%d and fileType='%s'." % (bits, ftype)
     guid = web_service.RestoreTest(username=config.download.api_username, \
                                     pw=config.download.api_password, \
+                                    pipeline=config.basic.pipeline.lower(), \
                                     number=1, bits=bits, fileType=ftype)
     print "GUID: %s" % guid
 

@@ -150,6 +150,7 @@ def make_request():
     web_service = CornellWebservice.Client()
     guid = web_service.Restore(username=config.download.api_username, \
                                pw=config.download.api_password, \
+                               pipeline=config.basic.pipeline.lower(), \
                                number=num_beams, \
                                bits=config.download.request_numbits, \
                                fileType=config.download.request_datatype)
