@@ -98,6 +98,8 @@ class CornellFTP():
 
     def write(self, block):
         self.downloading_file.write(block)
+        self.downloading_file.flush()
+        os.fsync(self.downloading_file)
 
 
 class CornellFTPConnectionError(Exception):

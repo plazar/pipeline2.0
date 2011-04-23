@@ -108,7 +108,7 @@ def get_space_available():
             avail: Number of bytes available on the file system.
     """
     s = os.statvfs(os.path.abspath(config.download.datadir))
-    total = s.f_bavail*s.f_frsize
+    total = s.f_bavail*s.f_bsize
     return total
 
 
