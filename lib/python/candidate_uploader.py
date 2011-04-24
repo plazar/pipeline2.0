@@ -194,9 +194,17 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
         raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
                                          "files found in %s" % (len(tarfns), \
                                             directory))
+    
     tar = tarfile.open(tarfns[0])
-    tar.extractall(path=tempdir)
-    tar.close()
+    try:
+        tar.extractall(path=tempdir)
+    except IOError:
+        if os.path.isdir(tempdir):
+            shutil.rmtree(tempdir)
+        raise PeriodicityCandidateError("Error while extracting pfd files " \
+                                        "from tarball (%s)!" % tarfns[0])
+    finally:
+        tar.close()
     # Loop over candidates that were folded
     results = []
     for ii, c in enumerate(foldedcands):
