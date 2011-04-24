@@ -72,7 +72,8 @@ class Header(upload.Uploadable):
             "@galactic_longitude=%.8f, " % self.galactic_longitude + \
             "@galactic_latitude=%.8f, " % self.galactic_latitude + \
             "@ra_deg=%.8f, " % self.ra_deg + \
-            "@dec_deg=%.8f" % self.dec_deg
+            "@dec_deg=%.8f, " % self.dec_deg + \
+            "@obsType='%s'" % self.obstype
         return sprocstr
 
     def compare_with_db(self):

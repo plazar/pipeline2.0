@@ -10,11 +10,11 @@ import os
 import warnings
 import sys
 
-import slalib
 import pyfits
 import numpy as np
 import psr_utils
 from astro_utils import protractor
+from astro_utils import calendar
 
 # Regular expression for parsing DATE-OBS card's format.
 date_obs_re = re.compile(r"^(?P<year>[0-9]{4})-(?P<month>[0-9]{2})-" \
@@ -401,8 +401,8 @@ def DATEOBS_to_MJD(dateobs):
     m = date_obs_re.match(dateobs)
     mjd_fracday = (float(m.group("hour")) + (float(m.group("min")) + \
                     (float(m.group("sec")) / 60.0)) / 60.0) / 24.0
-    mjd_day, err = slalib.sla_cldj(float(m.group("year")), \
-                        float(m.group("month")), float(m.group("day")))
+    mjd_day = calendar.date_to_MJD(float(m.group("year")), \
+                            float(m.group("month")), float(m.group("day")))
     return mjd_day, mjd_fracday
 
 
@@ -440,6 +440,6 @@ def main():
     print specinf
 
 
+debug_mode(1)
 if __name__=='__main__':
-    debug_mode(1)
     main()

@@ -23,9 +23,10 @@ class Diagnostic(upload.Uploadable):
     description = None
     name = None
     
-    def __init__(self, obs_name, beam_id, version_number, directory):
+    def __init__(self, obs_name, beam_id, obstype, version_number, directory):
         self.obs_name = obs_name
         self.beam_id = beam_id
+        self.obstype = obstype
         self.version_number = version_number
         self.directory = directory
 
@@ -55,7 +56,8 @@ class FloatDiagnostic(Diagnostic):
             "@version_number='%s', " % self.version_number + \
             "@diagnostic_type_name='%s', " % self.name + \
             "@diagnostic_type_description='%s', " % self.description + \
-            "@diagnostic=%.12g" % self.value
+            "@diagnostic=%.12g, " % self.value + \
+            "@obsType='%s'" % self.obstype
         return sprocstr
 
 
@@ -78,7 +80,8 @@ class PlotDiagnostic(Diagnostic):
             "@diagnostic_plot_type_name='%s', " % self.name + \
             "@diagnostic_plot_type_description='%s', " % self.description + \
             "@filename='%s', " % os.path.split(self.value)[-1] + \
-            "@diagnostic_plot=0x%s" % self.filedata.encode('hex')
+            "@diagnostic_plot=0x%s, " % self.filedata.encode('hex') + \
+            "@obsType='%s'" % self.obstype
         return sprocstr
 
 
@@ -220,7 +223,7 @@ class NumAboveThreshDiagnostic(FloatDiagnostic):
         else:
             raise DiagnosticError("Search parameter file doesn't exist!")
         self.value = len([c for c in candlist \
-                            if c.sigma > params['to_prepfold_sigma']])
+                            if c.sigma >= params['to_prepfold_sigma']])
 
 
 class ZaplistUsed(PlotDiagnostic):
@@ -299,14 +302,15 @@ class DiagnosticError(Exception):
     pass
 
 
-def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
-                        dry_run=False, *args, **kwargs):
+def upload_diagnostics(obsname, beamnum, obstype, versionnum, directory, \
+                        verbose=False, dry_run=False, *args, **kwargs):
     """Upload diagnostic to common DB.
         
         Inputs:
             obsname: Observation name in the format:
                         {Project ID}.{Source name}.{MJD}.{Sequence number}
             beamnum: ALFA beam number (an integer between 0 and 7).
+            obstype: Type of data (either 'wapp' or 'mock').
             versionnum: A combination of the githash values from 
                         PRESTO and from the pipeline. 
             directory: The directory containing results from the pipeline.
@@ -344,7 +348,7 @@ def upload_diagnostics(obsname, beamnum, versionnum, directory, verbose=False, \
     	if verbose:
         	print "Working on %s" % diagnostic_type.name
         try:
-            d = diagnostic_type(obsname, beamnum, \
+            d = diagnostic_type(obsname, beamnum, obstype, \
                             versionnum, directory)
         except Exception:
             raise DiagnosticError("Could not create %s object for " \

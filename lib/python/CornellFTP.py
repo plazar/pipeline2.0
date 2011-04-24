@@ -60,13 +60,16 @@ class CornellFTP():
                         notification.send()
                     except Exception,e:
                         pass
-        localfn = os.path.join(config.download.temp,os.path.basename(ftp_file_path))
+        localfn = os.path.join(config.download.datadir,os.path.basename(ftp_file_path))
         self.downloading_file = open(localfn, 'wb')
         myFtp.sendcmd("TYPE I")
-        cout.outs("CornellFTP - Starting Download of: %s" % ftp_file_path)
+        cout.outs("CornellFTP - Starting Download of: %s" % \
+                        os.path.split(ftp_file_path)[-1])
         myFtp.retrbinary("RETR "+ftp_file_path, self.write)
         self.downloading_file.close()
         myFtp.close()
+        cout.outs("CornellFTP - Finished download of: %s" % \
+                        os.path.split(ftp_file_path)[-1])
         return localfn 
 
     def connect(self):
@@ -95,6 +98,8 @@ class CornellFTP():
 
     def write(self, block):
         self.downloading_file.write(block)
+        self.downloading_file.flush()
+        os.fsync(self.downloading_file)
 
 
 class CornellFTPConnectionError(Exception):

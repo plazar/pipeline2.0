@@ -42,7 +42,6 @@ class Uploadable(object):
                 db_connections[dbname] = database.Database(dbname)
             db = db_connections[dbname]
         query = str(self.get_upload_sproc_call())
-        db.cursor.execute(query)
         try:
             db.cursor.execute(query)
         except:

@@ -1,26 +1,31 @@
 import subprocess
 import os
+import os.path
 import time
 
 import PBSQuery
 
-import PipelineQueueManager
+import queue_managers.generic_interface
 import pipeline_utils
 import config.basic
+import config.email
 
-class Qsub(PipelineQueueManager.PipelineQueueManager):
-    def __init__(self, job_basename, resource_list):
+class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
+    def __init__(self, job_basename, property, max_jobs_per_node):
         self.job_basename = job_basename
-        self.resource_list = resource_list
-        self.qsublogdir = os.path.join(config.basic.log_dir, "qsublog")
+        self.property = property
+        self.max_jobs_per_node = max_jobs_per_node
 
-    def submit(self, datafiles, outdir):
+    def submit(self, datafiles, outdir, \
+                script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
 
             Inputs:
                 datafiles: A list of the datafiles being processed.
                 outdir: The directory where results will be copied to.
+                script: The script to submit to the queue. (Default:
+                        '{config.basic.pipelinedir}/bin/search.py')
 
             Output:
                 jobid: A unique job identifier.
@@ -28,10 +33,15 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
             *** NOTE: A pipeline_utils.PipelineError is raised if
                         the queue submission fails.
         """
-        searchscript = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
-        cmd = 'qsub -V -v DATAFILES="%s",OUTDIR="%s" -l %s -N %s -e %s -o /dev/null %s' % \
-                        (';'.join(datafiles), outdir, self.resource_list, \
-                            self.job_basename, self.qsublogdir, searchscript)
+        node = self._get_submit_node()
+        if node is None:
+            errormsg = "No nodes to accept job submission!\n"
+            raise pipeline_utils.PipelineError(errormsg)
+        errorlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.ER")
+        stdoutlog = os.devnull
+        cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' -l nodes=%s:ppn=1 -N %s -e %s -o %s %s" % \
+                        (';'.join(datafiles), outdir, node, \
+                            self.job_basename, errorlog, stdoutlog, script)
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
                                 stdin=subprocess.PIPE)
         queue_id = pipe.communicate()[0].strip()
@@ -45,6 +55,48 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
             # the job appearing on the queue, so sleep for 1 second. 
             time.sleep(1)
         return queue_id
+
+    def _get_submit_node(self):
+        """Return the name of the node to submit to.
+
+            Inputs:
+                None
+
+            Output:
+                node: The name of the node that the next job should be submitted to.
+        """
+        batch = PBSQuery.PBSQuery()
+        nodes = batch.getnodes_with_property(self.property)
+        max_cpus_free = -1
+        node = None
+        for n in nodes.keys():
+            num_jobs = len(nodes[n].setdefault('jobs',[]))
+            if (nodes[n]['state'] != ['free']) or \
+                (num_jobs >= self.max_jobs_per_node):
+                continue
+            cpus_free = int(nodes[n]['np'][0]) - num_jobs
+            if cpus_free > max_cpus_free:
+                node = n
+                max_cpus_free = cpus_free
+        return node
+
+    def can_submit(self):
+        """Check if we can submit a job
+            (i.e. limits imposed in config file aren't met)
+
+            Inputs:
+                None
+
+            Output:
+                Boolean value. True if submission is allowed.
+        """
+        running, queued = self.status()
+        if ((running + queued) < config.jobpooler.max_jobs_running) and \
+            (queued < config.jobpooler.max_jobs_queued) and \
+            (self._get_submit_node() is not None):
+            return True
+        else:
+            return False
 
     def is_running(self, queue_id):
         """Must return True/False whether the job is in the queue or not
@@ -121,8 +173,7 @@ class Qsub(PipelineQueueManager.PipelineQueueManager):
         
             NOTE: A ValueError is raised if the error log cannot be found.
         """
-        jobnum = jobid_str.split(".")[0]
-        stderr_path = os.path.join(self.qsublogdir, self.job_basename+".e"+jobnum)
+        stderr_path = os.path.join(config.basic.qsublog_dir, "%s.ER" % jobid_str)
         if not os.path.exists(stderr_path):
             raise ValueError("Cannot find error log for job (%s): %s" % \
                         (jobid_str, stderr_path))

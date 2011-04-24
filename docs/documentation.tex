@@ -16,14 +16,17 @@
 \subsection{Dependencies}
 The PALFA pipeline has various dependencies. All of the following packages are required to run the pipeline.
 \begin{itemize}
-    \item PRESTO (https://github.com/scottransom/presto)
+    \item PRESTO (a recent version is required. The new executable \texttt{fitsdelcol} must be included - https://github.com/scottransom/presto)
     \item psrfits\_utils (be sure to pull Kevin Stovall's version of psrfits\_utils. It contains the merging code required to analyse PALFA Mock spectrometer data. https://github.com/kstovall/psrfits\_utils.git)
     \item numpy (http://numpy.scipy.org/)
     \item M2Crypto (http://pypi.python.org/pypi/M2Crypto)
     \item PBSQuery (if PBS is being used - http://subtrac.sara.nl/oss/pbs\_python/wiki/TorqueInstallation)
     \item pyfits (http://www.stsci.edu/resources/software\_hardware/pyfits)
     \item pyodbc (http://pypi.python.org/pypi/pyodbc/)
-    \item suds (http://pypi.python.org/pypi/suds)
+    \item ImageMagick (on worker nodes - http://www.imagemagick.org/script/index.php)
+    \item FreeTDS (required by pyodbc to connect to common-DB - http://www.freetds.org/)
+    \item UnixODBC (required by pyodbc to connect to common-DB - http://www.unixodbc.org/)
+    \item prettytable (http://code.google.com/p/prettytable/)
 \end{itemize}
 
 \textit{NOTE: Some of these dependencies have requirements of their own. For example, PRESTO requires cfitsio, TEMPO, numpy, scipy, etc. Be sure to follow the installation instructions for each packages.}
@@ -48,11 +51,13 @@ Here we will present basic step-by-step instructions for setting up the pipeline
 
     \item[Step 4] Create configuration files using the examples provided. Modify the settings so they are appropriate for your system. It is possible to check the sanity of your configurations by calling a configuration file with the python interpreter. An error message will be displayed if a configuration type or value is invalid.  
 
-    \item[Step 5] Set up the database. This is done using the \texttt{create\_database.py} script.
+    \item[Step 5] Configure ODBC and FreeTDS. This can be done by creating the appropriate files (\texttt{.odbc.ini} and \texttt{.freetds.conf}, respectively) in your home area. See Section \ref{sec:dbconf} for details.
 
-    \item[Step 6] Perform tests. In the \texttt{test/} directory there are some tests that can be run to see if you can connect to the common DB (\texttt{commondb\_test.py}), e-mail system (\texttt{MailerTest.py}), and FTP server (\texttt{cornellftp\_test.py}). To perform the tests call each script with the python interpreter.
+    \item[Step 6] Set up the database. This is done using the \texttt{create\_database.py} script.
 
-    \item[Step 7] Start the downloader using \texttt{StartDownloader.py}.
+    \item[Step 7] Perform tests. In the \texttt{test/} directory there are some tests that can be run to see if you can connect to the common DB (\texttt{commondb\_test.py}), e-mail system (\texttt{mailer\_test.py}), and FTP server (\texttt{cornellftp\_test.py}). To perform the tests call each script with the python interpreter. Additional information about the tests can be found in Section \ref{sec:tests}.
+
+    \item[Step 8] Start the downloader using \texttt{StartDownloader.py}.
         
         \smallskip
         
@@ -146,33 +151,160 @@ The following per-beam diagnostics are uploaded to the common database:
 
 
 \section{Reference}
-\subsection{Executables}
-\paragraph{\texttt{StartDownloader.py}}
-A script to start the downloader background process.
+\subsection{Database Configuration}
+\label{sec:dbconf}
+UnixODBC and FreeTDS need to be properly configured to be able to connect to the common database. The following configuration files are required (at McGill). These files can be placed in your home area. It is also possible to put these configurations in a system configuration directory so all users will have access to them automatically.
 
-usage: \texttt{StartDownloader.py}
+\paragraph{\texttt{.obdc.ini}}
+\begin{verbatim}
+    [ODBC Data Sources]
+    FreeTDSDSN = FreeTDS
+    MySQLDSN   = MySQL
 
-\paragraph{\texttt{StartJobPool.py}}
-A script to start the job pooler background process.
+    [FreeTDSDSN]
+    Driver          = /usr/lib/odbc/libtdsodbc.so
+    Servername      = Cornell
+    Description     = FreeTDS
+    Database        = palfa-common-copy
 
-usage: \texttt{StartJobPool.py}
+    [MySQLDSN]
+    Driver          = /usr/lib/odbc/libmyodbc.so
+    Description     = MySQL
 
-\paragraph{\texttt{StartJobUploader.py}}
-A script to start the results uploader background process.
+    [Default]
+    Driver          = /usr/lib/odbc/libtdsodbc.so
+\end{verbatim}
 
-usage: \texttt{StartJobUploader.py}
+\paragraph{\texttt{.freetds.conf}}
+\begin{verbatim}
+    #   $Id: freetds.conf,v 1.12 2007/12/25 06:02:36 jklowden Exp $
+    #
+    # This file is installed by FreeTDS if no file by the same 
+    # name is found in the installation directory.  
+    #
+    # For information about the layout of this file and its settings, 
+    # see the freetds.conf manpage "man freetds.conf".  
 
-\subsection{Generic Queue Manager Interface}
-The Pipeline interacts with the system's queue manager using an abstract interface. This generic interface can be implemented with the specific queue manager installed on the system. The system-specific queue manager class must be derived from the \texttt{PipelineQueueManager} class. Each of the following methods of \texttt{PipelineQueueManager} must be implemented in the derived class:
+    # Global settings are overridden by those in a database
+    # server specific section
+    [global]
+            # TDS protocol version
+    ;       tds version = 4.2
+
+            # Whether to write a TDSDUMP file for diagnostic purposes
+            # (setting this to /tmp is insecure on a multi-user system)
+    ;       dump file = /tmp/freetds.log
+    ;       debug flags = 0xffff
+
+            # Command and connection timeouts
+    ;       timeout = 10
+    ;       connect timeout = 10
+            
+            # If you get out-of-memory errors, it may mean that your client
+            # is trying to allocate a huge buffer for a TEXT field.  
+            # Try setting 'text size' to a more reasonable limit 
+            text size = 16777215
+
+    # A typical Sybase server
+    [egServer50]
+            host = symachine.domain.com
+            port = 5000
+            tds version = 5.0
+
+    # A typical Microsoft server
+    [egServer70]
+            host = ntmachine.domain.com
+            port = 1433
+            tds version = 7.0
+
+    [Cornell]
+            host = arecibosql.tc.cornell.edu
+            port = 1433
+\end{verbatim}
+
+\subsection{Tests}
+\label{sec:tests}
+The pipeline contains several tests that can be used to confirm certain tricky aspects of the pipeline are configured properly. These tests are located in \texttt{tests/}.
 
 \begin{description}
-    \item[submit] Submits a job to queue manager with files list and output directory. Must return a unique string identifier for the submitted job. Raises ValueError if job was not submitted by queue manager.
+    \item[commondb\_test.py] This script tests that connections to the common database. It also verifies that it is possible to read from the database, as well as insert entries into the database.
 
+    \item[cornellftp\_test.py] This test confirms that it is possible to connect to the FTP server at Cornell, access information about files available, and retrieve files.
+
+    \item[install\_test.py] This script attempts to import all python modules necessary by the pipeline. If any modules were not successfully imported they are reported to the user.
+
+    \item[mailer\_test.py] This script attempts to send an email using the SMTP server defined in the configuration file \texttt{email.py}.
+
+    \item[restore\_test.py] This script verifies that the pipeline can connect to the data-restore web services, make requests and check when data are available.
+\end{description}
+
+\subsection{Executables}
+The pipeline has a series of executables located in the 'bin/' directory. There are two categories of executables: background scripts, and utilities.
+
+\subsubsection{Background scripts}
+The following background scripts are used to run the Downloader, Job Pooler and Uploader.
+\begin{itemize}
+    \item \texttt{StartDownloader.py} \hfill \\
+        A script to start the downloader background process.
+
+        usage: \texttt{StartDownloader.py}
+
+    \item \texttt{StartJobPool.py} \hfill \\
+        A script to start the job pooler background process.
+
+        usage: \texttt{StartJobPool.py}
+
+    \item \texttt{StartJobUploader.py} \hfill \\
+        A script to start the results uploader background process.
+
+        usage: \texttt{StartJobUploader.py}
+\end{itemize}
+
+\subsubsection{Utilities}
+The following utility scripts are used to interact with the job-tracker database in a safe way. This includes creating the database, editing the entries in the database, and compiling and displaying information from the database entries.
+\begin{itemize}
+    \item \texttt{add\_files.py} \hfill \\
+        A utility to add files from a given directory to be tracked. This is useful for tracking files that are copied over from an external disk, as opposed to downloaded by the Downloader. Note that added files will be deleted just like downloaded files.
+
+        \textbf{usage:} \texttt{add\_files.py DIRECTORY} \\
+
+    \item \texttt{stop\_processing\_jobs.py} \hfill \\
+        Stop a job running in the queue. There are two ways to stop jobs: 1) Failing the job (i.e. the submission counts towards the job's number of retries, and 2) Removing the job (the submission doesn't count towards retries). Both possibilities are done safely, with respect to the job-tracker DB. The default is to remove the jobs (not fail).
+
+        \textbf{usage:} \texttt{stop\_processing\_jobs.py [OPTIONS] QUEUE\_ID [QUEUE\_ID ...]} \\
+        \textbf{options:} \\
+            \texttt{-h, --help}  Show help message and exit. \\
+            \texttt{-f, --fail}  Remove jobs from the queue and mark them as 'failed' in the job-tracker database. (Default: Remove jobs and don't mark them as'failed').
+
+    \item \texttt{create\_database.py} \hfill \\
+        Create the sqlite job-tracker database. Note that the script will do nothing if the database already exists. The location of the database is taken from the database configuration file.
+
+        \textbf{usage:} \texttt{create\_database.py}
+
+    \item \texttt{kill\_jobs.py} \hfill \\
+        Kill a job. That is set its status as 'terminal\_failure', and clean up its datafiles (if applicable).
+
+        \textbf{usage:} \texttt{kill\_jobs.py ID [ID ...]} \\
+        \textbf{options:} \\
+          \texttt{-h, --help}            Show help message and exit. \\
+          \texttt{-f FILES, --file=FILES}  File belonging to a job that should be killed. \\
+          \texttt{-i JOBIDS, --id=JOBIDS}  ID number of a job that should be killed.
+
+\end{itemize}
+
+\subsection{Generic Queue Manager Interface}
+The Pipeline interacts with the system's queue manager using an abstract interface. This generic interface can be implemented with the specific queue manager installed on the system. The system-specific queue manager class must be derived from the \texttt{generic\_interface.PipelineQueueManager} class. Each of the following methods must be implemented in the derived class:
+
+\begin{description}
+    \item[submit] Submits a job to queue manager with files list and output directory. Must return a unique string identifier for the submitted job. Raises \texttt{pipeline\_utils.PipelineError} if job submission fails.
+
+    \item[can\_submit] Return a bollean value that indicates if jobs can be submitted to the queue.
+    
     \item[is\_running] Given a unique identifier for a job, must return True or False whether the job is running or not, respectively.
 
-    \item[delete] Given a unique identifier for a job, remove the corresponding job from the queue. Returns True if the job was delete, False if an error occured.
+    \item[delete] Given a unique identifier for a job, remove the corresponding job from the queue. Raises \texttt{pipeline\_utils.PipelineError} if job removal isn't successful.
 
-    \item[status] Return the status of the queue, i.e. the number of jobs running and the number of jobs queued.
+    \item[status] Return the status of the queue as a tuple containing the number of jobs running and the number of jobs queued.
 
     \item[had\_errors] Given a unique identifier for a job, return True, or False whether the job terminated with an error, or not, respectively.
 
@@ -204,6 +336,8 @@ Basic pipeline parameters are found in \texttt{basic.py}.
     \item[psrfits\_utilsdir] The path of the directory containing the installation of \texttt{psrfits\_utils} that is used by the pipeline.
     \item[delete\_rawdata] A boolean value that determines if raw data is deleted when results for a job are successfully uploaded to the common DB, or if the maximum number of attempts for a job is reached. \textit{Set this value to False if you do not want the local copy of your data deleted.}
     \item[coords\_table] The path to the \texttt{PALFA\_coords\_table.txt} file, which contains correct coordinates for WAPP data files.
+    \item[log\_dir] The path of the directory where log files are stored.
+    \item[qsublog\_dir] The path where stderr streams from processing jobs are sent.
 \end{description}
 
 \subsubsection{background.py}
@@ -230,7 +364,7 @@ The information needed to connect to the common database is in \texttt{commondb.
 Informatation necessary to connect to the FTP server at Cornell and use the data-restore web applications are set in \texttt{download.py}, so are settings for controlling the behaviour of the downloader.
 
 \begin{description}
-    \item[api\_serice\_url] This is the URL of the data-restore web apps. This should be set to ``http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx?WSDL''.
+    \item[api\_service\_url] This is the URL of the data-restore web apps. This should be set to ``http://arecibo.tc.cornell.edu/palfadataapi/dataflow.asmx''.
     \item[api\_username] This is your user name used to connect to the data-restore web apps.
     \item[api\_password] This is the password for connecting to the data-restore web apps.
     \item[ftp\_host] This is the name of the FTP server at Cornell. It should be left at ``arecibo.tc.cornell.edu''.
@@ -251,7 +385,8 @@ The pipeline can be configured to send emails when failures occur. The relevant 
 
 \begin{description}
     \item[enabled] A boolean value that enables mailing. If False emails will not be sent.
-    \item[smtp\_host] Emails are sent using the Simple Mail Transfer Protocol (SMTP). This is the host of the SMTP server to use.
+    \item[smtp\_host] Emails are sent using the Simple Mail Transfer Protocol (SMTP). This is the host of the SMTP server to use. If set to \texttt{None} the localhost will be used as a SMTP server to send the emails.
+    \item[smtp\_port] The emailer connects to the SMTP server using this port. Either 25 or 587 should work, possibly both.
     \item[smtp\_username] The user account to connect to the SMTP server.
     \item[smtp\_password] The password to connect to the SMTP server.
     \item[recipient] The email address that will be sent notifications.
@@ -306,6 +441,7 @@ The search parameters of the pipeline are located in \texttt{searching.py}. To e
     \item[hi\_accel\_zmax] The maximum z-value (in bins) used in high acceleration searching.
     \item[hi\_accel\_flo] The maximum frequency searched in high acceleration searching.
     \item[low\_T\_to\_search] The shortest observation that will be searched (in seconds).
+    \item[base\_tmp\_dir] The path where the temporary working directory should be created. This could be /dev/shm, for example. If /dev/shm doesn't exist, or is too small, this path could simply be another path in the scratch area of the worker node.
     \item[sifting\_sigma\_threshold] The minimum incoherent power sigma to consider when sifting candidates. This should be left at \texttt{to\_prepfold\_sigma}$-$1.0.
     \item[sifting\_c\_pow\_threshold] The coherent power threshold used when sifting.
     \item[sifting\_r\_err] The Fourier bin tolerance to consider two candidates as being at the same frequency.

@@ -161,6 +161,13 @@ class StrConfig(Configurable):
                     (type(self.value) == types.StringType)
 
 
+class FuncConfig(Configurable):
+    msg = "Must be a function."
+    def isvalid(self):
+        return super(FuncConfig, self).isvalid() and \
+                    (type(self.value) == types.FunctionType)
+
+
 class StrOrNoneConfig(Configurable):
     msg = "Must be a string value."
     def isvalid(self):
@@ -173,6 +180,13 @@ class DirConfig(Configurable):
     def isvalid(self):
         return super(DirConfig, self).isvalid() and \
                     os.path.isdir(self.value)
+
+
+class ReadWriteDirConfig(DirConfig):
+    msg = "Must be an existing read/write-able directory."
+    def isvalue(self):
+        return super(ReadWriteDirConfig, self).isvalid() and \
+                    os.access(self.value, os.R_OK | os.W_OK)
 
 
 class ReadWriteConfig(Configurable):
@@ -207,12 +221,13 @@ class DatabaseConfig(Configurable):
 class QManagerConfig(Configurable):
     msg = "Must be a subclass of PipelineQueueManager."
     def isvalid(self):
-        import PipelineQueueManager
+        import queue_managers.generic_interface
         if super(QManagerConfig, self).isvalid() and \
-                isinstance(self.value, PipelineQueueManager.PipelineQueueManager):
+                isinstance(self.value, queue_managers.generic_interface.PipelineQueueManager):
             # Check if appropriate functions are defined.
             methods = ['submit', \
                         'is_running', \
+                        'can_submit', \
                         'delete', \
                         'status', \
                         'had_errors', \

@@ -27,6 +27,11 @@ hi_accel_zmax           = 50   # bins
 hi_accel_flo            = 1.0  # Hz
 low_T_to_search         = 20.0 # sec
 
+# The following is the path where the temporary working directory 
+# should be created. This could be /dev/shm, or simply another 
+# directory on the worker node.
+base_tmp_dir = "/dev/shm/"
+
 # DDplan configurations
 # The following configurations are for calculating dedispersion plans 
 # on demand. Currently dedispersion plans for WAPP and Mock data 
