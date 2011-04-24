@@ -40,6 +40,31 @@ def run():
         upload_results(submit)
 
 
+def get_version_number(dir):
+    """Given a directory containing results check to see if there is a file 
+        containing the version number. If there is read the version number
+        and return it. Otherwise get the current versions, create the file
+        and return the version number.
+
+        Input:
+            dir: A directory containing results
+
+        Output:
+            version_number: The version number for the results contained in 'dir'.
+    """
+    vernum_fn = os.path.join(dir, "version_number.txt")
+    if os.path.exists(vernum_fn):
+        f = open(vernum_fn, 'r')
+        version_number = f.readline().strip()
+        f.close()
+    else:
+        version_number = config.upload.version_num()
+        f = open(vernum_fn, 'w')
+        f.write(version_number+'\n')
+        f.close()
+    return version_number
+
+
 def upload_results(job_submit):
     """
     Uploads Results for a given submit.
@@ -64,15 +89,17 @@ def upload_results(job_submit):
         # Upload results
         header_id = header.upload_header(fitsfiles, dbname=db)
         print "\tHeader ID: %d" % header_id
+
+        version_number = get_version_number(dir)
         candidate_uploader.upload_candidates(header_id, \
-                                             config.upload.version_num(), \
+                                             version_number, \
                                              dir, dbname=db)
         print "\tCandidates uploaded."
         data = datafile.autogen_dataobj(fitsfiles)
         diagnostic_uploader.upload_diagnostics(data.obs_name, 
                                              data.beam_id, \
                                              data.obstype, \
-                                             config.upload.version_num(), \
+                                             version_number, \
                                              dir, dbname=db)
         print "\tDiagnostics uploaded."
     except (header.HeaderError, \
