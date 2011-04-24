@@ -719,7 +719,7 @@ def clean_up(job):
         for infile in glob.glob(tar_glob):
             tf.add(infile)
             os.remove(infile)
-    tf.close()
+        tf.close()
     
     # Copy all the important stuff to the output directory
     resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", "*.png", \
