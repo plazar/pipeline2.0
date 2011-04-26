@@ -1,4 +1,6 @@
-\documentstyle[12pt]{article}
+\documentclass[12pt]{article}
+
+\usepackage{graphics}
 
 \begin{document}
 
@@ -10,7 +12,30 @@
 \maketitle
 
 \begin{abstract}
+The PALFA Pipeline2.0 is an automated end-to-end pulsar search pipeline designed for the Pulsar-ALFA survey. The pipeline requests PALFA data from web services hosted at Cornell University, downloads data files, searches them, and finally uploads the results to the PALFA common database hosted at Cornell University.
+
+The pipeline is written entirely in Python. It uses a SQLite database to track datafiles, and processing jobs. The pipeline is built around the \texttt{PRESTO} suite of pulsar search software. 
 \end{abstract}
+
+\clearpage
+
+\tableofcontents
+
+\clearpage
+
+\section{Features}
+\begin{itemize}
+    \item Sanity check of configurations
+    \item Dynamic zapping
+    \item Suite of tests to help initial set-up
+    \item Automatic download of data files
+    \item File size checks when downloading
+    \item Notification of errors by email
+    \item Automatic retry of failed jobs
+    \item Results uploded are double-checked (i.e. database entries are compared with on-disk values)
+    \item Results are uploaded as a single transaction, so no partial uploads when errors occur
+    \item Automatic deletion of data files (upon success or terminal failure)
+\end{itemize}
 
 \section{Installation}
 \subsection{Dependencies}
@@ -74,19 +99,19 @@ Here we will present basic step-by-step instructions for setting up the pipeline
 
 
 \section{The Pipeline}
-An overview of the pipeline.
+The pipeline is designed to run with minimal user interactaction. To do this the pipeline has to manage data and data products through three stages: downloading raw data, analysing the data, and uploading the data products to a central database. In order to track data and results through each of these steps the pipeline uses a SQLite database, ``the Job-Tracker Database''. The job-tracker database tracks objects such as requests for data from the archive, data files, processing attempts, etc. Each of these entities progresses through the three stages of the pipeline via a series of states. The relationship between objects, actions performed and the states are shown in Figure \ref{fig:download flow} (for the download stage) and Figure \ref{fig:job flow} (for the processing and results upload stages).
 
-\subsection{Features}
-\begin{itemize}
-    \item Sanity check of configurations
-    \item Dynamic zapping
-    \item Automatic download of data files
-    \item File size checks when downloading
-    \item Notification of errors by email
-    \item Automatic (configurable) retry of failed jobs
-    \item Results are uploaded as a single transaction, so no partial uploads when errors occur
-    \item Automatic (configurable) deletion of data files (upon success or terminal failure)
-\end{itemize}
+\begin{figure}
+    \centering
+    \includegraphics{./figs/ThreadedDownloadFlow_scaled.png}
+    \caption{The flow of the download portion of the pipeline. Yellow boxes represent actions. Blue boxes represent changes in status, which are tracked in the job-tracker database. Finally, orange diamonds are decisions. \label{fig:download flow}}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics{./figs/JobFlow_scaled.png}
+    \caption{The flow of the processing and results upload portions of the pipeline. Yellow boxes represent actions. Blue boxes represent changes in status, which are tracked in the job-tracker database. Finally, orange diamonds are decisions. \label{fig:job flow}}
+\end{figure}
 
 
 \subsection{Components}
@@ -104,11 +129,27 @@ The job-tracker database governs all aspects of the pipeline. It maintains lists
 Details for each table in the database are presented in Section \ref{sec:dbdetails}.
 
 \subsubsection{Downloader}
+The downloader issues requests for PALFA data using a web service hosted at Cornell University, where the PALFA data archive is located. The ``restore'' service returns a unique identifier, which can be used to check when the requested data files are ready to be transfered using the ``location'' service. When files are ready for download entries are added to the job-tracker database for each file. The downloader then transfers the files using FTP. Downloads are threaded.
+
 \subsubsection{Job Pooler}
+The job pooler manages the data analysis stage of the pipeline by collecting data files and submitting them to compute resources available. When jobs are finished the job pooler checks for errors. If there are none the jobs are marked as ``processed''. If errors occurred during processing the job may be retried. A user-defined configuration limits the number of processing attempts before a job is aborted. In the case of aborted jobs, the data files may be deleted allowing for new files to be fetched.
+
 \subsubsection{Uploader}
+The uploader parses the data products from data analysis that terminated with no errors. The upload consists of three parts: the header (metadata about the observation), the pulsar candidates, and diagnostics about the analysis. After results are uploaded, they are retrieved from the database and compared with the results on-disk. If no errors are encountered and the database results match the on-disk results, the uploader commits the database transaction, and marks the job as ``uploaded'' and the raw data files are removed from disk to make room for new files to be downloaded.
+
 \paragraph{Headers}
+The headers contain information about the observation and data files, such as: observation date, integration time, sky position, observing band, sample time, etc.
 
 \paragraph{Candidates}
+For each periodicity candidate folded during data analysis an entry is inserted into the database. Each entry contains the candidate's period, frequency, dispersion measure, significance, etc.
+
+In addition to candidate information two binary objects are stored in the common database:
+\begin{itemize}
+    \item \textit{Prepfold plot} \hfill \\
+        A PNG version of the standard diagnostic plot produced by \texttt{prepfold} for the candidate.
+    \item \textit{PFD binary} \hfill \\
+        The binary data produced by \texttt{prepfold}. This binary file can be used to compute ratings, which are useful when querying the common database to find good pulsar candidates, or as input to artificial intelligences.
+\end{itemize}
 
 \paragraph{Diagnostics}
 Diagnostics stored in the common database are split into two types: Numeric values and binary data. Some of the ``binary data" diagnostics are actually plain text files.
