@@ -55,14 +55,14 @@ def get_version_number(dir):
     vernum_fn = os.path.join(dir, "version_number.txt")
     if os.path.exists(vernum_fn):
         f = open(vernum_fn, 'r')
-        version_number = f.readline().strip()
+        version_number = f.readline()
         f.close()
     else:
         version_number = config.upload.version_num()
         f = open(vernum_fn, 'w')
         f.write(version_number+'\n')
         f.close()
-    return version_number
+    return version_number.strip()
 
 
 def upload_results(job_submit):
@@ -88,20 +88,39 @@ def upload_results(job_submit):
 
         # Upload results
         header_id = header.upload_header(fitsfiles, dbname=db)
-        print "\tHeader ID: %d" % header_id
+        if not header.upload_header(fitsfiles, dbname=db):
+            raise AssertionError("Header values in common DB " \
+                                 "do not match values uploaded.")
+        else:
+            print "\tHeader uploaded and checked. Header ID: %d" % header_id
 
         version_number = get_version_number(dir)
         candidate_uploader.upload_candidates(header_id, \
                                              version_number, \
                                              dir, dbname=db)
-        print "\tCandidates uploaded."
+        if not candidate_uploader.check_candidates(header_id, \
+                                             version_number, \
+                                             dir, dbname=db):
+            raise AssertionError("Candidate values in common DB " \
+                                 "do not match values uploaded.")
+        else:
+            print "\tCandidates uploaded and checked."
+
         data = datafile.autogen_dataobj(fitsfiles)
         diagnostic_uploader.upload_diagnostics(data.obs_name, 
                                              data.beam_id, \
                                              data.obstype, \
                                              version_number, \
                                              dir, dbname=db)
-        print "\tDiagnostics uploaded."
+        if not diagnostic_uploader.check_diagnostics(data.obs_name, 
+                                             data.beam_id, \
+                                             data.obstype, \
+                                             version_number, \
+                                             dir, dbname=db):
+            raise AssertionError("Diagnostic values in common DB " \
+                                 "do not match values uploaded.")
+        else:
+            print "\tDiagnostics uploaded and checked."
     except (header.HeaderError, \
             candidate_uploader.PeriodicityCandidateError, \
             diagnostic_uploader.DiagnosticError):

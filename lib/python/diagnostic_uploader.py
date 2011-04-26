@@ -11,6 +11,10 @@ import glob
 import os.path
 import tarfile
 import optparse
+import types
+import binascii
+
+import database
 import upload
 from formats import accelcands
 import config.basic
@@ -26,7 +30,7 @@ class Diagnostic(upload.Uploadable):
     def __init__(self, obs_name, beam_id, obstype, version_number, directory):
         self.obs_name = obs_name
         self.beam_id = beam_id
-        self.obstype = obstype
+        self.obstype = obstype.lower()
         self.version_number = version_number
         self.directory = directory
 
@@ -57,8 +61,92 @@ class FloatDiagnostic(Diagnostic):
             "@diagnostic_type_name='%s', " % self.name + \
             "@diagnostic_type_description='%s', " % self.description + \
             "@diagnostic=%.12g, " % self.value + \
-            "@obsType='%s'" % self.obstype
+            "@obsType='%s'" % self.obstype.lower()
         return sprocstr
+
+    def compare_with_db(self, dbname='common-copy'):
+        """Grab corresponding diagnostic from DB and compare values.
+            Return True if all values match. Return False otherwise.
+            
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'common-copy').
+            Output:
+                match: Boolean. True if all values match, False otherwise.
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+        db.execute("SELECT obs.obs_name, " \
+                        "h.beam_id, " \
+                        "v.institution, " \
+                        "v.pipeline, " \
+                        "v.version_number, " \
+                        "dtype.diagnostic_type_name, " \
+                        "dtype.diagnostic_type_description, " \
+                        "d.diagnostic_value, " \
+                        "h.obsType " \
+                   "FROM diagnostics AS d " \
+                   "LEFT JOIN diagnostic_types AS dtype " \
+                        "ON dtype.diagnostic_type_id=d.diagnostic_type_id " \
+                   "LEFT JOIN headers AS h ON h.header_id=d.header_id " \
+                   "LEFT JOIN observations AS obs ON obs.obs_id=h.obs_id " \
+                   "LEFT JOIN versions AS v ON v.version_id=d.version_id " \
+                   "WHERE obs.obs_name='%s' AND h.beam_id=%d " \
+                        "AND v.institution='%s' AND v.version_number='%s' " \
+                        "AND v.pipeline='%s' AND h.obsType='%s' " \
+                        "AND dtype.diagnostic_type_name='%s' " \
+                        "AND dtype.diagnostic_type_description='%s' " % \
+                        (self.obs_name, self.beam_id, config.basic.institution, \
+                            self.version_number, config.basic.pipeline, \
+                            self.obstype.lower(), self.name, self.description))
+        rows = db.cursor.fetchall()
+        if type(dbname) == types.StringType:
+            db.close()
+        if not rows:
+            # No matching entry in common DB
+            raise ValueError("No matching entry in common DB!\n" \
+                                "(obs_name: %s,\n" \
+                                " beam_id: %d,\n" \
+                                " insitution: %s,\n" \
+                                " pipeline: %s,\n" \
+                                " version_number: %s,\n" \
+                                " diagnostic_type_name: %s,\n" \
+                                " diagnostic_type_description: %s,\n" \
+                                " obsType: %s) " % \
+                        (self.obs_name, self.beam_id, config.basic.institution, \
+                            config.basic.pipeline, self.version_number, \
+                            self.name, self.description, self.obstype.lower()))
+        elif len(rows) > 1:
+            # Too many matching entries!
+            raise ValueError("Too many matching entries in common DB!\n" \
+                                "(obs_name: %s,\n" \
+                                " beam_id: %d,\n" \
+                                " insitution: %s,\n" \
+                                " pipeline: %s,\n" \
+                                " version_number: %s,\n" \
+                                " diagnostic_type_name: %s,\n" \
+                                " diagnostic_type_description: %s,\n" \
+                                " obsType: %s) " % \
+                        (self.obs_name, self.beam_id, config.basic.institution, \
+                            config.basic.pipeline, self.version_number, \
+                            self.name, self.description, self.obstype.lower()))
+        else:
+            desc = [d[0] for d in db.cursor.description]
+            r = dict(zip(desc, rows[0]))
+            matches = [('%s' % self.obs_name == '%s' % r['obs_name']), \
+                     ('%d' % self.beam_id == '%s' % r['beam_id']), \
+                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
+                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower()), \
+                     ('%s' % self.version_number == '%s' % r['version_number']), \
+                     ('%s' % self.name == '%s' % r['diagnostic_type_name']), \
+                     ('%s' % self.description == '%s' % r['diagnostic_type_description']), \
+                     ('%.12g' % self.value == '%.12g' % r['diagnostic_value']), \
+                     ('%s' % self.obstype.lower() == '%s' % r['obsType'].lower())]
+            # Match is True if _all_ matches are True
+            match = all(matches)
+        return match
 
 
 class PlotDiagnostic(Diagnostic):
@@ -83,6 +171,92 @@ class PlotDiagnostic(Diagnostic):
             "@diagnostic_plot=0x%s, " % self.filedata.encode('hex') + \
             "@obsType='%s'" % self.obstype
         return sprocstr
+
+    def compare_with_db(self, dbname='common-copy'):
+        """Grab corresponding diagnostic plot from DB and compare values.
+            Return True if all values match. Return False otherwise.
+            
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'common-copy').
+            Output:
+                match: Boolean. True if all values match, False otherwise.
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+        db.execute("SELECT obs.obs_name, " \
+                        "h.beam_id, " \
+                        "v.institution, " \
+                        "v.pipeline, " \
+                        "v.version_number, " \
+                        "dtype.diagnostic_plot_type_name, " \
+                        "dtype.diagnostic_plot_type_description AS description, " \
+                        "d.filename, " \
+                        "d.diagnostic_plot, " \
+                        "h.obsType " \
+                   "FROM diagnostic_plots AS d " \
+                   "LEFT JOIN diagnostic_plot_types AS dtype " \
+                        "ON dtype.diagnostic_plot_type_id=d.diagnostic_plot_type_id " \
+                   "LEFT JOIN headers AS h ON h.header_id=d.header_id " \
+                   "LEFT JOIN observations AS obs ON obs.obs_id=h.obs_id " \
+                   "LEFT JOIN versions AS v ON v.version_id=d.version_id " \
+                   "WHERE obs.obs_name='%s' AND h.beam_id=%d " \
+                        "AND v.institution='%s' AND v.version_number='%s' " \
+                        "AND v.pipeline='%s' AND h.obsType='%s' " \
+                        "AND dtype.diagnostic_plot_type_name='%s' " \
+                        "AND dtype.diagnostic_plot_type_description='%s' " % \
+                        (self.obs_name, self.beam_id, config.basic.institution, \
+                            self.version_number, config.basic.pipeline, \
+                            self.obstype.lower(), self.name, self.description))
+        rows = db.cursor.fetchall()
+        if type(dbname) == types.StringType:
+            db.close()
+        if not rows:
+            # No matching entry in common DB
+            raise ValueError("No matching entry in common DB!\n" \
+                                "(obs_name: %s,\n" \
+                                " beam_id: %d,\n" \
+                                " insitution: %s,\n" \
+                                " pipeline: %s,\n" \
+                                " version_number: %s,\n" \
+                                " diagnostic_plot_type_name: %s,\n" \
+                                " diagnostic_plot_type_description: %s,\n" \
+                                " obsType: %s) " % \
+                        (self.obs_name, self.beam_id, config.basic.institution, \
+                            config.basic.pipeline, self.version_number, \
+                            self.name, self.description, self.obstype.lower()))
+        elif len(rows) > 1:
+            # Too many matching entries!
+            raise ValueError("Too many matching entries in common DB!\n" \
+                                "(obs_name: %s,\n" \
+                                " beam_id: %d,\n" \
+                                " insitution: %s,\n" \
+                                " pipeline: %s,\n" \
+                                " version_number: %s,\n" \
+                                " diagnostic_plot_type_name: %s,\n" \
+                                " diagnostic_plot_type_description: %s,\n" \
+                                " obsType: %s) " % \
+                        (self.obs_name, self.beam_id, config.basic.institution, \
+                            config.basic.pipeline, self.version_number, \
+                            self.name, self.description, self.obstype.lower()))
+        else:
+            desc = [d[0] for d in db.cursor.description]
+            r = dict(zip(desc, rows[0]))
+            matches = [('%s' % self.obs_name == '%s' % r['obs_name']), \
+                     ('%d' % self.beam_id == '%s' % r['beam_id']), \
+                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
+                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower()), \
+                     ('%s' % self.version_number == '%s' % r['version_number']), \
+                     ('%s' % self.name == '%s' % r['diagnostic_plot_type_name']), \
+                     ('%s' % self.description == '%s' % r['description']), \
+                     ('0x%s' % self.filedata.encode('hex') == '0x%s' % binascii.b2a_hex(r['diagnostic_plot'])), \
+                     ('%s' % os.path.split(self.value)[-1] == '%s' % os.path.split(r['filename'])[-1]), \
+                     ('%s' % self.obstype.lower() == '%s' % r['obsType'].lower())]
+            # Match is True if _all_ matches are True
+            match = all(matches)
+        return match
 
 
 class RFIPercentageDiagnostic(FloatDiagnostic):
@@ -302,6 +476,42 @@ class DiagnosticError(Exception):
     pass
 
 
+def check_diagnostics(obsname, beamnum, obstype, versionnum, directory, dbname='common-copy'):
+    """Check diagnostics in common DB.
+        
+        Inputs:
+            obsname: Observation name in the format:
+                        {Project ID}.{Source name}.{MJD}.{Sequence number}
+            beamnum: ALFA beam number (an integer between 0 and 7).
+            obstype: Type of data (either 'wapp' or 'mock').
+            versionnum: A combination of the githash values from 
+                        PRESTO and from the pipeline. 
+            directory: The directory containing results from the pipeline.
+            dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'common-copy').
+        Output:
+            match: Boolean value. True if all diagnostics match what
+                    is in the DB, False otherwise.
+    """
+    if not 0 <= beamnum <= 7:
+        raise DiagnosticError("Beam number must be between 0 and 7, inclusive!")
+    
+    matches = []
+    # Loop over diagnostics, adding missing values to the DB
+    for diagnostic_type in DIAGNOSTIC_TYPES:
+        try:
+            d = diagnostic_type(obsname, beamnum, obstype, \
+                            versionnum, directory)
+        except Exception:
+            raise DiagnosticError("Could not create %s object for " \
+                                    "observation: %s (beam: %d)" % \
+                                    (diagnostic_type.__name__, obsname, beamnum))
+        matches.append(d.compare_with_db(dbname))
+        if not matches[-1]:
+            break
+    return all(matches)
+
+
 def upload_diagnostics(obsname, beamnum, obstype, versionnum, directory, \
                         verbose=False, dry_run=False, *args, **kwargs):
     """Upload diagnostic to common DB.
@@ -330,21 +540,10 @@ def upload_diagnostics(obsname, beamnum, obstype, versionnum, directory, \
     """
     if not 0 <= beamnum <= 7:
         raise DiagnosticError("Beam number must be between 0 and 7, inclusive!")
-    # Define a list of diagnostics to apply
-    diagnostic_types = [RFIPercentageDiagnostic,
-                        RFIPlotDiagnostic,
-                        AccelCandsDiagnostic,
-                        NumFoldedDiagnostic,
-                        NumCandsDiagnostic,
-                        MinSigmaFoldedDiagnostic,
-                        NumAboveThreshDiagnostic,
-                        ZaplistUsed,
-                        SearchParameters,
-                       ]
-
+    
     results = []
     # Loop over diagnostics, adding missing values to the DB
-    for diagnostic_type in diagnostic_types:
+    for diagnostic_type in DIAGNOSTIC_TYPES:
     	if verbose:
         	print "Working on %s" % diagnostic_type.name
         try:
@@ -369,6 +568,18 @@ def upload_diagnostics(obsname, beamnum, obstype, versionnum, directory, \
             
             results.append(result)
     return results
+
+# Define a list of diagnostics to apply
+DIAGNOSTIC_TYPES = [RFIPercentageDiagnostic,
+                    RFIPlotDiagnostic,
+                    AccelCandsDiagnostic,
+                    NumFoldedDiagnostic,
+                    NumCandsDiagnostic,
+                    MinSigmaFoldedDiagnostic,
+                    NumAboveThreshDiagnostic,
+                    ZaplistUsed,
+                    SearchParameters,
+                   ]
 
 
 def main():

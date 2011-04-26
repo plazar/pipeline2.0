@@ -76,16 +76,20 @@ class Header(upload.Uploadable):
             "@obsType='%s'" % self.obstype
         return sprocstr
 
-    def compare_with_db(self):
+    def compare_with_db(self, dbname='common-copy'):
         """Grab corresponding header from DB and compare values.
             Return True if all values match. Return False otherwise.
 
-            Inputs:
-                None
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'common-copy').
             Outputs:
                 match: Boolean. True if all values match, False otherwise.
         """
-        db = database.Database('common-copy')
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
         db.execute("SELECT obs.obs_name, " \
                           "h.beam_id, " \
                           "h.original_wapp_file, " \
@@ -126,6 +130,8 @@ class Header(upload.Uploadable):
                    "WHERE obs.obs_name='%s' AND h.beam_id=%d " % \
                         (self.obs_name, self.beam_id))
         rows = db.cursor.fetchall()
+        if type(dbname) == types.StringType:
+            db.close()
         if not rows:
             # No matching entry in common DB
             raise ValueError("No matching entry in common DB!\n" \
@@ -184,6 +190,36 @@ class HeaderError(Exception):
     """Error to throw when a header-specific problem is encountered.
     """
     pass
+
+
+def check_header(fns, beamnum=None, dbname='common-copy'):
+    """Check header in commonDB.
+
+        Inputs:
+            fns: list of filenames (include paths) of data to parse.
+            beamnum: ALFA beam number (an integer between 0 and 7).
+                        This is only required for multiplexed WAPP data files.
+            dbname: Name of database to connect to, or a database
+                    connection to use (Defaut: 'common-copy').
+        Output:
+            match: Boolean value. True if header matches what is in
+                    the common DB, False otherwise.
+    """
+    if beamnum is not None:
+        if not 0 <= beamnum <= 7:
+            raise HeaderError("Beam number must be between 0 and 7, inclusive!")
+        try:
+            header = Header(fns, beamnum=beamnum)
+        except Exception:
+            raise HeaderError("Couldn't create Header object for files (%s)!" % \
+                                    fns) 
+    else:
+        try:
+            header = Header(fns)
+        except Exception:
+            raise HeaderError("Couldn't create Header object for files (%s)!" % \
+                                    fns) 
+    return header.compare_with_db(dbname)
 
 
 def upload_header(fns, beamnum=None, verbose=False, dry_run=False, \

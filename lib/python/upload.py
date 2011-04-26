@@ -32,6 +32,10 @@ class Uploadable(object):
     
     def upload(self, dbname='common-copy'):
         """Upload an Uploadable to the desired database.
+            
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'common-copy').
         """
         if isinstance(dbname, database.Database):
             db = dbname

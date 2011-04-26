@@ -14,7 +14,10 @@ import optparse
 import traceback
 import datetime
 import shutil
+import types
+import binascii
 
+import database
 import psr_utils
 import prepfold
 import upload
@@ -81,26 +84,80 @@ class PeridocityCandidate(upload.Uploadable):
             "@presto_sigma=%.12g" % self.sigma
         return sprocstr
 
-    def __cmp__(self, other):
-        return ('%d' % self.header_id == '%d' % other.header_id) and \
-                ('%d' % self.cand_num == '%d' % other.cand_num) and \
-                ('%.12g' % self.topo_freq == '%.12g' % other.topo_freq) and \
-                ('%.12g' % self.bary_freq == '%.12g' % other.bary_freq) and \
-                ('%.12g' % self.topo_period == '%.12g' % other.topo_period) and \
-                ('%.12g' % self.bary_period == '%.12g' % other.bary_period) and \
-                ('%.12g' % self.topo_f_dot == '%.12g' % other.topo_f_dot) and \
-                ('%.12g' % self.bary_f_dot == '%.12g' % other.bary_f_dot) and \
-                ('%.12g' % self.dm == '%.12g' % other.dm) and \
-                ('%.12g' % self.snr == '%.12g' % other.snr) and \
-                ('%.12g' % self.coherent_power == '%.12g' % other.coherent_power) and \
-                ('%.12g' % self.incoherent_power == '%.12g' % other.incoherent_power) and \
-                ('%d' % self.num_hits == '%d' % other.num_hits) and \
-                ('%d' % self.num_harmonics == '%d' % other.num_harmonics) and \
-                (lower(self.institution) == lower(other.institution)) and \
-                (lower(self.pipeline) == lower(other.pipeline)) and \
-                (lower(self.version_number) == lower(other.version_number)) and \
-                (lower(self.institution) == lower(other.institution)) and \
-                ('%.12g' % self.sigma == '%.12g' % other.sigma)
+    def compare_with_db(self, dbname='common-copy'):
+        """Grab corresponding candidate from DB and compare values.
+            Return True if all values match. Return False otherwise.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'common-copy').
+            Output:
+                match: Boolean. True if all values match, False otherwise.
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+        db.execute("SELECT c.header_id, " \
+                        "c.cand_num, " \
+                        "c.frequency, " \
+                        "c.bary_frequency, " \
+                        "c.period, " \
+                        "c.bary_period, " \
+                        "c.f_dot, " \
+                        "c.bary_f_dot, " \
+                        "c.dm, " \
+                        "c.snr, " \
+                        "c.coherent_power, " \
+                        "c.incoherent_power, " \
+                        "c.num_hits, " \
+                        "c.num_harmonics, " \
+                        "v.institution, " \
+                        "v.pipeline, " \
+                        "v.version_number, " \
+                        "c.presto_sigma " \
+                  "FROM pdm_candidates AS c " \
+                  "LEFT JOIN versions AS v ON v.version_id=c.version_id " \
+                  "WHERE c.cand_num=%d AND v.version_number='%s' AND " \
+                            "c.header_id=%d " % \
+                        (self.cand_num, self.versionnum, self.header_id))
+        rows = db.cursor.fetchall()
+        if type(dbname) == types.StringType:
+            db.close()
+        if not rows:
+            # No matching entry in common DB
+            raise ValueError("No matching entry in common DB!\n" \
+                                "(header_id: %d, cand_num: %d, version_number: %s)" % \
+                                (self.header_id, self.cand_num, self.versionnum))
+        elif len(rows) > 1:
+            # Too many matching entries!
+            raise ValueError("Too many matching entries in common DB!\n" \
+                                "(header_id: %d, cand_num: %d, version_number: %s)" % \
+                                (self.header_id, self.cand_num, self.versionnum))
+        else:
+            desc = [d[0] for d in db.cursor.description]
+            r = dict(zip(desc, rows[0]))
+            matches = [('%d' % self.header_id == '%d' % r['header_id']), \
+                     ('%d' % self.cand_num == '%d' % r['cand_num']), \
+                     ('%.12g' % self.topo_freq == '%.12g' % r['frequency']), \
+                     ('%.12g' % self.bary_freq == '%.12g' % r['bary_frequency']), \
+                     ('%.12g' % self.topo_period == '%.12g' % r['period']), \
+                     ('%.12g' % self.bary_period == '%.12g' % r['bary_period']), \
+                     ('%.12g' % self.topo_f_dot == '%.12g' % r['f_dot']), \
+                     ('%.12g' % self.bary_f_dot == '%.12g' % r['bary_f_dot']), \
+                     ('%.12g' % self.dm == '%.12g' % r['dm']), \
+                     ('%.12g' % self.snr == '%.12g' % r['snr']), \
+                     ('%.12g' % self.coherent_power == '%.12g' % r['coherent_power']), \
+                     ('%.12g' % self.incoherent_power == '%.12g' % r['incoherent_power']), \
+                     ('%d' % self.num_hits == '%d' % r['num_hits']), \
+                     ('%d' % self.num_harmonics == '%d' % r['num_harmonics']), \
+                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
+                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower()), \
+                     ('%s' % self.versionnum == '%s' % r['version_number']), \
+                     ('%.12g' % self.sigma == '%.12g' % r['presto_sigma'])]
+            # Match is True if _all_ matches are True
+            match = all(matches)
+        return match
 
                 
 class PeriodicityCandidatePlot(upload.Uploadable):
@@ -124,11 +181,52 @@ class PeriodicityCandidatePlot(upload.Uploadable):
             "@filedata=0x%s" % self.filedata.encode('hex')
         return sprocstr
 
-    def __cmp__(self, other):
-        return ('%d' % self.cand_id == '%d' % other.cand_id) and \
-                ('%s' % self.plot_type == '%s' % other.plot_type) and \
-                ('%s' % os.path.split(self.filename)[-1] == '%s' % os.path.split(other.filename)[-1]) and \
-                ('0x%s' % self.filedata.encode('hex') == '0x%s' % other.filedata.encode('hex'))
+    def compare_with_db(self, dbname='common-copy'):
+        """Grab corresponding candidate plot from DB and compare values.
+            Return True if all values match. Return False otherwise.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'common-copy').
+            Output:
+                match: Boolean. True if all values match, False otherwise.
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+        db.execute("SELECT plt.pdm_cand_id, " \
+                        "pltype.pdm_plot_type, " \
+                        "plt.filename, " \
+                        "plt.filedata " \
+                   "FROM pdm_candidate_plots AS plt " \
+                   "LEFT JOIN pdm_plot_types AS pltype " \
+                        "ON plt.pdm_plot_type_id=pltype.pdm_plot_type_id " \
+                   "WHERE plt.pdm_cand_id=%d AND pltype.pdm_plot_type='%s' " % \
+                        (self.cand_id, self.plot_type))
+        rows = db.cursor.fetchall()
+        if type(dbname) == types.StringType:
+            db.close()
+        if not rows:
+            # No matching entry in common DB
+            raise ValueError("No matching entry in common DB!\n" \
+                                "(pdm_cand_id: %d, pdm_plot_type: %s)" % \
+                                (self.cand_id, self.plot_type))
+        elif len(rows) > 1:
+            # Too many matching entries!
+            raise ValueError("Too many matching entries in common DB!\n" \
+                                "(pdm_cand_id: %d, pdm_plot_type: %s)" % \
+                                (self.cand_id, self.plot_type))
+        else:
+            desc = [d[0] for d in db.cursor.description]
+            r = dict(zip(desc, rows[0]))
+            matches = [('%d' % self.cand_id == '%d' % r['pdm_cand_id']), \
+                    ('%s' % self.plot_type == '%s' % r['pdm_plot_type']), \
+                    ('%s' % os.path.split(self.filename)[-1] == '%s' % os.path.split(r['filename'])[-1]), \
+                    ('0x%s' % self.filedata.encode('hex') == '0x%s' % binascii.b2a_hex(r['filedata']))]
+            # Match is True if _all_ matches are True
+            match = all(matches)
+        return match
 
 
 class PeriodicityCandidatePNG(PeriodicityCandidatePlot):
@@ -148,6 +246,106 @@ class PeriodicityCandidateError(Exception):
     """
     pass
 
+
+def check_candidates(header_id, versionnum, directory, dbname='common-copy'):
+    """Check candidates in common DB.
+
+        Inputs:
+            header_id: header_id number for this beam, as returned by
+                        spHeaderLoader/header.upload_header
+            versionnum: A combination of the githash values from 
+                        PRESTO and from the pipeline. 
+            directory: The directory containing results from the pipeline.
+            dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'common-copy').
+        Output:
+            match: Boolean value. True if all candidates and plots match what
+                    is in the DB, False otherwise.
+    """
+    # find *.accelcands file    
+    candlists = glob.glob(os.path.join(directory, "*.accelcands"))
+                                                
+    if len(candlists) != 1:
+        raise PeriodicityCandidateError("Wrong number of candidate lists found (%d)!" % \
+                                            len(candlists))
+
+    # Get list of candidates from *.accelcands file
+    candlist = accelcands.parse_candlist(candlists[0])
+    minsigma = config.searching.to_prepfold_sigma
+    foldedcands = [c for c in candlist if c.sigma > minsigma]
+    foldedcands = foldedcands[:config.searching.max_cands_to_fold]
+    foldedcands.sort(reverse=True) # Sort by descending sigma
+    
+    # Create temporary directory
+    tempdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_pfds_")
+    tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
+    if len(tarfns) != 1:
+        raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
+                                         "files found in %s" % (len(tarfns), \
+                                            directory))
+    
+    tar = tarfile.open(tarfns[0])
+    try:
+        tar.extractall(path=tempdir)
+    except IOError:
+        if os.path.isdir(tempdir):
+            shutil.rmtree(tempdir)
+        raise PeriodicityCandidateError("Error while extracting pfd files " \
+                                        "from tarball (%s)!" % tarfns[0])
+    finally:
+        tar.close()
+    # Loop over candidates that were folded
+    matches = []
+    if isinstance(dbname, database.Database):
+        db = dbname
+    else:
+        db = database.Database(dbname)
+    for ii, c in enumerate(foldedcands):
+        basefn = "%s_ACCEL_Cand_%d" % (c.accelfile.replace("ACCEL_", "Z"), \
+                                    c.candnum)
+        pfdfn = os.path.join(tempdir, basefn+".pfd")
+        pngfn = os.path.join(directory, basefn+".pfd.png")
+        
+        pfd = prepfold.pfd(pfdfn)
+        
+        try:
+            cand = PeridocityCandidate(header_id, ii+1, pfd, c.snr, \
+                                    c.cpow, c.ipow, len(c.dmhits), \
+                                    c.numharm, versionnum, c.sigma)
+        except Exception:
+            raise PeriodicityCandidateError("PeriodicityCandidate could not be " \
+                                            "created (%s)!" % pfdfn)
+        
+        matches.append(cand.compare_with_db(dbname))
+        if not matches[-1]:
+            break
+        
+        # Get candidate's ID number from common DB
+        db.execute("SELECT pdm_cand_id " \
+                   "FROM pdm_candidates AS c " \
+                   "LEFT JOIN versions AS v ON v.version_id = c.version_id " \
+                   "WHERE c.header_id=%d AND c.cand_num=%d " \
+                        "AND v.version_number='%s'" % \
+                        (header_id, cand.cand_num, versionnum))
+        # For cand.compare_with_db() to return True there must be a unique
+        # entry in the common DB matching this candidate
+        r = db.cursor.fetchone()
+        cand_id = r[0]
+        
+        pfdplot = PeriodicityCandidatePFD(cand_id, pfdfn)
+        matches.append(pfdplot.compare_with_db(dbname))
+        if not matches[-1]:
+            break
+
+        pngplot = PeriodicityCandidatePNG(cand_id, pngfn)
+        matches.append(pngplot.compare_with_db(dbname))
+        if not matches[-1]:
+            break
+        
+    if type(dbname) == types.StringType:
+        db.close()
+    shutil.rmtree(tempdir)
+    return all(matches)
 
 def upload_candidates(header_id, versionnum, directory, verbose=False, \
                         dry_run=False, *args, **kwargs):
