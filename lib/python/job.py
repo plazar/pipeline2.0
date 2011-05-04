@@ -206,7 +206,9 @@ def recover_failed_jobs():
                         (job['id'], submits[0]['id'])
                 msg += str(submits[0]['details'])
                 msg += "\n*** Job will be re-submitted to the queue ***\n"
-                mailer.ErrorMailer(msg).send()
+                notification = mailer.ErrorMailer(msg, \
+                                subject="Processing failed!")
+                notificaiton.send()
 
             # Set status to 'retrying'.
             jobtracker.query("UPDATE jobs " \
@@ -234,7 +236,9 @@ def recover_failed_jobs():
                     msg += "*** Raw data files will be deleted. ***\n"
                 else:
                     jobpool_cout.outs("Job #%d will NOT be retried. " % job['id'])
-                mailer.ErrorMailer(msg).send()
+                notification = mailer.ErrorMailer(msg, \
+                                subject="Processing job failed - Terminal")
+                notification.send()
 
             if config.basic.delete_rawdata:
                 pipeline_utils.clean_up(job['id'])

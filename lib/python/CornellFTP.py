@@ -34,7 +34,7 @@ class CornellFTP():
                 print str(e)
                 if try_counter > 7:
                     try:
-                        notification = mailer.ErrorMailer('CornellFTP login failure, retried %u times: %s' % (str(e),try_counter) )
+                        notification = mailer.ErrorMailer('CornellFTP login failure, retried %u times: %s' % (str(e),try_counter), subject="FTP log-in failure!")
                         notification.send()
                     except Exception,e:
                         pass
@@ -56,7 +56,7 @@ class CornellFTP():
                 print str(e)
                 if try_counter > 7:
                     try:
-                        notification = mailer.ErrorMailer('CornellFTP login failure, retried %u times: %s' % (str(e),try_counter) )
+                        notification = mailer.ErrorMailer('CornellFTP login failure, retried %u times: %s' % (str(e),try_counter), subject="FTP log-in failure")
                         notification.send()
                     except Exception,e:
                         pass

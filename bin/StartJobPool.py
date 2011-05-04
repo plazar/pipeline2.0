@@ -25,7 +25,8 @@ def main():
                 msg = '*** Job pooler has crashed! ***\n\n'
                 msg += 'Fatal error occured while running job pool: %s\n\n' % str(e)
                 msg += ''.join(traceback.format_exception(*sys.exc_info()))
-                notification = mailer.ErrorMailer(msg).send()
+                notification = mailer.ErrorMailer(msg, subject="Job Pooler crash!")
+                notification.send()
             sys.stderr.write("Fatal error occurred!\n")
             raise
         time.sleep(config.background.sleep)       

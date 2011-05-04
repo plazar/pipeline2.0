@@ -15,7 +15,8 @@ while True:
             msg  = '*** Uploader has crashed! ***\n\n'
             msg += 'Fatal error occured while running job uploader: %s\n\n' % str(e)
             msg += ''.join(traceback.format_exception(*sys.exc_info()))
-            notification = mailer.ErrorMailer(msg).send()
+            notification = mailer.ErrorMailer(msg, subject="Uploader crash!")
+            notificaiton.send()
         sys.stderr.write("Fatal error occurred!\n")
         raise
     time.sleep(config.background.sleep)       

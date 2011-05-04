@@ -16,7 +16,8 @@ while True:
             msg  = '*** Downloader has crashed! ***\n\n'
             msg += 'Fatal error occured while running downloader: %s\n\n' % str(e)
             msg += ''.join(traceback.format_exception(*sys.exc_info()))
-            notification = mailer.ErrorMailer(msg).send()
+            notification = mailer.ErrorMailer(msg, subject="Downloader crash!")
+            notification.send()
         sys.stderr.write("Fatal error occurred!\n")
         raise
     time.sleep(config.background.sleep)       
