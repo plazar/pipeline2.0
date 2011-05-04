@@ -6,6 +6,8 @@ smtp_host = 'smtp.gmail.com' # None - For use of the local smtp server
 smtp_port = 25 # Port to use for connecting to SMTP mail server (should be 25 or 587)
 smtp_username = 'username'
 smtp_password = 'password'
+smtp_login = True # Whether username/password are used to log into SMTP server
+smtp_usetls = False # Whether Transport Layer Security (TLS) is used
 recipient = 'first.last@email.com' # The address to send emails to
 sender = None # From address to show in email
 # Every "error" gives a failure...

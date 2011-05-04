@@ -22,9 +22,10 @@ class ErrorMailer:
 
     def send(self):
         if self.enabled:
+            if config.email.smtp_usetls:
+                self.client.starttls()
             self.client.ehlo()
-            self.client.starttls()
-            if config.email.smtp_host is not None:
+            if config.email.smtp_login:
                 self.client.login(config.email.smtp_username,config.email.smtp_password)
             self.client.sendmail(self.msg['From'], self.msg['To'], self.msg.as_string())
             self.client.quit()
