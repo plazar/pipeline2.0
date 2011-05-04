@@ -1,16 +1,28 @@
 import sys
 import os
+import os.path
 import datetime
+import socket
 import smtplib
 from email.mime.text import MIMEText
 import config.email
 
 class ErrorMailer:
-    def __init__(self, message, enabled=config.email.enabled):
+    def __init__(self, message, \
+                    subject='Pipeline notification', \
+                    enabled=config.email.enabled):
+
+        if not subject.lower().startswith('pipeline notification'):
+            subject = 'Pipeline notification: ' + subject
+
+        nowstr = datetime.datetime.now().strftime("%a %d %b, %I:%M:%S%P")
+        prog = os.path.split(sys.argv[0])[-1]
+        intro = "Pipeline notification from %s on %s at %s\n%s\n" % (prog, \
+                    socket.gethostname(), nowstr, '-'*50)
+        
         self.enabled = enabled
-        self.msg = MIMEText(message.strip())
-        self.msg['Subject'] = 'Pipeline notification at: ' + \
-                    datetime.datetime.now().strftime("%a %d %b, %I:%M:%S%P")
+        self.msg = MIMEText(intro + message.strip())
+        self.msg['Subject'] = subject
         self.msg['To'] = config.email.recipient
         if self.enabled:
             if config.email.smtp_host is None:
