@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import M2Crypto
 import config.download
 import CornellWebservice

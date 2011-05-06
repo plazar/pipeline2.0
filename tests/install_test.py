@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 This script will test-import many modules used by the pipeline.
 

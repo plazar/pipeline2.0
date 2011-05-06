@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import CornellWebservice
 import config.download
 
