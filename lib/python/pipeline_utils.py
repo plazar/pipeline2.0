@@ -10,8 +10,6 @@ import sys
 import subprocess
 import types
 
-import jobtracker
-
 class PipelineError(Exception):
     """A generic exception to be thrown by the pipeline.
     """
@@ -27,6 +25,8 @@ def get_fns_for_jobid(jobid):
         Output:
             fns: A list of data files associated with the job ID.
     """
+    import jobtracker
+
     query = "SELECT filename " \
             "FROM files, job_files " \
             "WHERE job_files.file_id=files.id " \
