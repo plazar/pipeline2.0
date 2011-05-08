@@ -23,7 +23,8 @@ min_free_space = 10 * 2**30  # Minimum amount of disk space on the file system
                              # that must be kept free (bytes)
 
 numdownloads = 2  # max number of files to download at once
-numrestores = 2   # max number of active (i.e. open) restore requests at Cornell
+numrestored = 5   # max number of files waiting to be restored + 
+                  # waiting to be downloaded at any given time
 numretries = 3    # max number of times to try to download before failing
 
 # The following is the name of the logfile.  Should not need changing.

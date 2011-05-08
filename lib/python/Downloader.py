@@ -69,12 +69,16 @@ def can_request_more():
     """
     active_requests = jobtracker.query("SELECT * FROM requests " \
                                        "WHERE status='waiting'")
-    numactive = len(active_requests)
+    to_download = jobtracker.query("SELECT * FROM files " \
+                                   "WHERE status NOT IN ('downloaded', " \
+                                                        "'terminal_failure')")
+    num_to_restore = len(active_requests)*2 # Files are restored in pairs
+    num_to_download = len(to_download)
     used = get_space_used()
     avail = get_space_available()
     reserved = get_space_committed()
 
-    can_request = (numactive < config.download.numrestores) and \
+    can_request = ((num_to_restore+num_to_download) < config.download.numrestored) and \
             (avail-reserved > config.download.min_free_space) and \
             (used+reserved < config.download.space_to_use)
     return can_request
