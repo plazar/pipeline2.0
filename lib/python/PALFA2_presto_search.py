@@ -164,13 +164,19 @@ def get_folding_command(cand, obs):
     if config.searching.fold_rawdata:
         # Fold raw data
         foldfiles = obs.filenmstr
+        mask = "-mask %s" % (obs.basefilenm + "_rfifind.mask")
     else:
         if config.searching.use_subbands:
             # Fold the subbands
             subdms = get_all_subdms(obs.ddplans)
             subfiles = find_closest_subbands(obs, subdms, cand.DM)
             foldfiles = subfiles
+            mask = ""
         else:  # Folding the downsampled PSRFITS files instead
+            #
+            # TODO: Apply mask!?
+            #
+            mask = ""
             hidms = [x.lodm for x in obs.ddplans[1:]] + [2000]
             dfacts = [x.downsamp for x in obs.ddplans]
             for hidm, dfact in zip(hidms, dfacts):
@@ -209,9 +215,9 @@ def get_folding_command(cand, obs):
     # Set npart to the number of rows in the PSRFITS file.
     if npart > obs.numrows:
         npart = obs.numrows
-    return "prepfold -noxwin -accelcand %d -accelfile %s.cand -dm %.2f -o %s -npart %d %s -n %d -npfact %d -ndmfact %d %s" % \
+    return "prepfold -noxwin -accelcand %d -accelfile %s.cand -dm %.2f -o %s -npart %d %s -n %d -npfact %d -ndmfact %d %s %s" % \
            (cand.candnum, cand.filename, cand.DM, outfilenm,
-            npart, otheropts, N, Mp, Mdm, foldfiles)
+            npart, otheropts, N, Mp, Mdm, mask, foldfiles)
 
 
 class obs_info:
@@ -519,10 +525,11 @@ def search_job(job):
                 job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
             
             else:  # Not using subbands
-                cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d " \
+                cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
                         "-numout %d -o %s/%s %s"%\
                         (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
-                        ddplan.dmsperpass, psr_utils.choose_N(job.orig_N/ddplan.downsamp),
+                        ddplan.dmsperpass, ddplan.dd_downsamp*ddplan.sub_downsamp, 
+                        psr_utils.choose_N(job.orig_N/ddplan.downsamp),
                         job.tempdir, job.basefilenm, filenmstr)
                 job.dedispersing_time += timed_execute(cmd)
             
