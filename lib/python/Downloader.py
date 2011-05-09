@@ -327,6 +327,8 @@ def start_downloads():
     
             # download(attempt)
             DownloadThread(attempt).start()
+        else:
+            break
 
 
 def can_download():
@@ -367,7 +369,6 @@ def download(attempt):
         cftp = CornellFTP.CornellFTP()
         cftp.download(os.path.join(request['guid'], file['remote_filename']))
     except Exception, e:
-        raise
         queries.append("UPDATE files " \
                        "SET status='failed', " \
                             "updated_at='%s', " \
