@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import config_types
 
 searching = config_types.ConfigList('searching')
@@ -28,3 +29,8 @@ searching.add_config('sifting_r_err', config_types.FloatConfig())
 searching.add_config('sifting_short_period', config_types.FloatConfig())
 searching.add_config('sifting_long_period', config_types.FloatConfig())
 searching.add_config('sifting_harm_pow_cutoff', config_types.FloatConfig())
+
+if __name__=='__main__':
+    import searching as configs
+    searching.populate_configs(configs.__dict__)
+    searching.check_sanity()

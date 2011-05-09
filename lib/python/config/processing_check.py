@@ -1,6 +1,12 @@
+#!/usr/bin/env python
 import config_types
 
 processing = config_types.ConfigList('processing')
 processing.add_config('base_working_directory', config_types.ReadWriteConfig())
 processing.add_config('default_zaplist', config_types.FileConfig())
 processing.add_config('zaplistdir', config_types.DirConfig())
+
+if __name__=='__main__':
+    import processing as configs
+    processing.populate_configs(configs.__dict__)
+    processing.check_sanity()

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import config_types
 
 email = config_types.ConfigList('email')
@@ -12,3 +13,8 @@ email.add_config('recipient', config_types.StrConfig())
 email.add_config('send_on_failures', config_types.BoolConfig())
 email.add_config('send_on_terminal_failures', config_types.BoolConfig())
 email.add_config('send_on_crash', config_types.BoolConfig())
+
+if __name__=='__main__':
+    import email as configs
+    email.populate_configs(configs.__dict__)
+    email.check_sanity()

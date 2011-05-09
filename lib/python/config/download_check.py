@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import config_types
 
 download = config_types.ConfigList('download')
@@ -18,3 +19,8 @@ download.add_config('log_file_path', config_types.FileConfig())
 download.add_config('request_timeout', config_types.IntConfig())
 download.add_config('request_numbits', config_types.IntConfig())
 download.add_config('request_datatype', config_types.StrConfig())
+
+if __name__=='__main__':
+    import download as configs
+    download.populate_configs(configs.__dict__)
+    download.check_sanity()
