@@ -84,13 +84,13 @@ class PeridocityCandidate(upload.Uploadable):
             "@presto_sigma=%.12g" % self.sigma
         return sprocstr
 
-    def compare_with_db(self, dbname='common-copy'):
+    def compare_with_db(self, dbname='common'):
         """Grab corresponding candidate from DB and compare values.
             Return True if all values match. Return False otherwise.
 
             Input:
                 dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'common-copy').
+                        connection to use (Defaut: 'common').
             Output:
                 match: Boolean. True if all values match, False otherwise.
         """
@@ -181,13 +181,13 @@ class PeriodicityCandidatePlot(upload.Uploadable):
             "@filedata=0x%s" % self.filedata.encode('hex')
         return sprocstr
 
-    def compare_with_db(self, dbname='common-copy'):
+    def compare_with_db(self, dbname='common'):
         """Grab corresponding candidate plot from DB and compare values.
             Return True if all values match. Return False otherwise.
 
             Input:
                 dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'common-copy').
+                        connection to use (Defaut: 'common').
             Output:
                 match: Boolean. True if all values match, False otherwise.
         """
@@ -247,7 +247,7 @@ class PeriodicityCandidateError(Exception):
     pass
 
 
-def check_candidates(header_id, versionnum, directory, dbname='common-copy'):
+def check_candidates(header_id, versionnum, directory, dbname='common'):
     """Check candidates in common DB.
 
         Inputs:
@@ -257,7 +257,7 @@ def check_candidates(header_id, versionnum, directory, dbname='common-copy'):
                         PRESTO and from the pipeline. 
             directory: The directory containing results from the pipeline.
             dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'common-copy').
+                        connection to use (Defaut: 'common').
         Output:
             match: Boolean value. True if all candidates and plots match what
                     is in the DB, False otherwise.

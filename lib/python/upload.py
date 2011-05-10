@@ -30,18 +30,16 @@ class Uploadable(object):
         raise NotImplementedError("get_upload_sproc_call() should be defined by a " \
                                   "subclass of Uploadable.")
     
-    def upload(self, dbname='common-copy'):
+    def upload(self, dbname='common'):
         """Upload an Uploadable to the desired database.
             
             Input:
                 dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'common-copy').
+                        connection to use (Defaut: 'common').
         """
         if isinstance(dbname, database.Database):
             db = dbname
         else:
-            warnings.warn("Default is to connect to common-copy DB "
-                            "at Cornell for testing...")
             if dbname not in db_connections:
                 db_connections[dbname] = database.Database(dbname)
             db = db_connections[dbname]
