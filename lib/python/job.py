@@ -17,6 +17,7 @@ import mailer
 import OutStream
 import pipeline_utils
 import config.background
+import config.processing
 import config.jobpooler
 import config.email
 import config.basic
@@ -348,7 +349,7 @@ def get_output_dir(fns):
 
         path is:
             {base_results_directory}/{mjd}/{obs_name}/{beam_num}/{proc_date}/
-        Note: 'base_results_directory' is defined in the config file.
+        Note: 'base_results_directory' is defined in the processing config file.
                 'mjd', 'obs_name', and 'beam_num' are from parsing
                 the job's datafiles. 'proc_date' is the current date
                 in YYMMDD format.
@@ -373,7 +374,7 @@ def get_output_dir(fns):
     beam_num = data.beam_id
     obs_name = data.obs_name
     proc_date=datetime.datetime.now().strftime('%y%m%d')
-    outdir = os.path.join(config.jobpooler.base_results_directory, \
+    outdir = os.path.join(config.processing.base_results_directory, \
                                     str(mjd), str(obs_name), \
                                     str(beam_num), proc_date)
     return outdir

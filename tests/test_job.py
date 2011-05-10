@@ -10,9 +10,7 @@ import sys
 import subprocess
 import socket
 
-import config.jobpooler
 import config.processing
-import config.searching
 
 def system_call(cmd):
     pipe = subprocess.Popen(cmd, shell=True, \
@@ -75,12 +73,12 @@ def check_software():
 def check_dirs():
     to_test = [config.processing.zaplistdir, \
                 config.processing.base_working_directory, \
-                config.searching.base_tmp_dir, \
-                config.jobpooler.base_results_directory]
+                config.processing.base_tmp_dir, \
+                config.processing.base_results_directory]
     errors = ""
     for dir in to_test:
         print "Testing %s" % dir
-        if not (os.path.isdir(dir) and os.access(dir, os.R_OF | os.W_OK)):
+        if not (os.path.isdir(dir) and os.access(dir, os.R_OK | os.W_OK)):
             errors += "The directory '%s' either doesn't exist, " \
                         "or doesn't have read/write permission!\n" % dir
     return errors

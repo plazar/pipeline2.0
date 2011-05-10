@@ -21,6 +21,7 @@ import sifting
 
 import datafile
 import config.searching
+import config.processing
 
 # Sifting specific parameters (don't touch without good reason!)
 # incoherent power threshold (sigma)
@@ -453,7 +454,7 @@ def set_up_job(filenms, workdir, resultsdir):
     job.workdir = workdir
     # Create a directory to hold all the subbands
     job.tempdir = tempfile.mkdtemp(suffix="_tmp", prefix=job.basefilenm, \
-                        dir=config.searching.base_tmp_dir)
+                        dir=config.processing.base_tmp_dir)
     return job
 
 
