@@ -594,7 +594,7 @@ def main():
 
 
 if __name__ == '__main__':
-    parser = optparse.OptionParser(prog="diagnostic_uploader.py", \
+    parser = optparse.OptionParser(prog="diagnostics.py", \
                 version="v0.8 (by Patrick Lazarus, Dec. 20, 2010)", \
                 description="Upload diagnostics from a beam of PALFA " \
                             "data analysed using the pipeline2.0.")

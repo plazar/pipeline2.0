@@ -6,8 +6,8 @@ import sys
 import datafile
 
 import header
-import candidate_uploader
-import diagnostic_uploader
+import candidates
+import diagnostics
 import jobtracker
 import database
 import pipeline_utils
@@ -95,10 +95,10 @@ def upload_results(job_submit):
             print "\tHeader uploaded and checked. Header ID: %d" % header_id
 
         version_number = get_version_number(dir)
-        candidate_uploader.upload_candidates(header_id, \
+        candidates.upload_candidates(header_id, \
                                              version_number, \
                                              dir, dbname=db)
-        if not candidate_uploader.check_candidates(header_id, \
+        if not candidates.check_candidates(header_id, \
                                              version_number, \
                                              dir, dbname=db):
             raise AssertionError("Candidate values in common DB " \
@@ -107,12 +107,12 @@ def upload_results(job_submit):
             print "\tCandidates uploaded and checked."
 
         data = datafile.autogen_dataobj(fitsfiles)
-        diagnostic_uploader.upload_diagnostics(data.obs_name, 
+        diagnostics.upload_diagnostics(data.obs_name, 
                                              data.beam_id, \
                                              data.obstype, \
                                              version_number, \
                                              dir, dbname=db)
-        if not diagnostic_uploader.check_diagnostics(data.obs_name, 
+        if not diagnostics.check_diagnostics(data.obs_name, 
                                              data.beam_id, \
                                              data.obstype, \
                                              version_number, \
@@ -122,8 +122,8 @@ def upload_results(job_submit):
         else:
             print "\tDiagnostics uploaded and checked."
     except (header.HeaderError, \
-            candidate_uploader.PeriodicityCandidateError, \
-            diagnostic_uploader.DiagnosticError):
+            candidates.PeriodicityCandidateError, \
+            diagnostics.DiagnosticError):
         # Parsing error caught. Job attempt has failed!
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
         errormsg  = "Error while checking results!\n"

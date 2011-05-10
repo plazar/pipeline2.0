@@ -456,7 +456,7 @@ def main():
         traceback.print_exception(*e.orig_exc)
 
 if __name__ == '__main__':
-    parser = optparse.OptionParser(prog="candidate_uploader.py", \
+    parser = optparse.OptionParser(prog="candidates.py", \
                 version="v0.8 (by Patrick Lazarus, Jan. 12, 2011)", \
                 description="Upload candidates from a beam of PALFA " \
                             "data analysed using the pipeline2.0.")
