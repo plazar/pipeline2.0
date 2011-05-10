@@ -46,7 +46,7 @@ def check_download_attempts():
                            "SET status='unverified', " \
                                 "updated_at='%s', " \
                                 "details='Download thread is no longer running' "
-                           "WHERE id=%d" % (jobtracker.nowstr(), attempt['download_id']))
+                           "WHERE id=%d" % (jobtracker.nowstr(), attempt['file_id']))
             queries.append("UPDATE download_attempts " \
                            "SET status='unknown', " \
                                 "updated_at='%s', " \
@@ -170,13 +170,18 @@ def make_request():
                                            (len(requests), guid))
 
     jobtracker.query("INSERT INTO requests ( " \
+                        "numbits, " \
+                        "numrequested, " \
+                        "file_type, " \
                         "guid, " \
                         "created_at, " \
                         "updated_at, " \
                         "status, " \
                         "details) " \
-                     "VALUES ('%s', '%s', '%s', '%s', '%s')" % \
-                     (guid, jobtracker.nowstr(), jobtracker.nowstr(), 'waiting', \
+                     "VALUES (%d, %d, '%s', '%s', '%s', '%s', '%s', '%s')" % \
+                     (config.download.request_numbits, num_beams, \
+                        config.download.request_datatype, guid, \
+                        jobtracker.nowstr(), jobtracker.nowstr(), 'waiting', \
                         'Newly created request'))
   
 
@@ -316,7 +321,7 @@ def start_downloads():
                                 "status, " \
                                 "details, " \
                                 "updated_at, " \
-                                "download_id) " \
+                                "file_id) " \
                            "VALUES ('%s', '%s', '%s', %d)" % \
                            ('downloading', 'Initiated download', jobtracker.nowstr(), \
                                 file['id']))
@@ -358,7 +363,7 @@ def download(attempt):
         actually attempt the download.
     """
     file = jobtracker.query("SELECT * FROM files " \
-                            "WHERE id=%d" % attempt['download_id'], \
+                            "WHERE id=%d" % attempt['file_id'], \
                             fetchone=True)
     request = jobtracker.query("SELECT * FROM requests " \
                                "WHERE id=%d" % file['request_id'], \
@@ -412,7 +417,7 @@ def verify_files():
 
         last_attempt_id = jobtracker.query("SELECT id " \
                                            "FROM download_attempts " \
-                                           "WHERE download_id=%s " \
+                                           "WHERE file_id=%s " \
                                            "ORDER BY id DESC " % file['id'], \
                                            fetchone=True)[0]
                                                 
@@ -464,7 +469,7 @@ def recover_failed_downloads():
 
     for file in failed_files:
         attempts = jobtracker.query("SELECT * FROM download_attempts " \
-                                    "WHERE download_id=%d" % file['id'])
+                                    "WHERE file_id=%d" % file['id'])
         if len(attempts) < config.download.numretries:
             # download can be retried
             jobtracker.query("UPDATE files " \

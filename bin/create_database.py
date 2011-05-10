@@ -8,12 +8,8 @@ This script creates sqlite3 clean database structure to be used by Pipeline2.0
 creates = []
 
 
-creates.append("CREATE TABLE pipeline ( " \
-                    "exit_downloader INTEGER NOT NULL DEFAULT (0), " \
-                    "exit_jobpool INTEGER NOT NULL DEFAULT (0), " \
-                    "exit_uploader INTEGER NOT NULL DEFAULT (0))")
 creates.append("CREATE TABLE download_attempts ( " \
-                    "download_id INTEGER, " \
+                    "file_id INTEGER, " \
                     "created_at TEXT, " \
                     "details TEXT, " \
                     "id INTEGER PRIMARY KEY, " \
@@ -52,6 +48,9 @@ creates.append("CREATE TABLE jobs ( " \
                     "updated_at TEXT)")
 creates.append("CREATE TABLE requests ( " \
                     "size INTEGER, " \
+                    "numbits INTEGER, " \
+                    "numrequested INTEGER, " \
+                    "file_type TEXT, " \
                     "created_at TEXT, " \
                     "details TEXT, " \
                     "guid TEXT, " \
