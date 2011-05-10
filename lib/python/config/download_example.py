@@ -27,8 +27,6 @@ numrestored = 5   # max number of files waiting to be restored +
                   # waiting to be downloaded at any given time
 numretries = 3    # max number of times to try to download before failing
 
-# The following is the name of the logfile.  Should not need changing.
-log_file_path = os.path.join(config.basic.pipelinedir, "logs", "downloader.log")
 request_timeout = 1 # Integer number of hours before an un-restored request 
                     # is marked as failed
 
