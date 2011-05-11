@@ -209,7 +209,7 @@ def recover_failed_jobs():
                 msg += "\n*** Job will be re-submitted to the queue ***\n"
                 notification = mailer.ErrorMailer(msg, \
                                 subject="Processing failed!")
-                notificaiton.send()
+                notification.send()
 
             # Set status to 'retrying'.
             jobtracker.query("UPDATE jobs " \
