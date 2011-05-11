@@ -24,6 +24,7 @@ print "Login Response: %s" % response
 web_service = CornellWebservice.Client()
 guid = web_service.RestoreTest(username=config.download.api_username, \
                                 pw=config.download.api_password, \
+                                pipeline=config.basic.pipeline.lower(), \
                                 number=1, bits=config.download.request_numbits, \
                                 fileType=config.download.request_datatype)
 
