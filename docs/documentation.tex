@@ -15,6 +15,9 @@
 The PALFA Pipeline2.0 is an automated end-to-end pulsar search pipeline designed for the Pulsar-ALFA survey. The pipeline requests PALFA data from web services hosted at Cornell University, downloads data files, searches them, and finally uploads the results to the PALFA common database hosted at Cornell University.
 
 The pipeline is written entirely in Python. It uses a SQLite database to track datafiles, and processing jobs. The pipeline is built around the \texttt{PRESTO} suite of pulsar search software. 
+
+If you plan on using/modifying this pipeline to search data from other surveys please let me know.
+
 \end{abstract}
 
 \clearpage
@@ -51,6 +54,7 @@ The PALFA pipeline has various dependencies. All of the following packages are r
     \item ImageMagick (on worker nodes - http://www.imagemagick.org/script/index.php)
     \item FreeTDS (required by pyodbc to connect to common-DB - http://www.freetds.org/)
     \item UnixODBC (required by pyodbc to connect to common-DB - http://www.unixodbc.org/)
+    \item Drivers for ODBC - libtdsodbc.so and libmyodbc.so (In Debian these are available in the packages tdsodbc and libmyodbc, respectively).
     \item prettytable (http://code.google.com/p/prettytable/)
 \end{itemize}
 
