@@ -34,6 +34,7 @@ class ErrorMailer:
 
     def send(self):
         if self.enabled:
+            self.client.ehlo()
             if config.email.smtp_usetls:
                 self.client.starttls()
             self.client.ehlo()
