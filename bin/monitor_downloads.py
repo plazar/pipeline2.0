@@ -126,7 +126,10 @@ def loop(scr):
 def main():
     global files
     files = FileList()
-    curses.wrapper(loop)
+    try:
+        curses.wrapper(loop)
+    except KeyboardInterrupt:
+        print "Exiting..."
 
 
 if __name__=='__main__':

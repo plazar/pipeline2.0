@@ -31,4 +31,8 @@ def main():
             raise
         time.sleep(config.background.sleep)       
 
-main()
+if __name__=='__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        print "Exiting..."
