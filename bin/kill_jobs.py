@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 This script is used to set a job's status to 'terminal_failure'.
 """
