@@ -248,10 +248,15 @@ def create_file_entries(request):
     queries = []
     for fn, size in files:
         # Check if file is from the phantom beam (beam 7)
-        datafile_type = datafile.get_datafile_type([fn])
+        try:
+            datafile_type = datafile.get_datafile_type([fn])
+        except DataFileError, e:
+            dlm_cout.outs("DataFileError: " + str(e))
+            continue
+            
         parsedfn = datafile_type.fnmatch(fn)
         if parsedfn.groupdict().setdefault('beam', '-1') == '7':
-            print "Ignoring beam 7 data: %s" % fn
+            dlm_cout.outs("Ignoring beam 7 data: %s" % fn)
             continue
 
         # Insert entry into DB's files table
