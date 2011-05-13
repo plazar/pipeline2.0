@@ -56,7 +56,7 @@ def get_datafile_type(fns):
                 datafile_type = obj
                 break
     if datafile_type is None:
-        raise ValueError("Cannot determine datafile's type (%s)." % fns)
+        raise DataFileError("Cannot determine datafile's type (%s)." % fns)
     return datafile_type
 
 
@@ -575,6 +575,10 @@ class MergedMockPsrfitsData(PsrfitsData):
         else:
             complete = False
         return complete
+
+
+class DataFileError(Exception):
+    pass
 
 
 def main():
