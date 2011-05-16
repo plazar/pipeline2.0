@@ -486,19 +486,6 @@ def search_job(job):
     dmstrs = []
     for ddplan in job.ddplans:
 
-        # Make a downsampled filterbank file if we are not using subbands
-        if not config.searching.use_subbands:
-            if ddplan.downsamp > 1:
-                cmd = "downsample_psrfits.py %d %s"%(ddplan.downsamp, job.filenmstr)
-                job.downsample_time += timed_execute(cmd)
-                dsfiles = []
-                for f in job.filenames:
-                    fbase = f.rstrip(".fits")
-                    dsfiles.append(fbase+"_DS%d.fits"%ddplan.downsamp)
-                filenmstr = ' '.join(dsfiles)
-            else:
-                filenmstr = job.filenmstr 
-
         # Iterate over the individual passes through the data file
         for passnum in range(ddplan.numpasses):
             subbasenm = "%s_DM%s"%(job.basefilenm, ddplan.subdmlist[passnum])
