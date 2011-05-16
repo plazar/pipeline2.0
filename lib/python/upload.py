@@ -50,7 +50,7 @@ class Uploadable(object):
             raise UploadError("There was an error executing the following " \
                                 "query: %s" % query[:256])
         try:
-            result = db.cursor.fetchone()[0]
+            result = db.cursor.fetchone()
         except:
             raise UploadError("There was an error fetching the result of " \
                                 "the following query: %s" % query[:256])

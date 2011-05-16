@@ -559,7 +559,7 @@ def upload_diagnostics(obsname, beamnum, obstype, versionnum, directory, \
                 print d
             results.append(None)
         else:
-            result = d.upload(*args, **kwargs)
+            result = d.upload(*args, **kwargs)[0]
             if result < 0:
                 raise DiagnosticError("An error was encountered! " \
                                         "(Error code: %d)" % result)

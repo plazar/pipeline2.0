@@ -263,7 +263,7 @@ def upload_header(fns, beamnum=None, verbose=False, dry_run=False, \
             print header
         result = None
     else:
-        result = header.upload(*args, **kwargs)
+        result = header.upload(*args, **kwargs)[0]
         if result < 0:
             raise HeaderError("An error was encountered! " \
                                 "(Error code: %d)" % result)
