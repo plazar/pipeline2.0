@@ -518,7 +518,7 @@ def search_job(job):
                         (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
                         ddplan.dmsperpass, ddplan.dd_downsamp*ddplan.sub_downsamp, 
                         psr_utils.choose_N(job.orig_N/ddplan.downsamp),
-                        job.tempdir, job.basefilenm, filenmstr)
+                        job.tempdir, job.basefilenm, job.filenmstr)
                 job.dedispersing_time += timed_execute(cmd)
             
             # Iterate over all the new DMs
