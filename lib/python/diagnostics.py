@@ -437,6 +437,40 @@ class SearchParameters(PlotDiagnostic):
             raise DiagnosticError("Search parameter file doesn't exist!")
 
 
+class SigmaThreshold(FloatDiagnostic):
+    name = "Sigma threshold"
+    description = "The sigma threshold used for determining which " \
+                    "candidates potentially get folded."
+
+    def get_diagnostic(self):
+        # find the search_params.txt file
+        paramfn = os.path.join(self.directory, 'search_params.txt')
+
+        if os.path.exists(paramfn):
+            params = {}
+            execfile(paramfn, {}, params)
+            self.value = params['to_prepfold_sigma']
+        else:
+            raise DiagnosticError("Search parameter file doesn't exist!")
+
+
+class MaxCandsToFold(FloatDiagnostic):
+    name = "Max cands allowed to fold"
+    description = "The maximum number of candidates that are " \
+                    "allowed to be folded."
+    
+    def get_diagnostic(self):
+        # find the search_params.txt file
+        paramfn = os.path.join(self.directory, 'search_params.txt')
+
+        if os.path.exists(paramfn):
+            params = {}
+            execfile(paramfn, {}, params)
+            self.value = params['max_cands_to_fold']
+        else:
+            raise DiagnosticError("Search parameter file doesn't exist!")
+
+
 def find_in_tarballs(dir, matchfunc):
     """Find all tarballs in the given directory and search
         for a filename (inside the tarballs) for which
@@ -579,6 +613,8 @@ DIAGNOSTIC_TYPES = [RFIPercentageDiagnostic,
                     NumAboveThreshDiagnostic,
                     ZaplistUsed,
                     SearchParameters,
+                    SigmaThreshold,
+                    MaxCandsToFold,
                    ]
 
 
