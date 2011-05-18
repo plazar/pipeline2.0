@@ -428,7 +428,7 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
             results.append(None)
             cand_id = -1
         else:
-            cand_id = cand.upload(*args, **kwargs)
+            cand_id = cand.upload(*args, **kwargs)[0]
         
         pfdplot = PeriodicityCandidatePFD(cand_id, pfdfn)
         pngplot = PeriodicityCandidatePNG(cand_id, pngfn)

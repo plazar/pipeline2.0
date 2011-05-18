@@ -78,13 +78,20 @@ Here we will present basic step-by-step instructions for setting up the pipeline
 
     \item[Step 3] Add the pipeline's lib/python directory to your PYTHONPATH environment variable. 
 
-    \item[Step 4] Create configuration files using the examples provided. Modify the settings so they are appropriate for your system. It is possible to check the sanity of your configurations by calling a configuration file with the python interpreter. An error message will be displayed if a configuration type or value is invalid.  
+    \item[Step 4] For each of the example configuration files found in \texttt{lib/python/config/} make a copy with the same name, but with ``\_example'' removed. For example, \texttt{basic\_example.py} $\rightarrow$ \texttt{basic.py}. Next, for each of the newly created files modify the settings defined in it so they are appropriate for your system. It is possible to check the sanity of your configurations by executing the corresponding \texttt{*\_check.py} file. An error message will be displayed if a configuration is invalid. It is possible to rename all the example files at once using \texttt{awk}:
 
-    \item[Step 5] Configure ODBC and FreeTDS. This can be done by creating the appropriate files (\texttt{.odbc.ini} and \texttt{.freetds.conf}, respectively) in your home area. See Section \ref{sec:dbconf} for details.
+    \begin{verbatim}
+        ls *_example.py | awk -F `_example' 
+        `{printf(``cp %s %s%s\n'', $0, $1, $2)}' | sh
+    \end{verbatim}
 
-    \item[Step 6] Set up the database. This is done using the \texttt{create\_database.py} script.
+    \item[Step 5] Configure ODBC and FreeTDS. This can be done by editing the system-wide configuration files, or by creating the appropriate files (\texttt{.odbc.ini} and \texttt{.freetds.conf}, respectively) in your home area. See Section \ref{sec:dbconf} for details.
 
-    \item[Step 7] Perform tests. In the \texttt{test/} directory there are some tests that can be run to see if you can connect to the common DB (\texttt{commondb\_test.py}), e-mail system (\texttt{mailer\_test.py}), and FTP server (\texttt{cornellftp\_test.py}). To perform the tests call each script with the python interpreter. Additional information about the tests can be found in Section \ref{sec:tests}.
+    \item[Step 6] Set up the database. This is done using the script \texttt{bin/create\_database.py}.
+
+    \item[Step 7] Perform tests. In the \texttt{tests/} directory there are some tests that can be run to see if you can connect to the common DB (\texttt{commondb\_test.py}), connect to the FTP server and data-restore webservice, use the e-mail system (\texttt{mailer\_test.py}), and FTP server (\texttt{cornellftp\_test.py}). There are also tests to check if the necessary python modules are available (\texttt{install\_test.py}), restore data (\texttt{restore\_test.py}), and submit jobs to the queue \texttt{submit\_test.py}. Note that the job-submission test executes \texttt{test\_job.py} on a worker node. This job checks for necessary software, and for the existence/permissions of directories. A report is printed to screen if there are errors. 
+    
+    To perform the tests call each script with the python interpreter. Additional information about the tests can be found in Section \ref{sec:tests}.
 
     \item[Step 8] Start the downloader using \texttt{StartDownloader.py}.
         
@@ -107,13 +114,13 @@ The pipeline is designed to run with minimal user interactaction. To do this the
 
 \begin{figure}
     \centering
-    \includegraphics{./figs/ThreadedDownloadFlow_scaled.png}
+    \includegraphics{./figs/ThreadedDownloadFlow.png}
     \caption{The flow of the download portion of the pipeline. Yellow boxes represent actions. Blue boxes represent changes in status, which are tracked in the job-tracker database. Finally, orange diamonds are decisions. \label{fig:download flow}}
 \end{figure}
 
 \begin{figure}
     \centering
-    \includegraphics{./figs/JobFlow_scaled.png}
+    \includegraphics{./figs/JobFlow.png}
     \caption{The flow of the processing and results upload portions of the pipeline. Yellow boxes represent actions. Blue boxes represent changes in status, which are tracked in the job-tracker database. Finally, orange diamonds are decisions. \label{fig:job flow}}
 \end{figure}
 
@@ -198,7 +205,9 @@ The following per-beam diagnostics are uploaded to the common database:
 \section{Reference}
 \subsection{Database Configuration}
 \label{sec:dbconf}
-UnixODBC and FreeTDS need to be properly configured to be able to connect to the common database. The following configuration files are required (at McGill). These files can be placed in your home area. It is also possible to put these configurations in a system configuration directory so all users will have access to them automatically.
+UnixODBC and FreeTDS need to be properly configured to be able to connect to the common database. The following configuration files are required (at McGill). These files can be placed in your home area. It is also possible to put these configurations in a system configuration directory so all users will have access to them automatically. System-wide configuration files at McGill are \texttt{/etc/odbc.ini} and \texttt{/etc/freetds/freetds.conf}.
+
+Be sure to increase the \texttt{text size} in \texttt{freetds.conf}. It is the maximum size for binary files that can be transfered. The value below ($\sim$ 16 MB) should be sufficient for the pipeline.
 
 \paragraph{\texttt{.obdc.ini}}
 \begin{verbatim}
