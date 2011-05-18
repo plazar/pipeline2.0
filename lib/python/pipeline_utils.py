@@ -10,6 +10,8 @@ import sys
 import subprocess
 import types
 
+DEBUG=False
+
 class PipelineError(Exception):
     """A generic exception to be thrown by the pipeline.
     """

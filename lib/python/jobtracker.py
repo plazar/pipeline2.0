@@ -2,6 +2,7 @@ import sqlite3
 import time
 import datetime
 import types
+import pipeline_utils
 
 import config.background
 
@@ -39,6 +40,8 @@ def query(queries, fetchone=False):
             db_conn.row_factory = sqlite3.Row
             db_cur = db_conn.cursor()
             for q in queries:
+                if pipeline_utils.DEBUG:
+                    print q
                 db_cur.execute(q)
             db_conn.commit()
             if db_cur.lastrowid:
@@ -58,6 +61,8 @@ def query(queries, fetchone=False):
                 # Connection wasn't established, 'db_conn' is not defined.
                 pass
             if (count % 60) == 0:
+                if count > 1:
+                    raise
                 print "Couldn't connect to DB for %d seconds. Will continue trying. " \
                         "Error message: %s" % (count, str(e))
             time.sleep(1)
