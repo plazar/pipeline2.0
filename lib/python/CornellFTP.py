@@ -77,7 +77,6 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             cout.outs("CornellFTP - Finished upload of: %s" % \
                         os.path.split(local_path)[-1])
         finally:
-            print "closing file"
             f.close()
         
         # Check the size of the uploaded file
