@@ -150,7 +150,9 @@ def make_request():
         web services at Cornell.
     """
     dlm_cout.outs("Requesting data")
-    num_beams = 1
+    num_beams = get_num_to_request()
+    dlm_cout.outs("Issuing a request of size %d" % num_beams)
+
     web_service = CornellWebservice.Client()
     guid = web_service.Restore(username=config.download.api_username, \
                                pw=config.download.api_password, \
@@ -326,10 +328,11 @@ def start_downloads():
                                 "status, " \
                                 "details, " \
                                 "updated_at, " \
+                                "created_at, " \
                                 "file_id) " \
-                           "VALUES ('%s', '%s', '%s', %d)" % \
+                           "VALUES ('%s', '%s', '%s', '%s', %d)" % \
                            ('downloading', 'Initiated download', jobtracker.nowstr(), \
-                                file['id']))
+                                jobtracker.nowstr(), file['id']))
             insert_id = jobtracker.query(queries)
             attempt = jobtracker.query("SELECT * FROM download_attempts " \
                                        "WHERE id=%d" % insert_id, \
@@ -339,6 +342,60 @@ def start_downloads():
             DownloadThread(attempt).start()
         else:
             break
+
+
+def get_num_to_request():
+    """Return the number of files to request given the average
+        time to download a file (including waiting time) and
+        the amount of space available.
+
+        Inputs:
+            None
+
+        Outputs:
+            num_to_request: The size of the request.
+    """
+    ALLOWABLE_REQUEST_SIZES = [1,2,5,10,100,200]
+    avgrate = jobtracker.query("SELECT AVG(size/(JULIANDAY(updated_at) - " \
+                                            "JULIANDAY(created_at))) " \
+                               "FROM files WHERE status='downloaded'", \
+                               fetchone=True)[0]
+    avgsize = jobtracker.query("SELECT AVG(size/numrequested) FROM requests " \
+                               "WHERE numbits=%d AND " \
+                                    "file_type='%s'" % \
+                                (config.download.request_numbits, \
+                                    config.download.request_datatype.lower()), \
+                                fetchone=True)[0]
+  
+    print "DEBUG: avgrate:", avgrate
+    print "DEBUG: avgsize:", avgsize
+
+    if avgrate is None or avgsize is None:
+        return min(ALLOWABLE_REQUEST_SIZES)
+
+    # Total number requested that can be downloaded per day (on average).
+    max_to_request_per_day = avgrate/avgsize
+    
+    used = get_space_used()
+    avail = get_space_available()
+    reserved = get_space_committed()
+    
+    print "DEBUG: used:", used
+    print "DEBUG: avail:", avail
+    print "DEBUG: reserved:", reserved
+    
+    # Maximum number of bytes that we should request
+    max_bytes = min([avail-reserved-config.download.min_free_space, \
+                        config.download.space_to_use-reserved-used])
+    # Maximum number to request
+    max_num = max_bytes/avgsize
+
+    ideal_num_to_request = min([max_num, max_to_request_per_day])
+    # Return the closest allowable request size without exceeding
+    # 'ideal_num_to_request'
+    num_to_request = max([N for N in ALLOWABLE_REQUEST_SIZES \
+                            if N <= ideal_num_to_request])
+    return num_to_request
 
 
 def can_download():
