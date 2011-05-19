@@ -76,13 +76,13 @@ class Header(upload.Uploadable):
             "@obsType='%s'" % self.obstype
         return sprocstr
 
-    def compare_with_db(self, dbname='common'):
+    def compare_with_db(self, dbname='default'):
         """Grab corresponding header from DB and compare values.
             Return True if all values match. Return False otherwise.
 
             Input:
                 dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'common').
+                        connection to use (Defaut: 'default').
             Outputs:
                 match: Boolean. True if all values match, False otherwise.
         """
@@ -192,7 +192,7 @@ class HeaderError(Exception):
     pass
 
 
-def check_header(fns, beamnum=None, dbname='common'):
+def check_header(fns, beamnum=None, dbname='default'):
     """Check header in commonDB.
 
         Inputs:
@@ -200,7 +200,7 @@ def check_header(fns, beamnum=None, dbname='common'):
             beamnum: ALFA beam number (an integer between 0 and 7).
                         This is only required for multiplexed WAPP data files.
             dbname: Name of database to connect to, or a database
-                    connection to use (Defaut: 'common').
+                    connection to use (Defaut: 'default').
         Output:
             match: Boolean value. True if header matches what is in
                     the common DB, False otherwise.

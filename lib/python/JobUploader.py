@@ -81,7 +81,7 @@ def upload_results(job_submit):
     print "\tJob ID: %d, Job submission ID: %d" % \
             (job_submit['job_id'], job_submit['id'])
     try:
-        db = database.Database('common', autocommit=False)
+        db = database.Database('default', autocommit=False)
         # Prepare for upload
         dir = job_submit['output_dir']
         fitsfiles = get_fitsfiles(job_submit)

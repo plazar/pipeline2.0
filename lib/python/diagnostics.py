@@ -64,13 +64,13 @@ class FloatDiagnostic(Diagnostic):
             "@obsType='%s'" % self.obstype.lower()
         return sprocstr
 
-    def compare_with_db(self, dbname='common'):
+    def compare_with_db(self, dbname='default'):
         """Grab corresponding diagnostic from DB and compare values.
             Return True if all values match. Return False otherwise.
             
             Input:
                 dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'common').
+                        connection to use (Defaut: 'default').
             Output:
                 match: Boolean. True if all values match, False otherwise.
         """
@@ -172,13 +172,13 @@ class PlotDiagnostic(Diagnostic):
             "@obsType='%s'" % self.obstype
         return sprocstr
 
-    def compare_with_db(self, dbname='common'):
+    def compare_with_db(self, dbname='default'):
         """Grab corresponding diagnostic plot from DB and compare values.
             Return True if all values match. Return False otherwise.
             
             Input:
                 dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'common').
+                        connection to use (Defaut: 'default').
             Output:
                 match: Boolean. True if all values match, False otherwise.
         """
@@ -510,7 +510,7 @@ class DiagnosticError(Exception):
     pass
 
 
-def check_diagnostics(obsname, beamnum, obstype, versionnum, directory, dbname='common'):
+def check_diagnostics(obsname, beamnum, obstype, versionnum, directory, dbname='default'):
     """Check diagnostics in common DB.
         
         Inputs:
@@ -522,7 +522,7 @@ def check_diagnostics(obsname, beamnum, obstype, versionnum, directory, dbname='
                         PRESTO and from the pipeline. 
             directory: The directory containing results from the pipeline.
             dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'common').
+                        connection to use (Defaut: 'default').
         Output:
             match: Boolean value. True if all diagnostics match what
                     is in the DB, False otherwise.

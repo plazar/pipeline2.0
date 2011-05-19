@@ -30,12 +30,12 @@ class Uploadable(object):
         raise NotImplementedError("get_upload_sproc_call() should be defined by a " \
                                   "subclass of Uploadable.")
     
-    def upload(self, dbname='common'):
+    def upload(self, dbname='default'):
         """Upload an Uploadable to the desired database.
             
             Input:
                 dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'common').
+                        connection to use (Defaut: 'default').
         """
         if isinstance(dbname, database.Database):
             db = dbname
