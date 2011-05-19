@@ -393,7 +393,7 @@ def get_num_to_request():
     ideal_num_to_request = min([max_num, max_to_request_per_day])
     # Return the closest allowable request size without exceeding
     # 'ideal_num_to_request'
-    num_to_request = max([N for N in ALLOWABLE_REQUEST_SIZES \
+    num_to_request = max([1]+[N for N in ALLOWABLE_REQUEST_SIZES \
                             if N <= ideal_num_to_request])
     return num_to_request
 
