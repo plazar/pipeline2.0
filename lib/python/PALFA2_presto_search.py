@@ -216,7 +216,8 @@ def get_folding_command(cand, obs):
     # Set npart to the number of rows in the PSRFITS file.
     if npart > obs.numrows:
         npart = obs.numrows
-    return "prepfold -noxwin -accelcand %d -accelfile %s.cand -dm %.2f -o %s -npart %d %s -n %d -npfact %d -ndmfact %d %s %s" % \
+    return "prepfold -noxwin -accelcand %d -accelfile %s.cand -dm %.2f -o %s " \
+                "-nsub 96 -npart %d %s -n %d -npfact %d -ndmfact %d %s %s" % \
            (cand.candnum, cand.filename, cand.DM, outfilenm,
             npart, otheropts, N, Mp, Mdm, mask, foldfiles)
 
