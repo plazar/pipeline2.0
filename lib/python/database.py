@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 import sys
 import warnings
-import prettytable
+import traceback
+import cmd
 
+import prettytable
 import pyodbc
 
 import config.commondb
@@ -157,14 +159,53 @@ class DatabaseConnectionError(Exception):
     pass
 
 
+class InteractiveDatabasePrompt(cmd.Cmd):
+    def __init__(self, dbname='default', *args, **kwargs):
+        cmd.Cmd.__init__(self, *args, **kwargs)
+        self.open_db_conn(dbname)    
+        self.intro = "Connected to %s" % self.dbname
+        
+    def do_switch(self, dbname):
+        self.close_db_conn()
+        self.open_db_conn(dbname)
+        print "Switched to %s" % self.dbname
+       
+    def complete_switch(self, text, line, begidx, endidx):
+        return [k for k in DATABASES.keys() if k.startswith(text)]
+
+    def open_db_conn(self, dbname):
+        if dbname == 'default':
+            self.dbname = DEFAULTDB
+        else:
+            self.dbname = dbname
+        self.db = Database(self.dbname)
+        self.prompt = "%s > " % self.dbname
+
+    def close_db_conn(self):
+        self.db.close()
+
+    def default(self, query):
+        try:
+            self.db.execute(query)
+            self.db.showall()
+        except pyodbc.ProgrammingError:
+            traceback.print_exc()
+
+    def do_exit(self, line):
+        return True
+
+    def postloop(self):
+        print "Closing DB connection..."
+        self.close_db_conn()
+
+    def do_EOF(self, line):
+        print ""
+        return True
+
 if __name__=='__main__':
-    if len(sys.argv) > 1:
-        print "Connecting to", sys.argv[1]
-        db = Database(sys.argv[1])
-    else:
-        print "Connecting to", DEFAULTDB
-        db = Database()
-    print "Connected!"
-    print "conn:", db.conn
-    print "cursor:", db.cursor
-    db.close()
+    dbprompt = InteractiveDatabasePrompt(*sys.argv[1:2])
+    try:
+        dbprompt.cmdloop()
+    except:
+        print "\nUnexpected exception occurred!"
+        dbprompt.postloop()
