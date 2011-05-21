@@ -121,9 +121,19 @@ def upload_results(job_submit):
                                  "do not match values uploaded.")
         else:
             print "\tDiagnostics uploaded and checked."
+        
+        sp_candidates.upload_spcandidates(header_id, version_number, \
+                                            dir, dbname=db)
+        if not sp_candidates.check_spcandidates(header_id, version_number, \
+                                            dir, dbname=db):
+            raise AssertionError("Single pulse candidates in common DB " \
+                                 "do not match values on disk.")
+        else:
+            print "\tSingle pulse info uploaded and checked."
     except (header.HeaderError, \
             candidates.PeriodicityCandidateError, \
-            diagnostics.DiagnosticError):
+            diagnostics.DiagnosticError, \
+            sp_candidates.SinglePulseCandidateError):
         # Parsing error caught. Job attempt has failed!
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
         errormsg  = "Error while checking results!\n"
