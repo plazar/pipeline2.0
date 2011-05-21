@@ -464,9 +464,11 @@ if __name__ == '__main__':
                         help="Header ID of this beam from the common DB.")
     parser.add_option('--versionnum', dest='versionnum', \
                         help="Version number is a combination of the PRESTO " \
-                             "repository's git hash and the Pipeline2.0 " \
-                             "repository's git has in the following format " \
-                             "PRESTO:prestohash;pipeline:prestohash")
+                             "repository's git hash, the Pipeline2.0 " \
+                             "repository's git hash, and the psrfits_utils " \
+                             "repository's git hash. It has the following format " \
+                             "PRESTO:githash;pipeline:githash;" \
+                             "psrfits_utils:githash")
     parser.add_option('-d', '--directory', dest='directory',
                         help="Directory containing results from processing. " \
                              "Diagnostic information will be derived from the " \
