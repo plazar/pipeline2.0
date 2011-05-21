@@ -67,12 +67,13 @@ def can_request_more():
         can_request: A boolean value. True if Downloader can make a request.
                         False otherwise.
     """
-    active_requests = jobtracker.query("SELECT * FROM requests " \
-                                       "WHERE status='waiting'")
+    # Note: Files are restored in pairs (so we multiply by 2)
+    active_requests = jobtracker.query("SELECT SUM(numrequested)*2 FROM requests " \
+                                       "WHERE status='waiting'", fetchone=True)[0]
     to_download = jobtracker.query("SELECT * FROM files " \
                                    "WHERE status NOT IN ('downloaded', " \
                                                         "'terminal_failure')")
-    num_to_restore = len(active_requests)*2 # Files are restored in pairs
+    num_to_restore = active_requests
     num_to_download = len(to_download)
     used = get_space_used()
     avail = get_space_available()
@@ -367,9 +368,6 @@ def get_num_to_request():
                                     config.download.request_datatype.lower()), \
                                 fetchone=True)[0]
   
-    print "DEBUG: avgrate:", avgrate
-    print "DEBUG: avgsize:", avgsize
-
     if avgrate is None or avgsize is None:
         return min(ALLOWABLE_REQUEST_SIZES)
 
@@ -379,10 +377,6 @@ def get_num_to_request():
     used = get_space_used()
     avail = get_space_available()
     reserved = get_space_committed()
-    
-    print "DEBUG: used:", used
-    print "DEBUG: avail:", avail
-    print "DEBUG: reserved:", reserved
     
     # Maximum number of bytes that we should request
     max_bytes = min([avail-reserved-config.download.min_free_space, \
