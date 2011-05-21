@@ -7,6 +7,7 @@ import datafile
 
 import header
 import candidates
+import sp_candidates
 import diagnostics
 import jobtracker
 import database
