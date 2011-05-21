@@ -275,13 +275,7 @@ def upload_header(fns, beamnum=None, verbose=False, dry_run=False, \
 
 def main():
     try:
-        # upload_header(args, options.beamnum, options.verbose, options.dry_run)
-
-        ###### Test comparison with DB
-        header = Header(args)
-        print header.compare_with_db()
-        ######
-
+        upload_header(args, options.beamnum, options.verbose, options.dry_run)
     except upload.UploadError, e:
         traceback.print_exception(*sys.exc_info())
         sys.stderr.write("\nOriginal exception thrown:\n")
