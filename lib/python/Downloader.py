@@ -68,7 +68,8 @@ def can_request_more():
                         False otherwise.
     """
     # Note: Files are restored in pairs (so we multiply by 2)
-    active_requests = jobtracker.query("SELECT SUM(numrequested)*2 FROM requests " \
+    active_requests = jobtracker.query("SELECT IFNULL(SUM(numrequested)*2, 0) " \
+                                       "FROM requests " \
                                        "WHERE status='waiting'", fetchone=True)[0]
     to_download = jobtracker.query("SELECT * FROM files " \
                                    "WHERE status NOT IN ('downloaded', " \
