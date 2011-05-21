@@ -31,7 +31,8 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             cout.outs("CornellFTP - Connected and logged in")
 
     def __del__(self):
-        self.quit()
+        if self.sock is not None:
+            self.quit()
 
     def list_files(self, ftp_path):
         return self.nlst(ftp_path)
