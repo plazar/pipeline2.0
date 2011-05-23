@@ -271,9 +271,17 @@ def check_candidates(header_id, versionnum, directory, dbname='default'):
 
     # Get list of candidates from *.accelcands file
     candlist = accelcands.parse_candlist(candlists[0])
-    minsigma = config.searching.to_prepfold_sigma
-    foldedcands = [c for c in candlist if c.sigma > minsigma]
-    foldedcands = foldedcands[:config.searching.max_cands_to_fold]
+    # find the search_params.txt file
+    paramfn = os.path.join(directory, 'search_params.txt')
+    if os.path.exists(paramfn):
+        tmp, params = {}, {}
+        execfile(paramfn, tmp, params)
+    else:
+        raise PeriodicityCandidateError("Search parameter file doesn't exist!")
+    minsigma = params['to_prepfold_sigma']
+    foldedcands = [c for c in candlist \
+                    if c.sigma > params['to_prepfold_sigma']]
+    foldedcands = foldedcands[:params['max_cands_to_fold']]
     foldedcands.sort(reverse=True) # Sort by descending sigma
     
     # Create temporary directory
@@ -380,9 +388,17 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
 
     # Get list of candidates from *.accelcands file
     candlist = accelcands.parse_candlist(candlists[0])
-    minsigma = config.searching.to_prepfold_sigma
-    foldedcands = [c for c in candlist if c.sigma > minsigma]
-    foldedcands = foldedcands[:config.searching.max_cands_to_fold]
+    # find the search_params.txt file
+    paramfn = os.path.join(directory, 'search_params.txt')
+    if os.path.exists(paramfn):
+        tmp, params = {}, {}
+        execfile(paramfn, tmp, params)
+    else:
+        raise PeriodicityCandidateError("Search parameter file doesn't exist!")
+    minsigma = params['to_prepfold_sigma']
+    foldedcands = [c for c in candlist \
+                    if c.sigma > params['to_prepfold_sigma']]
+    foldedcands = foldedcands[:params['max_cands_to_fold']]
     foldedcands.sort(reverse=True) # Sort by descending sigma
     
     # Create temporary directory
