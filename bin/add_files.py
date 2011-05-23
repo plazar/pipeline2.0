@@ -11,8 +11,11 @@ import os
 import datetime
 import optparse
 import glob
+import types
 
 import jobtracker
+import datafile
+import pipeline_utils
 
 def create_download(file_path):
     filename = os.path.basename(file_path)
@@ -47,7 +50,7 @@ def check_file(fn):
     if os.path.exists(fn) and os.access(fn, os.R_OK):
         try:
             datafile_type = datafile.get_datafile_type([fn])
-        except DataFileError, e:
+        except datafile.DataFileError, e:
             print "Unrecognized data file type: %s" % fn
             return False
         parsedfn = datafile_type.fnmatch(fn)
@@ -56,7 +59,7 @@ def check_file(fn):
             return False
         # Check if file is already in the job-tracker DB
         files = jobtracker.query("SELECT * FROM files " \
-                                 "WHERE filename GLOB *%s" % fn)
+                                 "WHERE filename LIKE '%%%s'" % os.path.split(fn)[-1])
         if len(files):
             print "File is already being tracked: %s" % fn
             return False
@@ -70,7 +73,7 @@ def usage():
 
 def main():
     files = args # Leftover arguments on command line
-    for g in options.globs:
+    for g in options.fileglobs:
         files += glob.glob(g)
     
     for fn in files:
@@ -91,5 +94,9 @@ if __name__ == "__main__":
                         help="A (properly quoted) glob expression indentifying " \
                              "files to add to the job-tracker DB.", \
                         default=[])
+    parser.add_option('-d', '--debug', dest='debug', action='store_true', \
+                        help="Set the pipeline to print debugging info.", \
+                        default=False)
     options, args = parser.parse_args()
+    pipeline_utils.DEBUG = options.debug
     main()
