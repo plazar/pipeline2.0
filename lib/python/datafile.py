@@ -496,7 +496,7 @@ class MockPsrfitsData(PsrfitsData):
         
         # Merge mock subbands
         mergecmd = "combine_mocks %s -o %s" % (infiles, outbasenm)
-        pipeline_utils.execute(mergecmd, stdout=outbasenm+".out")
+        pipeline_utils.execute(mergecmd, stdout=outbasenm+"_merge.out")
 
         # Remove first 7 rows from file
         rowdelcmd = "fitsdelrow %s[SUBINT] 1 7" % outfile

@@ -719,7 +719,8 @@ def clean_up(job):
     
     # Copy all the important stuff to the output directory
     resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", "*.png", \
-                    "*.zaplist", "search_params.txt", "*.accelcands"]
+                    "*.zaplist", "search_params.txt", "*.accelcands", \
+                    "*_merge.out"]
     for resultglob in resultglobs:
             for file in glob.glob(resultglob):
                 shutil.move(file, job.outputdir)
