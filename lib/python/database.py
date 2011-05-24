@@ -199,7 +199,7 @@ class InteractiveDatabasePrompt(cmd.Cmd):
         self.close_db_conn()
 
     def do_EOF(self, line):
-        print ""
+        print "exit"
         return True
 
 if __name__=='__main__':
