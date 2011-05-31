@@ -11,8 +11,9 @@ import config.download
 class PipelineStatsFigure(matplotlib.figure.Figure):
     def __init__(self, *args, **kwargs):
         super(PipelineStatsFigure, self).__init__(*args, **kwargs)
-        create_times, upload_times, fail_times, bytes, times = get_data()
-        self.jobax = self.add_subplot(2,1,1)
+        create_times, upload_times, fail_times, bytes, times, \
+            restore_times, restore_sizes = get_data()
+        self.jobax = self.add_subplot(3,1,1)
         self.jobax.totline = self.jobax.plot(create_times, \
                     np.arange(1, len(create_times)+1), 'k-', \
                     lw=2, label="Total")[0]
@@ -22,12 +23,20 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
         self.jobax.failline = self.jobax.plot(fail_times, \
                     np.arange(1, len(fail_times)+1), 'r-', \
                     label="Failed")[0]
-        self.jobax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M')
         self.jobax.legend(loc="best", prop=dict(size='x-small'))
         self.jobax.set_ylabel("Number of Jobs", size='small')
         plt.setp(self.jobax.get_yticklabels(), size='x-small')
 
-        self.diskax = self.add_subplot(2,1,2, sharex=self.jobax)
+        self.restoreax = self.add_subplot(3,1,2, sharex=self.jobax)
+        self.restoreax.line = self.restoreax.plot(restore_times, \
+                    restore_sizes, 'bo', label="restores", alpha=0.5)[0]
+        self.restoreax.set_ylabel("Restore size", size='small')
+        self.restoreax.set_yscale("log")
+        self.restoreax.set_ylim(0.5, 300)
+        fmt = matplotlib.ticker.LogFormatter()
+        self.restoreax.yaxis.set_major_formatter(fmt)
+
+        self.diskax = self.add_subplot(3,1,3, sharex=self.jobax)
         self.diskax.diskline = self.diskax.plot(times, bytes/1024.0**3, 'k-')[0]
         self.diskax.axhline(config.download.space_to_use/1024.0**3, c='k', ls=':')
         self.diskax.set_xlabel("Date", size='small')
@@ -36,6 +45,7 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
         plt.setp(self.diskax.get_xticklabels(), size='x-small')
         plt.setp(self.diskax.get_yticklabels(), size='x-small')
 
+        self.jobax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M')
         self.autofmt_xdate()
         loc = matplotlib.dates.AutoDateLocator(minticks=4)
         fmt = matplotlib.dates.AutoDateFormatter(loc)
@@ -53,7 +63,8 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
         plt.close(self)
 
     def update(self):
-        create_times, upload_times, fail_times, bytes, times = get_data()
+        create_times, upload_times, fail_times, bytes, times, \
+            restore_times, restore_sizes = get_data()
         self.jobax.totline.set_xdata(create_times)
         self.jobax.totline.set_ydata(np.arange(1, len(create_times)+1))
         self.jobax.upline.set_xdata(upload_times)
@@ -61,6 +72,10 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
         self.jobax.failline.set_xdata(fail_times)
         self.jobax.failline.set_ydata(np.arange(1, len(fail_times)+1))
         self.jobax.relim()
+
+        self.restoreax.line.set_xdata(restore_times)
+        self.restoreax.line.set_ydata(restore_sizes)
+        self.restoreax.relim()
 
         self.diskax.diskline.set_xdata(times)
         self.diskax.diskline.set_ydata(bytes/1024.0**3)
@@ -79,6 +94,9 @@ def get_data():
 
     fail_times = jobtracker.query("SELECT DATETIME(updated_at) FROM jobs " \
                                         "WHERE status='terminal_failure'")
+
+    restore_times = jobtracker.query("SELECT DATETIME(created_at) FROM requests")
+    restore_sizes = jobtracker.query("SELECT numrequested FROM requests")
 
     bytes_downloaded = jobtracker.query("SELECT size, DATETIME(updated_at) " \
                                         "FROM files " \
@@ -104,6 +122,9 @@ def get_data():
     upload_times = np.asarray(sorted([mkdatetime(row[0]) for row in upload_times]))
     fail_times = np.asarray(sorted([mkdatetime(row[0]) for row in fail_times]))
 
+    restore_times = np.asarray([mkdatetime(row[0]) for row in restore_times])
+    restore_sizes = np.asarray([row[0] for row in restore_sizes])
+
     bytes_times = bytes_downloaded + bytes_deleted_pass + bytes_deleted_fail
     bytes = np.asarray([row[0] for row in bytes_times])
     times = np.asarray([mkdatetime(row[1]) for row in bytes_times])
@@ -111,7 +132,8 @@ def get_data():
     times = times[isort]
     bytes = np.cumsum(bytes[isort])
 
-    return create_times, upload_times, fail_times, bytes, times
+    return create_times, upload_times, fail_times, bytes, times, \
+            restore_times, restore_sizes
 
 
 def main():
