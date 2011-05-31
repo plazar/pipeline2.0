@@ -151,9 +151,11 @@ def make_request():
     """Make a request for data to be restored by connecting to the
         web services at Cornell.
     """
-    dlm_cout.outs("Requesting data")
     num_beams = get_num_to_request()
-    dlm_cout.outs("Issuing a request of size %d" % num_beams)
+    if not num_beams:
+        # Request size is 0
+        return
+    dlm_cout.outs("Requesting data\nIssuing a request of size %d" % num_beams)
 
     web_service = CornellWebservice.Client()
     guid = web_service.Restore(username=config.download.api_username, \
@@ -357,7 +359,7 @@ def get_num_to_request():
         Outputs:
             num_to_request: The size of the request.
     """
-    ALLOWABLE_REQUEST_SIZES = [1,2,5,10,100,200]
+    ALLOWABLE_REQUEST_SIZES = [5,10,100,200]
     avgrate = jobtracker.query("SELECT AVG(size/(JULIANDAY(updated_at) - " \
                                             "JULIANDAY(created_at))) " \
                                "FROM files WHERE status='downloaded'", \
@@ -388,7 +390,7 @@ def get_num_to_request():
     ideal_num_to_request = min([max_num, max_to_request_per_day])
     # Return the closest allowable request size without exceeding
     # 'ideal_num_to_request'
-    num_to_request = max([1]+[N for N in ALLOWABLE_REQUEST_SIZES \
+    num_to_request = max([0]+[N for N in ALLOWABLE_REQUEST_SIZES \
                             if N <= ideal_num_to_request])
     return num_to_request
 
