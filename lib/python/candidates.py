@@ -17,9 +17,11 @@ import shutil
 import types
 import binascii
 
-import database
 import psr_utils
 import prepfold
+
+import database
+import pipeline_utils
 import upload
 from formats import accelcands
 
@@ -241,7 +243,7 @@ class PeriodicityCandidatePFD(PeriodicityCandidatePlot):
     plot_type = "pfd binary"
 
 
-class PeriodicityCandidateError(Exception):
+class PeriodicityCandidateError(pipeline_utils.PipelineError):
     """Error to throw when a candidate-specific problem is encountered.
     """
     pass

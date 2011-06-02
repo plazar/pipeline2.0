@@ -16,6 +16,7 @@ import sys
 import CornellFTP
 import database
 import upload
+import pipeline_utils
 
 import config.basic
 
@@ -233,7 +234,7 @@ class SinglePulseBeamPlotDMs300AndUp(SinglePulseBeamPlot):
     sp_plot_type = "PRESTO singlepulse per-beam plot (DMs 300 and up)"
 
 
-class SinglePulseCandidateError(Exception):
+class SinglePulseCandidateError(pipeline_utils.PipelineError):
     """Error to throw when a single pulse candidate-specific problem is encountered.
     """
     pass

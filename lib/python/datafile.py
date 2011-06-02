@@ -577,7 +577,7 @@ class MergedMockPsrfitsData(PsrfitsData):
         return complete
 
 
-class DataFileError(Exception):
+class DataFileError(pipeline_utils.PipelineError):
     pass
 
 

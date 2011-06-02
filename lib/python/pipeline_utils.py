@@ -9,13 +9,27 @@ import os.path
 import sys
 import subprocess
 import types
+import traceback
 
 DEBUG=False
 
 class PipelineError(Exception):
     """A generic exception to be thrown by the pipeline.
     """
-    pass
+    def __init__(self, *args, **kwargs):
+        super(PipelineError, self).__init__(*args, **kwargs)
+        exctype, excval, exctb = sys.exc_info()
+        if (exctype is not None) and (excval is not None) and \
+                (exctb is not None):
+            self.orig_exc_info = exctype, excval, exctb
+
+    def __str__(self):
+        msg = super(PipelineError, self).__str__()
+        if 'orig_exc_info' in self.__dict__.keys():
+            msg += "\n\n========== Original Traceback ==========\n"
+            msg += "".join(traceback.format_exception(*self.orig_exc_info))
+            msg += "\n(See PipelineError traceback above)\n"
+        return msg
 
 
 def get_fns_for_jobid(jobid):

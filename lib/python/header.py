@@ -17,6 +17,7 @@ import optparse
 import upload
 import datafile
 import database
+import pipeline_utils
 
 # Raise warnings produced by invalid coord strings as exceptions
 warnings.filterwarnings("error", message="Input is not a valid sexigesimal string: .*")
@@ -186,7 +187,7 @@ class Header(upload.Uploadable):
         return match
 
 
-class HeaderError(Exception):
+class HeaderError(pipeline_utils.PipelineError):
     """Error to throw when a header-specific problem is encountered.
     """
     pass

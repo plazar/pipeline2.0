@@ -8,6 +8,7 @@ import atexit
 import warnings
 
 import database
+import pipeline_utils
 
 
 # A global dictionary to keep track of database connections
@@ -61,7 +62,7 @@ class Uploadable(object):
         return s.replace('@', '\n    @')
  
 
-class UploadError(Exception):
+class UploadError(pipeline_utils.PipelineError):
     """An error to do with uploading to the PALFA common DB.
         In most instances, this error will wrap an error thrown
         by pyodbc.

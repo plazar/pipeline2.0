@@ -2,6 +2,8 @@ import os
 import os.path
 
 import M2Crypto
+
+import pipeline_utils
 import mailer
 import OutStream
 import config.basic
@@ -98,5 +100,5 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
                                     (local_size, ftp_size))
 
 
-class CornellFTPError(Exception):
+class CornellFTPError(pipeline_utils.PipelineError):
     pass

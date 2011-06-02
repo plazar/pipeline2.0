@@ -16,6 +16,7 @@ import binascii
 
 import database
 import upload
+import pipeline_utils
 from formats import accelcands
 import config.basic
 
@@ -503,7 +504,7 @@ def find_in_tarballs(dir, matchfunc):
     raise DiagnosticError("Could not find matching file!")
 
 
-class DiagnosticError(Exception):
+class DiagnosticError(pipeline_utils.PipelineError):
     """Error to throw when a diagnostic-specific problem 
         is encountered.
     """

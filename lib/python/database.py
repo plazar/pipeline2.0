@@ -7,6 +7,7 @@ import cmd
 import prettytable
 import pyodbc
 
+import pipeline_utils
 import config.commondb
 
 # Connecting from Linux
@@ -155,7 +156,7 @@ class Database:
         return candidate["filename"]    
 
 
-class DatabaseConnectionError(Exception):
+class DatabaseConnectionError(pipeline_utils.PipelineError):
     pass
 
 
