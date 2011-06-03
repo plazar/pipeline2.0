@@ -30,6 +30,31 @@ class Header(upload.Uploadable):
             self.data = datafns
         else:
             self.data = datafile.autogen_dataobj(datafns, *args, **kwargs)
+        
+        # List of dependents (ie other uploadables that require 
+        # the header_id from this header)
+        self.dependents = []
+
+    def add_dependent(self, dep):
+        self.dependents.append(dep)
+    
+    def upload(self, dbname, *args, **kwargs):
+        """An extension to the inherited 'upload' method.
+            This method will make sure any dependents have
+            the header_id and then upload them.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+        """
+        header_id = super(Header, self).upload(dbname=dbname, *args, **kwargs)[0]
+        if not self.compare_with_db(dbname=dbname):
+            raise HeaderError("Header doesn't " \
+                    "match what was uploaded to DB!")
+        for dep in self.dependents:
+            dep.header_id = header_id
+            dep.upload(dbname=dbname, *args, **kwargs)
+        return header_id
 
     def __getattr__(self, key):
         # Allow Header object to return Data object's attributes
@@ -193,18 +218,16 @@ class HeaderError(pipeline_utils.PipelineError):
     pass
 
 
-def check_header(fns, beamnum=None, dbname='default'):
-    """Check header in commonDB.
+def get_header(fns, beamnum=None):
+    """Get header.
 
         Inputs:
             fns: list of filenames (include paths) of data to parse.
             beamnum: ALFA beam number (an integer between 0 and 7).
                         This is only required for multiplexed WAPP data files.
-            dbname: Name of database to connect to, or a database
-                    connection to use (Defaut: 'default').
+
         Output:
-            match: Boolean value. True if header matches what is in
-                    the common DB, False otherwise.
+            header: The header object.
     """
     if beamnum is not None:
         if not 0 <= beamnum <= 7:
@@ -220,68 +243,23 @@ def check_header(fns, beamnum=None, dbname='default'):
         except Exception:
             raise HeaderError("Couldn't create Header object for files (%s)!" % \
                                     fns) 
-    return header.compare_with_db(dbname)
-
-
-def upload_header(fns, beamnum=None, verbose=False, dry_run=False, \
-                    *args, **kwargs):
-    """Upload header to commonDB.
-
-        Inputs:
-            fns: list of filenames (include paths) of data to parse.
-            beamnum: ALFA beam number (an integer between 0 and 7).
-                        This is only required for multiplexed WAPP data files.
-            verbose: An optional boolean value that determines if information 
-                        is printed to stdout. (Default: don't print to stdout).
-            dry_run: An optional boolean value. If True no connection to DB
-                        will be made and DB command will not be executed.
-                        (If verbose is True DB command will be be printed 
-                        to stdout.)
-
-            *** NOTE: Additional arguments are passed to the uploader function.
-
-        Output:
-            header_id: The header ID corresponding to this beam's entry
-                        in the common DB. (Or None if dry_run is True).
-    """
-    if beamnum is not None:
-        if not 0 <= beamnum <= 7:
-            raise HeaderError("Beam number must be between 0 and 7, inclusive!")
-        try:
-            header = Header(fns, beamnum=beamnum)
-        except Exception:
-            raise HeaderError("Couldn't create Header object for files (%s)!" % \
-                                    fns) 
-    else:
-        try:
-            header = Header(fns)
-        except Exception:
-            raise HeaderError("Couldn't create Header object for files (%s)!" % \
-                                    fns) 
-    if dry_run:
-        header.get_upload_sproc_call()
-        if verbose:
-            print header
-        result = None
-    else:
-        result = header.upload(*args, **kwargs)[0]
-        if result < 0:
-            raise HeaderError("An error was encountered! " \
-                                "(Error code: %d)" % result)
-
-        if verbose:
-            print "Success! (Return value: %d)" % result
-    return result
+    return header
 
 
 def main():
+    db = database.Database('default', autocommit=False)
     try:
-        upload_header(args, options.beamnum, options.verbose, options.dry_run)
-    except upload.UploadError, e:
-        traceback.print_exception(*sys.exc_info())
-        sys.stderr.write("\nOriginal exception thrown:\n")
-        traceback.print_exception(*e.orig_exc)
-    
+        header = get_header(args, options.beamnum)
+        header.upload(db)
+    except:
+        print "Rolling back..."
+        db.rollback()
+        raise
+    else:
+        db.commit()
+    finally:
+        db.close()
+
 
 if __name__=='__main__':
     parser = optparse.OptionParser(usage="%prog [OPTIONS] file1 [file2 ...]")
@@ -290,15 +268,5 @@ if __name__=='__main__':
                              "data. Beam number must be between 0 and 7, " \
                              "inclusive.", \
                         default=None)
-    parser.add_option('--verbose', dest='verbose', action='store_true', \
-                        help="Print success/failure information to screen. " \
-                             "(Default: do not print).", \
-                        default=False)
-    parser.add_option('-n', '--dry-run', dest='dry_run', action='store_true', \
-                        help="Perform a dry run. Do everything but connect to " \
-                             "DB and upload header info. If --verbose " \
-                             "is set, DB commands will be displayed on stdout. " \
-                             "(Default: Connect to DB and execute commands).", \
-                        default=False)
     options, args = parser.parse_args()
     main()

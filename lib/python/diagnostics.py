@@ -43,6 +43,17 @@ class Diagnostic(upload.Uploadable):
         raise NotImplementedError("Method 'get_upload_sproc_call(...)' " \
                                     "is not implemented for %s." % self.__class__.__name__)
 
+    def upload(self, dbname='default', *args, **kwargs):
+        """An extension to the inherited 'upload' method.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+        """
+        super(Diagnostic, self).upload(dbname=dbname, *args, **kwargs)
+        if not self.compare_with_db(dbname=dbname):
+            raise DiagnosticError("Diagnostic (%s) doesn't match " \
+                    "what was upload to DB!" % self.name)
 
 class FloatDiagnostic(Diagnostic):
     """An abstract class to represent float-valued PALFA diagnostics.
@@ -511,8 +522,8 @@ class DiagnosticError(pipeline_utils.PipelineError):
     pass
 
 
-def check_diagnostics(obsname, beamnum, obstype, versionnum, directory, dbname='default'):
-    """Check diagnostics in common DB.
+def get_diagnostics(obsname, beamnum, obstype, versionnum, directory):
+    """Get diagnostic to common DB.
         
         Inputs:
             obsname: Observation name in the format:
@@ -522,65 +533,16 @@ def check_diagnostics(obsname, beamnum, obstype, versionnum, directory, dbname='
             versionnum: A combination of the githash values from 
                         PRESTO and from the pipeline. 
             directory: The directory containing results from the pipeline.
-            dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'default').
-        Output:
-            match: Boolean value. True if all diagnostics match what
-                    is in the DB, False otherwise.
-    """
-    if not 0 <= beamnum <= 7:
-        raise DiagnosticError("Beam number must be between 0 and 7, inclusive!")
-    
-    matches = []
-    # Loop over diagnostics, adding missing values to the DB
-    for diagnostic_type in DIAGNOSTIC_TYPES:
-        try:
-            d = diagnostic_type(obsname, beamnum, obstype, \
-                            versionnum, directory)
-        except Exception:
-            raise DiagnosticError("Could not create %s object for " \
-                                    "observation: %s (beam: %d)" % \
-                                    (diagnostic_type.__name__, obsname, beamnum))
-        matches.append(d.compare_with_db(dbname))
-        if not matches[-1]:
-            break
-    return all(matches)
-
-
-def upload_diagnostics(obsname, beamnum, obstype, versionnum, directory, \
-                        verbose=False, dry_run=False, *args, **kwargs):
-    """Upload diagnostic to common DB.
-        
-        Inputs:
-            obsname: Observation name in the format:
-                        {Project ID}.{Source name}.{MJD}.{Sequence number}
-            beamnum: ALFA beam number (an integer between 0 and 7).
-            obstype: Type of data (either 'wapp' or 'mock').
-            versionnum: A combination of the githash values from 
-                        PRESTO and from the pipeline. 
-            directory: The directory containing results from the pipeline.
-            verbose: An optional boolean value that determines if information 
-                        is printed to stdout.
-            dry_run: An optional boolean value. If True no connection to DB
-                        will be made and DB command will not be executed.
-                        (If verbose is True DB command will be printed 
-                        to stdout.)
-
-            *** NOTE: Additional arguments are passed to the uploader function.
 
         Outputs:
-            diagnostic_ids: List of diagnostic IDs corresponding to these 
-                        diagnostics in the common DB. (Or a list of None values 
-                        if dry_run is True).
+            diagnostics: List of diagnostic objects.
     """
     if not 0 <= beamnum <= 7:
         raise DiagnosticError("Beam number must be between 0 and 7, inclusive!")
     
-    results = []
+    diags = []
     # Loop over diagnostics, adding missing values to the DB
     for diagnostic_type in DIAGNOSTIC_TYPES:
-    	if verbose:
-        	print "Working on %s" % diagnostic_type.name
         try:
             d = diagnostic_type(obsname, beamnum, obstype, \
                             versionnum, directory)
@@ -588,21 +550,8 @@ def upload_diagnostics(obsname, beamnum, obstype, versionnum, directory, \
             raise DiagnosticError("Could not create %s object for " \
                                     "observation: %s (beam: %d)" % \
                                     (diagnostic_type.__name__, obsname, beamnum))
-        if dry_run:
-            d.get_upload_sproc_call()
-            if verbose:
-                print d
-            results.append(None)
-        else:
-            result = d.upload(*args, **kwargs)[0]
-            if result < 0:
-                raise DiagnosticError("An error was encountered! " \
-                                        "(Error code: %d)" % result)
-            if verbose:
-                print "\tSuccess! (Return value: %d)" % result
-            
-            results.append(result)
-    return results
+        diags.append(d)
+    return diags
 
 # Define a list of diagnostics to apply
 DIAGNOSTIC_TYPES = [RFIPercentageDiagnostic,
@@ -620,14 +569,20 @@ DIAGNOSTIC_TYPES = [RFIPercentageDiagnostic,
 
 
 def main():
+    db = database.Database('default', autocommit=False)
     try:
-        upload_diagnostics(options.obsname, options.beamnum, \
-                            options.versionnum, options.directory, \
-                            options.verbose, options.dry_run)
-    except upload.UploadError, e:
-        traceback.print_exception(*sys.exc_info())
-        sys.stderr.write("\nOriginal exception thrown:\n")
-        traceback.print_exception(*e.orig_exc)
+        diags = get_diagnostics(options.obsname, options.beamnum, \
+                                options.versionnum, options.directory)
+        for d in diags:
+            d.upload(db)
+    except:
+        print "Rolling back..."
+        db.rollback()
+        raise
+    else:
+        db.commit()
+    finally:
+        db.close()
 
 
 if __name__ == '__main__':
@@ -650,15 +605,5 @@ if __name__ == '__main__':
                         help="Directory containing results from processing. " \
                              "Diagnostic information will be derived from the " \
                              "contents of this directory.")
-    parser.add_option('--verbose', dest='verbose', action='store_true', \
-                        help="Print success/failure information to screen. " \
-                             "(Default: do not print).", \
-                        default=False)
-    parser.add_option('-n', '--dry-run', dest='dry_run', action='store_true', \
-                        help="Perform a dry run. Do everything but connect to " \
-                             "DB and upload diagnostics info. If --verbose " \
-                             "is set, DB commands will be displayed on stdout. " \
-                             "(Default: Connect to DB and execute commands).", \
-                        default=False)
     options, args = parser.parse_args()
     main()

@@ -82,55 +82,39 @@ def upload_results(job_submit):
     print "\tJob ID: %d, Job submission ID: %d" % \
             (job_submit['job_id'], job_submit['id'])
     try:
+        # Connect to the DB
         db = database.Database('default', autocommit=False)
         # Prepare for upload
         dir = job_submit['output_dir']
         fitsfiles = get_fitsfiles(job_submit)
+        data = datafile.autogen_dataobj(fitsfiles)
+        version_number = get_version_number(dir)
 
         # Upload results
-        header_id = header.upload_header(fitsfiles, dbname=db)
-        if not header.upload_header(fitsfiles, dbname=db):
-            raise AssertionError("Header values in common DB " \
-                                 "do not match values uploaded.")
-        else:
-            print "\tHeader uploaded and checked. Header ID: %d" % header_id
-
-        version_number = get_version_number(dir)
-        candidates.upload_candidates(header_id, \
-                                             version_number, \
-                                             dir, dbname=db)
-        if not candidates.check_candidates(header_id, \
-                                             version_number, \
-                                             dir, dbname=db):
-            raise AssertionError("Candidate values in common DB " \
-                                 "do not match values uploaded.")
-        else:
-            print "\tCandidates uploaded and checked."
-
-        data = datafile.autogen_dataobj(fitsfiles)
-        diagnostics.upload_diagnostics(data.obs_name, 
-                                             data.beam_id, \
-                                             data.obstype, \
-                                             version_number, \
-                                             dir, dbname=db)
-        if not diagnostics.check_diagnostics(data.obs_name, 
-                                             data.beam_id, \
-                                             data.obstype, \
-                                             version_number, \
-                                             dir, dbname=db):
-            raise AssertionError("Diagnostic values in common DB " \
-                                 "do not match values uploaded.")
-        else:
-            print "\tDiagnostics uploaded and checked."
+        hdr = header.get_header(fitsfiles)
         
-        sp_candidates.upload_spcandidates(header_id, version_number, \
-                                            dir, dbname=db)
-        if not sp_candidates.check_spcandidates(header_id, version_number, \
-                                            dir, dbname=db):
-            raise AssertionError("Single pulse candidates in common DB " \
-                                 "do not match values on disk.")
-        else:
-            print "\tSingle pulse info uploaded and checked."
+        print "\tHeader parsed."
+
+        cands = candidates.get_candidates(version_number, dir)
+        print "\tPeriodicity candidates parsed."
+        sp_cands = sp_candidates.get_spcandidates(version_number, dir)
+        print "\tSingle pulse candidates parsed."
+
+        for c in (cands + sp_cands):
+            hdr.add_dependent(c)
+        diags = diagnostics.get_diagnostics(data.obs_name, 
+                                             data.beam_id, \
+                                             data.obstype, \
+                                             version_number, \
+                                             dir)
+        print "\tDiagnostics parsed."
+        
+        # Perform the upload
+        header_id = hdr.upload(db)
+        for d in diags:
+            d.upload(db)
+        print "\tEverything uploaded and checked successfully. header_id=%d" % \
+                    header_id
     except (header.HeaderError, \
             candidates.PeriodicityCandidateError, \
             diagnostics.DiagnosticError, \

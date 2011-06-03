@@ -29,12 +29,12 @@ from formats import accelcands
 import config.basic
 import config.searching
 
-class PeridocityCandidate(upload.Uploadable):
+class PeriodicityCandidate(upload.Uploadable):
     """A class to represent a PALFA periodicity candidate.
     """
-    def __init__(self, header_id, cand_num, pfd , snr, \
-                        coherent_power, incoherent_power, \
-                        num_hits, num_harmonics, versionnum, sigma):
+    def __init__(self, cand_num, pfd , snr, coherent_power, \
+                        incoherent_power, num_hits, num_harmonics, \
+                        versionnum, sigma, header_id=None):
         self.header_id = header_id # Header ID from database
         self.cand_num = cand_num # Unique identifier of candidate within beam's 
                                  # list of candidates; Candidate's position in
@@ -59,6 +59,35 @@ class PeridocityCandidate(upload.Uploadable):
         # Calculate a few more values
         self.topo_period = 1.0/self.topo_freq
         self.bary_period = 1.0/self.bary_freq
+
+        # List of dependents (ie other uploadables that require 
+        # the pdm_cand_id from this candidate)
+        self.dependents = []
+
+    def add_dependent(self, dep):
+        self.dependents.append(dep)
+
+    def upload(self, dbname, *args, **kwargs):
+        """An extension to the inherited 'upload' method.
+            This method will make sure any dependents have
+            the pdm_cand_id and then upload them.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+        """
+        if self.header_id is None:
+            raise PeriodicityCandidateError("Cannot upload candidate with " \
+                    "header_id == None!")
+        cand_id = super(PeriodicityCandidate, self).upload(dbname=dbname, \
+                    *args, **kwargs)[0]
+        if not self.compare_with_db(dbname=dbname):
+            raise PeriodicityCandidateError("Periodicity candidate doesn't " \
+                    "match what was uploaded to DB!")
+        for dep in self.dependents:
+            dep.cand_id = cand_id
+            dep.upload(dbname=dbname, *args, **kwargs)
+        return cand_id
 
     def get_upload_sproc_call(self):
         """Return the EXEC spPDMCandUploaderFindsVersion string to upload
@@ -165,12 +194,28 @@ class PeridocityCandidate(upload.Uploadable):
 class PeriodicityCandidatePlot(upload.Uploadable):
     """A class to represent the plot of a PALFA periodicity candidate.
     """
-    def __init__(self, cand_id, plotfn):
+    def __init__(self, plotfn, cand_id=None):
         self.cand_id = cand_id
         self.filename = os.path.split(plotfn)[-1]
         plot = open(plotfn, 'r')
         self.filedata = plot.read()
         plot.close()
+
+    def upload(self, dbname, *args, **kwargs):
+        """An extension to the inherited 'upload' method.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+        """
+        if self.cand_id is None:
+            raise PeriodicityCandidateError("Cannot upload plot with " \
+                    "pdm_cand_id == None!")
+        super(PeriodicityCandidatePlot, self).upload(dbname=dbname, \
+                    *args, **kwargs)
+        if not self.compare_with_db(dbname=dbname):
+            raise PeriodicityCandidateError("Candidate plot (%s) doesn't " \
+                "match what was uploaded to DB!" % self.plot_type)
 
     def get_upload_sproc_call(self):
         """Return the EXEC spPDMCandPlotUploader string to upload
@@ -249,137 +294,18 @@ class PeriodicityCandidateError(pipeline_utils.PipelineError):
     pass
 
 
-def check_candidates(header_id, versionnum, directory, dbname='default'):
-    """Check candidates in common DB.
-
-        Inputs:
-            header_id: header_id number for this beam, as returned by
-                        spHeaderLoader/header.upload_header
-            versionnum: A combination of the githash values from 
-                        PRESTO and from the pipeline. 
-            directory: The directory containing results from the pipeline.
-            dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'default').
-        Output:
-            match: Boolean value. True if all candidates and plots match what
-                    is in the DB, False otherwise.
-    """
-    # find *.accelcands file    
-    candlists = glob.glob(os.path.join(directory, "*.accelcands"))
-                                                
-    if len(candlists) != 1:
-        raise PeriodicityCandidateError("Wrong number of candidate lists found (%d)!" % \
-                                            len(candlists))
-
-    # Get list of candidates from *.accelcands file
-    candlist = accelcands.parse_candlist(candlists[0])
-    # find the search_params.txt file
-    paramfn = os.path.join(directory, 'search_params.txt')
-    if os.path.exists(paramfn):
-        tmp, params = {}, {}
-        execfile(paramfn, tmp, params)
-    else:
-        raise PeriodicityCandidateError("Search parameter file doesn't exist!")
-    minsigma = params['to_prepfold_sigma']
-    foldedcands = [c for c in candlist \
-                    if c.sigma > params['to_prepfold_sigma']]
-    foldedcands = foldedcands[:params['max_cands_to_fold']]
-    foldedcands.sort(reverse=True) # Sort by descending sigma
-    
-    # Create temporary directory
-    tempdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_pfds_")
-    tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
-    if len(tarfns) != 1:
-        raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
-                                         "files found in %s" % (len(tarfns), \
-                                            directory))
-    
-    tar = tarfile.open(tarfns[0])
-    try:
-        tar.extractall(path=tempdir)
-    except IOError:
-        if os.path.isdir(tempdir):
-            shutil.rmtree(tempdir)
-        raise PeriodicityCandidateError("Error while extracting pfd files " \
-                                        "from tarball (%s)!" % tarfns[0])
-    finally:
-        tar.close()
-    # Loop over candidates that were folded
-    matches = []
-    if isinstance(dbname, database.Database):
-        db = dbname
-    else:
-        db = database.Database(dbname)
-    for ii, c in enumerate(foldedcands):
-        basefn = "%s_ACCEL_Cand_%d" % (c.accelfile.replace("ACCEL_", "Z"), \
-                                    c.candnum)
-        pfdfn = os.path.join(tempdir, basefn+".pfd")
-        pngfn = os.path.join(directory, basefn+".pfd.png")
-        
-        pfd = prepfold.pfd(pfdfn)
-        
-        try:
-            cand = PeridocityCandidate(header_id, ii+1, pfd, c.snr, \
-                                    c.cpow, c.ipow, len(c.dmhits), \
-                                    c.numharm, versionnum, c.sigma)
-        except Exception:
-            raise PeriodicityCandidateError("PeriodicityCandidate could not be " \
-                                            "created (%s)!" % pfdfn)
-        
-        matches.append(cand.compare_with_db(dbname))
-        if not matches[-1]:
-            break
-        
-        # Get candidate's ID number from common DB
-        db.execute("SELECT pdm_cand_id " \
-                   "FROM pdm_candidates AS c " \
-                   "LEFT JOIN versions AS v ON v.version_id = c.version_id " \
-                   "WHERE c.header_id=%d AND c.cand_num=%d " \
-                        "AND v.version_number='%s'" % \
-                        (header_id, cand.cand_num, versionnum))
-        # For cand.compare_with_db() to return True there must be a unique
-        # entry in the common DB matching this candidate
-        r = db.cursor.fetchone()
-        cand_id = r[0]
-        
-        pfdplot = PeriodicityCandidatePFD(cand_id, pfdfn)
-        matches.append(pfdplot.compare_with_db(dbname))
-        if not matches[-1]:
-            break
-
-        pngplot = PeriodicityCandidatePNG(cand_id, pngfn)
-        matches.append(pngplot.compare_with_db(dbname))
-        if not matches[-1]:
-            break
-        
-    if type(dbname) == types.StringType:
-        db.close()
-    shutil.rmtree(tempdir)
-    return all(matches)
-
-def upload_candidates(header_id, versionnum, directory, verbose=False, \
-                        dry_run=False, *args, **kwargs):
+def get_candidates(versionnum, directory, header_id=None):
     """Upload candidates to common DB.
 
         Inputs:
-            header_id: header_id number for this beam, as returned by
-                        spHeaderLoader/header.upload_header
             versionnum: A combination of the githash values from 
                         PRESTO and from the pipeline. 
             directory: The directory containing results from the pipeline.
-            verbose: An optional boolean value that determines if information 
-                        is printed to stdout.
-            dry_run: An optional boolean value. If True no connection to DB
-                        will be made and DB command will not be executed.
-                        (If verbose is True DB command will be printed 
-                        to stdout.)
+            header_id: header_id number for this beam, as returned by
+                        spHeaderLoader/header.upload_header (default=None)
 
-            *** NOTE: Additional arguments are passed to the uploader function.
-
-        Ouputs:
-            cand_ids: List of candidate IDs corresponding to these candidates
-                        in the common DB. (Or a list of None values if
-                        dry_run is True).
+        Ouput:
+            cands: List of candidates.
     """
     # find *.accelcands file    
     candlists = glob.glob(os.path.join(directory, "*.accelcands"))
@@ -422,7 +348,7 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
     finally:
         tar.close()
     # Loop over candidates that were folded
-    results = []
+    cands = []
     for ii, c in enumerate(foldedcands):
         basefn = "%s_ACCEL_Cand_%d" % (c.accelfile.replace("ACCEL_", "Z"), \
                                     c.candnum)
@@ -432,46 +358,39 @@ def upload_candidates(header_id, versionnum, directory, verbose=False, \
         pfd = prepfold.pfd(pfdfn)
         
         try:
-            cand = PeridocityCandidate(header_id, ii+1, pfd, c.snr, \
+            cand = PeriodicityCandidate(ii+1, pfd, c.snr, \
                                     c.cpow, c.ipow, len(c.dmhits), \
-                                    c.numharm, versionnum, c.sigma)
+                                    c.numharm, versionnum, c.sigma, \
+                                    header_id=header_id)
         except Exception:
             raise PeriodicityCandidateError("PeriodicityCandidate could not be " \
                                             "created (%s)!" % pfdfn)
 
-        if dry_run:
-            cand.get_upload_sproc_call()
-            if verbose:
-                print cand
-            results.append(None)
-            cand_id = -1
-        else:
-            cand_id = cand.upload(*args, **kwargs)[0]
-        
-        pfdplot = PeriodicityCandidatePFD(cand_id, pfdfn)
-        pngplot = PeriodicityCandidatePNG(cand_id, pngfn)
-        if dry_run:
-            pfdplot.get_upload_sproc_call()
-            pngplot.get_upload_sproc_call()
-            if verbose:
-                print pfdplot
-                print pngplot
-        else:
-            pfdplot.upload(*args, **kwargs)
-            pngplot.upload(*args, **kwargs)
+
+        cand.add_dependent(PeriodicityCandidatePFD(pfdfn))
+        cand.add_dependent(PeriodicityCandidatePNG(pngfn))
+        cands.append(cand)
         
     shutil.rmtree(tempdir)
-    return results
+    return cands
+
 
 def main():
+    db = database.Database('default', autocommit=False)
     try:
-        upload_candidates(options.header_id, options.versionnum, \
-                            options.directory, options.verbose, \
-                            options.dry_run)
-    except upload.UploadError, e:
-        traceback.print_exception(*sys.exc_info())
-        sys.stderr.write("\nOriginal exception thrown:\n")
-        traceback.print_exception(*e.orig_exc)
+        cands = get_candidates(options.versionnum, options.directory, \
+                            header_id=options.header_id)
+        for cand in cands:
+            cand.upload(db)
+    except:
+        print "Rolling back..."
+        db.rollback()
+        raise
+    else:
+        db.commit()
+    finally:
+        db.close()
+
 
 if __name__ == '__main__':
     parser = optparse.OptionParser(prog="candidates.py", \
@@ -479,7 +398,8 @@ if __name__ == '__main__':
                 description="Upload candidates from a beam of PALFA " \
                             "data analysed using the pipeline2.0.")
     parser.add_option('--header-id', dest='header_id', type='int', \
-                        help="Header ID of this beam from the common DB.")
+                        help="Header ID of this beam from the common DB.", \
+                        default=None)
     parser.add_option('--versionnum', dest='versionnum', \
                         help="Version number is a combination of the PRESTO " \
                              "repository's git hash, the Pipeline2.0 " \
@@ -491,16 +411,6 @@ if __name__ == '__main__':
                         help="Directory containing results from processing. " \
                              "Diagnostic information will be derived from the " \
                              "contents of this directory.")
-    parser.add_option('--verbose', dest='verbose', action='store_true', \
-                        help="Print success/failure information to screen. " \
-                             "(Default: do not print).", \
-                        default=False)
-    parser.add_option('-n', '--dry-run', dest='dry_run', action='store_true', \
-                        help="Perform a dry run. Do everything but connect to " \
-                             "DB and upload candidate info. If --verbose " \
-                             "is set, DB commands will be displayed on stdout. " \
-                             "(Default: Connect to DB and execute commands).", \
-                        default=False)
     options, args = parser.parse_args()
     main()
  

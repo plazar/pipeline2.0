@@ -23,7 +23,7 @@ import config.basic
 class SinglePulseTarball(upload.Uploadable):
     """A class to represent a tarball of single pulse files.
     """
-    def __init__(self, header_id, filename, versionnum):
+    def __init__(self, filename, versionnum, header_id=None):
         self.header_id = header_id
         self.filename = filename
         self.versionnum = versionnum
@@ -96,7 +96,7 @@ class SinglePulseTarball(upload.Uploadable):
             match = all(matches)
         return match
 
-    def upload(self, *args, **kwargs):
+    def upload(self, dbname='default', *args, **kwargs):
         """And extension to the inherited 'upload' method.
             This method FTP's the file to Cornell instead of
             inserting it into the DB as a BLOB.
@@ -105,10 +105,17 @@ class SinglePulseTarball(upload.Uploadable):
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
         """
-        id, path = super(SinglePulseTarball, self).upload(*args, **kwargs)
+        if self.header_id is None:
+            raise SinglePulseCandidateError("Cannot upload SP tarball " \
+                    "with header_id == None!")
+        id, path = super(SinglePulseTarball, self).upload(dbname=dbname, \
+                    *args, **kwargs)
         if id < 0:
             # An error has occurred
             raise SinglePulseCandidateError(path)
+        elif not self.compare_with_db(dbname=dbname):
+            raise SinglePulseCandidateError("SP tarball doesn't match " \
+                    "what was uploaded to DB!")
         else:
             cftp = CornellFTP.CornellFTP()
             ftp_path = os.path.join(path, os.path.split(self.filename)[-1]) 
@@ -132,13 +139,29 @@ class SinglePulseInfTarball(SinglePulseTarball):
 class SinglePulseBeamPlot(upload.Uploadable):
     """A class to represent a per-beam single pulse plot.
     """
-    def __init__(self, header_id, plotfn, versionnum):
+    def __init__(self, plotfn, versionnum, header_id=None):
         self. header_id = header_id
         self.versionnum = versionnum
         self.filename = os.path.split(plotfn)[-1]
         plot = open(plotfn, 'r')
         self.filedata = plot.read()
         plot.close()
+
+    def upload(self, dbname, *args, **kwargs):
+        """An extension to the inherited 'upload' method.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+        """
+        if self.header_id is None:
+            raise SinglePulseCandidateError("Cannot upload SP plot " \
+                    "with header_id == None!")
+        super(SinglePulseBeamPlot, self).upload(dbname=dbname, \
+                *args, **kwargs)
+        if not self.compare_with_db(dbname=dbname):
+            raise SinglePulseCandidateError("SP plot doesn't match " \
+                    "what was uploaded to DB!")
 
     def get_upload_sproc_call(self):
         """Return the EXEC spSPSingleBeamCandPlotLoader string to
@@ -240,154 +263,68 @@ class SinglePulseCandidateError(pipeline_utils.PipelineError):
     pass
 
 
-def check_spcandidates(header_id, versionnum, directory, dbname='default'):
-    """Check single pulse candidates in common DB.
+def get_spcandidates(versionnum, directory, header_id=None):
+    """Return single pulse candidates to common DB.
 
         Inputs:
-            header_id: header_id number for this beam, as returned by
-                        spHeaderLoader/header.upload_header
-            versionnum: A combination of the githash values from 
-                        PRESTO, the pipeline, and psrfits_utils. 
-            directory: The directory containing results from the pipeline.
-            dbname: Name of database to connect to, or a database
-                        connection to use (Defaut: 'default').
-        Output:
-            match: Boolean value. True if all single pulse candidates and 
-                    plots match what is in the DB, False otherwise.
-    """
-    matches = []
-    if isinstance(dbname, database.Database):
-        db = dbname
-    else:
-        db = database.Database(dbname)
-   
-    to_check = []
-    # Gather plots to upload
-    fns = glob.glob(os.path.join(directory, "*DMs0-110_singlepulse.png"))
-    if len(fns) != 1:
-        raise SinglePulseCandidateError("Wrong number of *DMs0-110_singlepulse.png " \
-                                        "plots found (%d)!" % len(fns))
-    to_check.append(SinglePulseBeamPlotDMs0_110(header_id, fns[0], versionnum))
-
-    fns = glob.glob(os.path.join(directory, "*DMs100-310_singlepulse.png"))
-    if len(fns) != 1:
-        raise SinglePulseCandidateError("Wrong number of *DMs100-310_singlepulse.png " \
-                                        "plots found (%d)!" % len(fns))
-    to_check.append(SinglePulseBeamPlotDMs100_310(header_id, fns[0], versionnum))
-
-    fns = glob.glob(os.path.join(directory, "*DMs300-1000+_singlepulse.png"))
-    if len(fns) != 1:
-        raise SinglePulseCandidateError("Wrong number of *DMs300-1000_singlepulse.png " \
-                                        "plots found (%d)!" % len(fns))
-    to_check.append(SinglePulseBeamPlotDMs300AndUp(header_id, fns[0], versionnum))
-    
-    # Gather tarballs to upload
-    fns = glob.glob(os.path.join(directory, "*_inf.tgz"))
-    if len(fns) != 1:
-        raise SinglePulseCandidateError("Wrong number of *_inf.tgz " \
-                                        "tarballs found (%d)!" % len(fns))
-    to_check.append(SinglePulseInfTarball(header_id, fns[0], versionnum))
-    
-    fns = glob.glob(os.path.join(directory, "*_singlepulse.tgz"))
-    if len(fns) != 1:
-        raise SinglePulseCandidateError("Wrong number of *_singlepulse.tgz " \
-                                        "tarballs found (%d)!" % len(fns))
-    to_check.append(SinglePulseCandsTarball(header_id, fns[0] , versionnum))
-
-    for to_chk in to_check:
-        matches.append(to_chk.compare_with_db(dbname))
-        if not matches[-1]:
-            break
-
-    if type(dbname) == types.StringType:
-        db.close()
-    return all(matches)
-
-
-def upload_spcandidates(header_id, versionnum, directory, verbose=False, \
-                        dry_run=False, *args, **kwargs):
-    """Upload single pulse candidates to common DB.
-
-        Inputs:
-            header_id: header_id number for this beam, as returned by
-                        spHeaderLoader/header.upload_header
             versionnum: A combination of the githash values from 
                         PRESTO, the pipeline, and psrfits_utils.
             directory: The directory containing results from the pipeline.
-            verbose: An optional boolean value that determines if information 
-                        is printed to stdout.
-            dry_run: An optional boolean value. If True no connection to DB
-                        will be made and DB command will not be executed.
-                        (If verbose is True DB command will be printed 
-                        to stdout.)
-
-            *** NOTE: Additional arguments are passed to the uploader function.
+            header_id: header_id number for this beam, as returned by
+                        spHeaderLoader/header.upload_header
 
         Ouputs:
-            sp_cand_ids: List of single pulse candidate IDs corresponding 
-                        to these candidates in the common DB. (Or a list 
-                        of None values if dry_run is True).
+            sp_cands: List of single pulse candidates, plots and tarballs.
     """
-    results = []
-    to_upload = []
+    sp_cands = []
    
     # Gather plots to upload
     fns = glob.glob(os.path.join(directory, "*DMs0-110_singlepulse.png"))
     if len(fns) != 1:
         raise SinglePulseCandidateError("Wrong number of *DMs0-110_singlepulse.png " \
                                         "plots found (%d)!" % len(fns))
-    to_upload.append(SinglePulseBeamPlotDMs0_110(header_id, fns[0], versionnum))
+    sp_cands.append(SinglePulseBeamPlotDMs0_110(fns[0], versionnum, \
+                        header_id=header_id))
 
     fns = glob.glob(os.path.join(directory, "*DMs100-310_singlepulse.png"))
     if len(fns) != 1:
         raise SinglePulseCandidateError("Wrong number of *DMs100-310_singlepulse.png " \
                                         "plots found (%d)!" % len(fns))
-    to_upload.append(SinglePulseBeamPlotDMs100_310(header_id, fns[0], versionnum))
+    sp_cands.append(SinglePulseBeamPlotDMs100_310(fns[0], versionnum, \
+                        header_id=header_id))
 
     fns = glob.glob(os.path.join(directory, "*DMs300-1000+_singlepulse.png"))
     if len(fns) != 1:
         raise SinglePulseCandidateError("Wrong number of *DMs300-1000_singlepulse.png " \
                                         "plots found (%d)!" % len(fns))
-    to_upload.append(SinglePulseBeamPlotDMs300AndUp(header_id, fns[0], versionnum))
+    sp_cands.append(SinglePulseBeamPlotDMs300AndUp(fns[0], versionnum, \
+                        header_id=header_id))
     
     # Gather tarballs to upload
     fns = glob.glob(os.path.join(directory, "*_inf.tgz"))
     if len(fns) != 1:
         raise SinglePulseCandidateError("Wrong number of *_inf.tgz " \
                                         "tarballs found (%d)!" % len(fns))
-    to_upload.append(SinglePulseInfTarball(header_id, fns[0], versionnum))
+    sp_cands.append(SinglePulseInfTarball(fns[0], versionnum, \
+                        header_id=header_id))
     
     fns = glob.glob(os.path.join(directory, "*_singlepulse.tgz"))
     if len(fns) != 1:
         raise SinglePulseCandidateError("Wrong number of *_singlepulse.tgz " \
                                         "tarballs found (%d)!" % len(fns))
-    to_upload.append(SinglePulseCandsTarball(header_id, fns[0] , versionnum))
+    sp_cands.append(SinglePulseCandsTarball(fns[0] , versionnum, \
+                        header_id=header_id))
 
-    for to_up in to_upload:
-        if dry_run:
-            to_up.get_upload_sproc_call()
-            if verbose:
-                print to_up
-        else:
-            to_up.upload(*args, **kwargs)
-    
-    return results
+    return sp_cands
 
 
 def main():
     db = database.Database('default', autocommit=False)
     try:
-        upload_spcandidates(options.header_id, options.versionnum, \
-                            options.directory, options.verbose, \
-                            options.dry_run, dbname=db)
-        check_spcandidates(options.header_id, options.versionnum, \
-                            options.directory, dbname=db)
-    except upload.UploadError, e:
-        print "Rolling back..."
-        db.rollback()
-        traceback.print_exception(*sys.exc_info())
-        sys.stderr.write("\nOriginal exception thrown:\n")
-        traceback.print_exception(*e.orig_exc)
+        sp_cands = get_spcandidates(options.versionnum, options.directory, \
+                            header_id=options.header_id)
+        for sp in sp_cands:
+            sp.upload(db)
     except:
         print "Rolling back..."
         db.rollback()
@@ -417,16 +354,6 @@ if __name__ == '__main__':
                         help="Directory containing results from processing. " \
                              "Diagnostic information will be derived from the " \
                              "contents of this directory.")
-    parser.add_option('--verbose', dest='verbose', action='store_true', \
-                        help="Print success/failure information to screen. " \
-                             "(Default: do not print).", \
-                        default=False)
-    parser.add_option('-n', '--dry-run', dest='dry_run', action='store_true', \
-                        help="Perform a dry run. Do everything but connect to " \
-                             "DB and upload candidate info. If --verbose " \
-                             "is set, DB commands will be displayed on stdout. " \
-                             "(Default: Connect to DB and execute commands).", \
-                        default=False)
     options, args = parser.parse_args()
     main()
         
