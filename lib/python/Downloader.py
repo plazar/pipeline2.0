@@ -253,16 +253,8 @@ def create_file_entries(request):
     num_files = 0
     queries = []
     for fn, size in files:
-        # Check if file is from the phantom beam (beam 7)
-        try:
-            datafile_type = datafile.get_datafile_type([fn])
-        except DataFileError, e:
-            dlm_cout.outs("DataFileError: " + str(e))
-            continue
-            
-        parsedfn = datafile_type.fnmatch(fn)
-        if parsedfn.groupdict().setdefault('beam', '-1') == '7':
-            dlm_cout.outs("Ignoring beam 7 data: %s" % fn)
+        if not pipeline_utils.can_add_file(fn):
+            dlm_cout("Skipping %s" % fn)
             continue
 
         # Insert entry into DB's files table

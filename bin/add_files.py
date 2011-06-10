@@ -48,24 +48,10 @@ def check_file(fn):
                     valid for insert into the job-tracker DB.
     """
     if os.path.exists(fn) and os.access(fn, os.R_OK):
-        try:
-            datafile_type = datafile.get_datafile_type([fn])
-        except datafile.DataFileError, e:
-            print "Unrecognized data file type: %s" % fn
-            return False
-        parsedfn = datafile_type.fnmatch(fn)
-        if parsedfn.groupdict().setdefault('beam', '-1') == '7':
-            print "Ignoring beam 7 data: %s" % fn
-            return False
-        # Check if file is already in the job-tracker DB
-        files = jobtracker.query("SELECT * FROM files " \
-                                 "WHERE filename LIKE '%%%s'" % os.path.split(fn)[-1])
-        if len(files):
-            print "File is already being tracked: %s" % fn
-            return False
-        return True
-    print "Not an existing readable file: %s" % fn
-    return False
+        return pipeline_utils.can_add_file(fn, verbose=True)
+    else:
+        print "Not an existing readable file: %s" % fn
+        return False
 
 
 def usage():

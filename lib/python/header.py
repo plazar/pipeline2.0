@@ -209,6 +209,9 @@ class Header(upload.Uploadable):
 
             # Match is True if _all_ matches are True
             match = all(matches)
+        if not match:
+            raise HeaderError("Header doesn't " \
+                    "match what was uploaded to DB!\n%s\n%s" % (str(self), str(r)))
         return match
 
 

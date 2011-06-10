@@ -53,8 +53,7 @@ def get_fns_for_jobid(jobid):
 
 
 def clean_up(jobid):
-    """
-    Deletes raw files for a given job ID.
+    """Deletes raw files for a given job ID.
 
         Input:
             jobid: The ID corresponding to a row from the job_submits table.
@@ -67,6 +66,43 @@ def clean_up(jobid):
         if os.path.exists(fn):
             os.remove(fn)
             print "Deleted: %s" % fn
+
+
+def can_add_file(fn, verbose=False):
+    """Checks a file to see if it should be added to the 'files'
+        table in the jobtracker DB.
+
+        Input:
+            fn: The file to check.
+            verbose: Print messages to stdout. (Default: be silent).
+
+        Outputs:
+            can_add: Boolean value. True if the file should be added. 
+                    False otherwise.
+    """
+    import jobtracker
+    import datafile
+    try:
+        datafile_type = datafile.get_datafile_type([fn])
+    except datafile.DataFileError, e:
+        if verbose:
+            print "Unrecognized data file type: %s" % fn
+        return False
+    parsedfn = datafile_type.fnmatch(fn)
+    if parsedfn.groupdict().setdefault('beam', '-1') == '7':
+        if verbose:
+            print "Ignoring beam 7 data: %s" % fn
+        return False
+    # Check if file is already in the job-tracker DB
+    files = jobtracker.query("SELECT * FROM files " \
+                             "WHERE filename LIKE '%%%s'" % os.path.split(fn)[-1])
+    if len(files):
+        if verbose:
+            print "File is already being tracked: %s" % fn
+        return False
+    return True
+
+
 
 def execute(cmd, stdout=None, stderr=sys.stderr): 
     """Execute the command 'cmd' after logging the command
