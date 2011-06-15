@@ -26,6 +26,13 @@ DATABASES = {
         'HOST': config.commondb.host,
         'DSN':  'FreeTDSDSN'
         },
+    'tracking': {
+        'DATABASE': 'palfatracking',
+        'UID':  config.commondb.username,
+        'PWD':  config.commondb.password,
+        'HOST': config.commondb.host,
+        'DSN':  'FreeTDSDSN'
+        },
 }
 
 
