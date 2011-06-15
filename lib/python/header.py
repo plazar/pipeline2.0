@@ -70,7 +70,7 @@ class Header(upload.Uploadable):
             "@original_wapp_file='%s', " % self.original_file + \
             "@sample_time=%f, " % self.sample_time + \
             "@observation_time=%f, " % self.observation_time + \
-            "@timestamp_mjd=%.15f, " % self.timestamp_mjd + \
+            "@timestamp_mjd=%.10f, " % self.timestamp_mjd + \
             "@num_samples_per_record=%d, " % self.num_samples_per_record + \
             "@center_freq=%f, " % self.center_freq + \
             "@channel_bandwidth=%f, " % self.channel_bandwidth + \
@@ -176,7 +176,7 @@ class Header(upload.Uploadable):
                      ('%s' % r['original_wapp_file'].lower() == '%s' % self.original_file.lower()),  \
                      ('%f' % r['sample_time'] == '%f' % self.sample_time),  \
                      ('%f' % r['observation_time'] == '%f' % self.observation_time),  \
-                     ('%.15f' % r['timestamp_mjd'] == '%.15f' % self.timestamp_mjd),  \
+                     ('%.10f' % r['timestamp_mjd'] == '%.10f' % self.timestamp_mjd),  \
                      ('%d' % r['num_samples_per_record'] == '%d' % self.num_samples_per_record),  \
                      ('%f' % r['center_freq'] == '%f' % self.center_freq),  \
                      ('%f' % r['channel_bandwidth'] == '%f' % self.channel_bandwidth),  \
@@ -209,9 +209,6 @@ class Header(upload.Uploadable):
 
             # Match is True if _all_ matches are True
             match = all(matches)
-        if not match:
-            raise HeaderError("Header doesn't " \
-                    "match what was uploaded to DB!\n%s\n%s" % (str(self), str(r)))
         return match
 
 
