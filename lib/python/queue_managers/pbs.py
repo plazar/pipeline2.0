@@ -12,6 +12,17 @@ import config.email
 
 class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
     def __init__(self, job_basename, property, max_jobs_per_node):
+        """Constructor for the PBS queue manager interface.
+
+            Inputs:
+                job_basename: Name of jobs in PBS
+                property: Submit jobs to nodes with this name/propery
+                max_jobs_per_node: The maximum number of jobs to be
+                                    submitted to a single node.
+
+            Output:
+                pbsmanager: The PBSManager instance.
+        """
         self.job_basename = job_basename
         self.property = property
         self.max_jobs_per_node = max_jobs_per_node
