@@ -26,7 +26,8 @@ class ErrorMailer:
         self.msg['To'] = config.email.recipient
         if self.enabled:
             if config.email.smtp_host is None:
-                self.msg['From'] = '%s@localhost' % os.getenv('USER')
+                self.msg['From'] = '%s@%s' % (os.getenv('USER'), \
+                                                socket.gethostname())
                 self.client = smtplib.SMTP('localhost', config.email.smtp_port)
             else:
                 self.msg['From'] = None
