@@ -137,14 +137,21 @@ def get_space_committed():
 
 def run():
     """Perform a single iteration of the downloader's loop.
+
+        Inputs:
+            None
+        Outputs:
+            numsuccess: The number of successfully downloaded files 
+                        this iteration.
     """
     check_active_requests()
     start_downloads()
     check_download_attempts()
-    verify_files()
+    numsuccess = verify_files()
     recover_failed_downloads()
     if can_request_more():
         make_request()
+    return numsuccess
 
 
 def make_request():
@@ -455,10 +462,16 @@ def download(attempt):
 
 def verify_files():
     """For all downloaded files with status 'unverify' verify the files.
+        
+        Inputs:
+            None
+        Output:
+            numverified: The number of files successfully verified.
     """
     toverify = jobtracker.query("SELECT * FROM files " \
                                 "WHERE status='unverified'")
 
+    numverified = 0
     for file in toverify:
         if os.path.exists(file['filename']):
             actualsize = os.path.getsize(file['filename'])
@@ -489,6 +502,7 @@ def verify_files():
                                 "updated_at='%s'" \
                            "WHERE id=%d" % \
                            (jobtracker.nowstr(), last_attempt_id))
+            numverified += 1
         else:
             dlm_cout.outs("Verification of %s failed. \n" \
                             "\tActual size (%d bytes) != Expected size (%d bytes)" % \
@@ -508,6 +522,7 @@ def verify_files():
                            "WHERE id=%d" % \
                            (jobtracker.nowstr(), last_attempt_id))
         jobtracker.query(queries)
+        return numverified
 
 
 def recover_failed_downloads():

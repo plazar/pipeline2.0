@@ -12,10 +12,17 @@ import config.background
 import config.email
 
 def main():
+    delay = 1
     while True:
         try:
             Downloader.status()
-            Downloader.run()
+            if Downloader.run():
+                # files were successfully downloaded
+                delay=1
+            else:
+                # No files successfully download this iteration
+                # Increase sleep time
+                delay = min((delay*2, 32))
         except Exception, e:
             if config.email.send_on_crash:
                 msg  = '*** Downloader has crashed! ***\n\n'
@@ -25,7 +32,7 @@ def main():
                 notification.send()
             sys.stderr.write("Fatal error occurred!\n")
             raise
-        time.sleep(config.background.sleep)
+        time.sleep(config.background.sleep*delay)
 
 
 if __name__=='__main__':
