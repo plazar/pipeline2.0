@@ -12,7 +12,7 @@ import config.background
 import config.email
 
 def main():
-    delay = 1
+    delay = 0.5 # First iteration will set delay=1 or multiply by 2
     while True:
         try:
             Downloader.status()
@@ -32,6 +32,7 @@ def main():
                 notification.send()
             sys.stderr.write("Fatal error occurred!\n")
             raise
+        print "Will sleep for %d seconds" % (config.background.sleep*delay)
         time.sleep(config.background.sleep*delay)
 
 
