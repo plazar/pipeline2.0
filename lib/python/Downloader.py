@@ -261,7 +261,7 @@ def create_file_entries(request):
     queries = []
     for fn, size in files:
         if not pipeline_utils.can_add_file(fn):
-            dlm_cout("Skipping %s" % fn)
+            dlm_cout.outs("Skipping %s" % fn)
             continue
 
         # Insert entry into DB's files table
