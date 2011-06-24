@@ -82,6 +82,8 @@ def upload_results(job_submit):
     print "Attempting to upload results"
     print "\tJob ID: %d, Job submission ID: %d" % \
             (job_submit['job_id'], job_submit['id'])
+    if debug.UPLOAD:
+        upload_timing_summary = {}
     try:
         # Connect to the DB
         db = database.Database('default', autocommit=False)

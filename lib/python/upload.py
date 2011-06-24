@@ -14,8 +14,6 @@ import pipeline_utils
 # A global dictionary to keep track of database connections
 db_connections = {}
 
-upload_timing_summary = {}
-
 @atexit.register # register this function to be executed at exit time
 def close_db_connections():
     """A function to close database connections at exit time.
