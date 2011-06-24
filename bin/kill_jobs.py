@@ -3,9 +3,6 @@
 """
 This script is used to set a job's status to 'terminal_failure'.
 """
-import sys
-import optparse
-
 import jobtracker
 import pipeline_utils
 
