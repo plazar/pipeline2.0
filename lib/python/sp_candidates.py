@@ -12,6 +12,7 @@ import types
 import traceback
 import binascii
 import sys
+import time
 
 import CornellFTP
 import database
@@ -108,8 +109,15 @@ class SinglePulseTarball(upload.Uploadable):
         if self.header_id is None:
             raise SinglePulseCandidateError("Cannot upload SP tarball " \
                     "with header_id == None!")
+        
+        if debug.UPLOAD: 
+            starttime = time.time()
         id, path = super(SinglePulseTarball, self).upload(dbname=dbname, \
                     *args, **kwargs)
+        if debug.UPLOAD:
+            upload.upload_timing_summary['sp info (db)'] = \
+                upload.upload_timing_summary.setdefault('sp info (db)', 0) + \
+                (time.time()-starttime)
         if id < 0:
             # An error has occurred
             raise SinglePulseCandidateError(path)
@@ -117,10 +125,16 @@ class SinglePulseTarball(upload.Uploadable):
             raise SinglePulseCandidateError("SP tarball doesn't match " \
                     "what was uploaded to DB!")
         else:
+            if debug.UPLOAD: 
+                starttime = time.time()
             cftp = CornellFTP.CornellFTP()
             ftp_path = os.path.join(path, os.path.split(self.filename)[-1]) 
             cftp.upload(self.filename, ftp_path)
             cftp.quit()
+            if debug.UPLOAD:
+                upload.upload_timing_summary['sp info (ftp)'] = \
+                    upload.upload_timing_summary.setdefault('sp info (ftp)', 0) + \
+                    (time.time()-starttime)
 
 
 class SinglePulseCandsTarball(SinglePulseTarball):

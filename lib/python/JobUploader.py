@@ -11,6 +11,7 @@ import sp_candidates
 import diagnostics
 import jobtracker
 import database
+import upload
 import pipeline_utils
 import config.upload
 import config.basic
@@ -188,6 +189,10 @@ def upload_results(job_submit):
         if config.basic.delete_rawdata:
             pipeline_utils.clean_up(job_submit['job_id'])
 
+        if debug.UPLOAD:
+            print "Upload timing summary:"
+            for k in sorted(upload.upload_timing_summary.keys()):
+                print "    %s: %.2f s" % (k, upload.upload_timing_summary[k])
         print "" # Just a blank line
 
 def get_fitsfiles(job_submit):

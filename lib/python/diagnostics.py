@@ -13,6 +13,7 @@ import tarfile
 import optparse
 import types
 import binascii
+import time
 
 import database
 import upload
@@ -50,7 +51,14 @@ class Diagnostic(upload.Uploadable):
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
         """
+        if debug.UPLOAD: 
+            starttime = time.time()
         super(Diagnostic, self).upload(dbname=dbname, *args, **kwargs)
+        if debug.UPLOAD:
+            upload.upload_timing_summary['diagnostics'] = \
+                upload.upload_timing_summary.setdefault('diagnostics', 0) + \
+                (time.time()-starttime)
+
         if not self.compare_with_db(dbname=dbname):
             raise DiagnosticError("Diagnostic (%s) doesn't match " \
                     "what was upload to DB!" % self.name)

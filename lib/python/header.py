@@ -13,6 +13,7 @@ import re
 import warnings
 import types
 import optparse
+import time
 
 import upload
 import datafile
@@ -47,7 +48,14 @@ class Header(upload.Uploadable):
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
         """
+        if debug.UPLOAD: 
+            starttime = time.time()
         header_id = super(Header, self).upload(dbname=dbname, *args, **kwargs)[0]
+        if debug.UPLOAD:
+            upload.upload_timing_summary['header'] = \
+                upload.upload_timing_summary.setdefault('header', 0) + \
+                (time.time()-starttime)
+        
         if not self.compare_with_db(dbname=dbname):
             raise HeaderError("Header doesn't " \
                     "match what was uploaded to DB!")

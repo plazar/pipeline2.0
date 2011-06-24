@@ -16,6 +16,7 @@ import datetime
 import shutil
 import types
 import binascii
+import time
 
 import psr_utils
 import prepfold
@@ -79,8 +80,14 @@ class PeriodicityCandidate(upload.Uploadable):
         if self.header_id is None:
             raise PeriodicityCandidateError("Cannot upload candidate with " \
                     "header_id == None!")
+        if debug.UPLOAD: 
+            starttime = time.time()
         cand_id = super(PeriodicityCandidate, self).upload(dbname=dbname, \
                     *args, **kwargs)[0]
+        if debug.UPLOAD:
+            upload.upload_timing_summary['candidates'] = \
+                upload.upload_timing_summary.setdefault('candidates', 0) + \
+                (time.time()-starttime)
         if not self.compare_with_db(dbname=dbname):
             raise PeriodicityCandidateError("Periodicity candidate doesn't " \
                     "match what was uploaded to DB!")
@@ -211,8 +218,14 @@ class PeriodicityCandidatePlot(upload.Uploadable):
         if self.cand_id is None:
             raise PeriodicityCandidateError("Cannot upload plot with " \
                     "pdm_cand_id == None!")
+        if debug.UPLOAD: 
+            starttime = time.time()
         super(PeriodicityCandidatePlot, self).upload(dbname=dbname, \
                     *args, **kwargs)
+        if debug.UPLOAD:
+            upload.upload_timing_summary[self.plot_type] = \
+                upload.upload_timing_summary.setdefault(self.plot_type, 0) + \
+                (time.time()-starttime)
         if not self.compare_with_db(dbname=dbname):
             raise PeriodicityCandidateError("Candidate plot (%s) doesn't " \
                 "match what was uploaded to DB!" % self.plot_type)
