@@ -64,9 +64,30 @@ def clean_up(jobid):
     """
     fns = get_fns_for_jobid(jobid)
     for fn in fns:
-        if os.path.exists(fn):
-            os.remove(fn)
-            print "Deleted: %s" % fn
+        remove_file(fn)
+
+def remove_file(fn):
+    """Delete a file (if it exists) and mark it as deleted in the 
+        job-tracker DB.
+
+        Input:
+            fn: The name of the file to remove.
+
+        Outputs:
+            None
+    """
+    import jobtracker
+    if os.path.exists(fn):
+        os.remove(fn)
+        print "Deleted: %s" % fn
+    jobtracker.query("UPDATE files " \
+                     "SET status='deleted', " \
+                         "updated_at='%s', " \
+                         "details='File was deleted' " \
+                     "WHERE filename LIKE '%%%s'" % \
+                     (jobtracker.nowstr(), fn))
+
+ 
 
 
 def can_add_file(fn, verbose=False):

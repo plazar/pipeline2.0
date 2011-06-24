@@ -73,6 +73,7 @@ def can_request_more():
                                        "WHERE status='waiting'", fetchone=True)[0]
     to_download = jobtracker.query("SELECT * FROM files " \
                                    "WHERE status NOT IN ('downloaded', " \
+                                                        "'deleted', " \
                                                         "'terminal_failure')")
     num_to_restore = active_requests
     num_to_download = len(to_download)
@@ -361,7 +362,8 @@ def get_num_to_request():
     ALLOWABLE_REQUEST_SIZES = [5,10,100,200]
     avgrate = jobtracker.query("SELECT AVG(size/(JULIANDAY(updated_at) - " \
                                             "JULIANDAY(created_at))) " \
-                               "FROM files WHERE status='downloaded'", \
+                               "FROM files " \
+                               "WHERE status IN ('downloaded', 'deleted')", \
                                fetchone=True)[0]
     avgsize = jobtracker.query("SELECT AVG(size/numrequested) FROM requests " \
                                "WHERE numbits=%d AND " \

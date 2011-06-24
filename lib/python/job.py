@@ -67,7 +67,7 @@ def create_jobs_for_new_files():
     rows = jobtracker.query("SELECT filename FROM files " \
                             "LEFT JOIN job_files " \
                                 "ON job_files.file_id=files.id " \
-                            "WHERE files.status='downloaded' " \
+                            "WHERE files.status IN ('downloaded', 'added') " \
                                 "AND job_files.id IS NULL")
     newfns = [str(row['filename']) for row in rows]
 

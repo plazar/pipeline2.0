@@ -98,23 +98,15 @@ def get_data():
     restore_times = jobtracker.query("SELECT DATETIME(created_at) FROM requests")
     restore_sizes = jobtracker.query("SELECT numrequested FROM requests")
 
-    bytes_downloaded = jobtracker.query("SELECT size, DATETIME(updated_at) " \
-                                        "FROM files " \
-                                        "WHERE status='downloaded'")
-    bytes_deleted_pass = jobtracker.query("SELECT -SUM(files.size), " \
-                                                "MAX(DATETIME(jobs.updated_at)) " \
-                                          "FROM jobs, files, job_files " \
-                                          "WHERE files.id=job_files.file_id " \
-                                                "AND jobs.id=job_files.job_id " \
-                                                "AND jobs.status='uploaded'" \
-                                          "GROUP BY jobs.id")
-    bytes_deleted_fail = jobtracker.query("SELECT -SUM(files.size), " \
-                                                "MAX(DATETIME(jobs.updated_at)) " \
-                                          "FROM jobs, files, job_files " \
-                                          "WHERE files.id=job_files.file_id " \
-                                                "AND jobs.id=job_files.job_id " \
-                                                "AND jobs.status='terminal_failure'" \
-                                          "GROUP BY jobs.id")
+    bytes_downloaded = jobtracker.query("SELECT files.size, " \
+                                            "MAX(DATETIME(download_attempts.updated_at)) " \
+                                        "FROM files, download_attempts " \
+                                        "WHERE files.id=download_attempts.file_id " \
+                                            "AND download_attempts.status IN ('downloaded', 'added') " \
+                                        "GROUP BY files.id")
+    bytes_deleted = jobtracker.query("SELECT -size, DATETIME(updated_at) " \
+                                          "FROM files " \
+                                          "WHERE status='deleted'")
 
     mkdatetime = lambda dt: datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S')
 
@@ -125,7 +117,7 @@ def get_data():
     restore_times = np.asarray([mkdatetime(row[0]) for row in restore_times])
     restore_sizes = np.asarray([row[0] for row in restore_sizes])
 
-    bytes_times = bytes_downloaded + bytes_deleted_pass + bytes_deleted_fail
+    bytes_times = bytes_downloaded + bytes_deleted
     bytes = np.asarray([row[0] for row in bytes_times])
     times = np.asarray([mkdatetime(row[1]) for row in bytes_times])
     isort = np.argsort(times)
