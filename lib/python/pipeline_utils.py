@@ -84,10 +84,8 @@ def remove_file(fn):
                      "SET status='deleted', " \
                          "updated_at='%s', " \
                          "details='File was deleted' " \
-                     "WHERE filename LIKE '%%%s'" % \
+                     "WHERE filename='%s'" % \
                      (jobtracker.nowstr(), fn))
-
- 
 
 
 def can_add_file(fn, verbose=False):
