@@ -10,8 +10,9 @@ import sys
 import subprocess
 import types
 import traceback
+import optparse
 
-DEBUG=False
+import debug
 
 class PipelineError(Exception):
     """A generic exception to be thrown by the pipeline.
@@ -103,7 +104,6 @@ def can_add_file(fn, verbose=False):
     return True
 
 
-
 def execute(cmd, stdout=None, stderr=sys.stderr): 
     """Execute the command 'cmd' after logging the command
         to STDOUT.  Return the wall-clock amount of time
@@ -144,3 +144,34 @@ def execute(cmd, stdout=None, stderr=sys.stderr):
         stdout.close()
     if stderrfile:
         stderr.close()
+
+
+class PipelineOptions(optparse.OptionParser):
+    def __init__(self, *args, **kwargs):
+        optparse.OptionParser.__init__(self, *args, **kwargs)
+       
+    def parse_args(self, *args, **kwargs):
+        # Add debug group just before parsing so it is the last set of
+        # options displayed in help text
+        self.add_debug_group()
+        return optparse.OptionParser.parse_args(self, *args, **kwargs)
+
+    def add_debug_group(self):
+        group = optparse.OptionGroup(self, "Debug Options", \
+                    "The following options turn on various debugging " \
+                    "features in the pipeline. Multiple debugging " \
+                    "options can be provided.")
+        group.add_option('-d', '--debug', action='callback', \
+                          callback=self.debug_callback, \
+                          callback_args=('all',), \
+                          help="Turn on all debugging modes. (Same as --debug-all).")
+        for m, desc in debug.modes:
+            group.add_option('--debug-%s' % m.lower(), action='callback', \
+                              callback=self.debug_callback, \
+                              callback_args=(m,), \
+                              help=desc)
+        self.add_option_group(group)
+
+    def debug_callback(self, option, opt_str, value, parser, mode):
+        debug.set_mode_on(eval('debug.%s' % mode.upper()))
+
