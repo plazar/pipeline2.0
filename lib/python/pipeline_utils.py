@@ -162,9 +162,11 @@ class PipelineOptions(optparse.OptionParser):
                     "features in the pipeline. Multiple debugging " \
                     "options can be provided.")
         group.add_option('-d', '--debug', action='callback', \
-                          callback=self.debug_callback, \
-                          callback_args=('all',), \
+                          callback=self.debugall_callback, \
                           help="Turn on all debugging modes. (Same as --debug-all).")
+        group.add_option('--debug-all', action='callback', \
+                          callback=self.debugall_callback, \
+                          help="Turn on all debugging modes. (Same as -d/--debug).")
         for m, desc in debug.modes:
             group.add_option('--debug-%s' % m.lower(), action='callback', \
                               callback=self.debug_callback, \
@@ -173,5 +175,7 @@ class PipelineOptions(optparse.OptionParser):
         self.add_option_group(group)
 
     def debug_callback(self, option, opt_str, value, parser, mode):
-        debug.set_mode_on(eval('debug.%s' % mode.upper()))
+        debug.set_mode_on(mode)
 
+    def debugall_callback(self, option, opt_str, value, parser):
+        debug.set_allmodes_on()

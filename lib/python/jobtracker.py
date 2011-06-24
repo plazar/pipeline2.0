@@ -2,8 +2,7 @@ import sqlite3
 import time
 import datetime
 import types
-import pipeline_utils
-
+import debug 
 import config.background
 
 
@@ -40,7 +39,7 @@ def query(queries, fetchone=False):
             db_conn.row_factory = sqlite3.Row
             db_cur = db_conn.cursor()
             for q in queries:
-                if pipeline_utils.DEBUG:
+                if debug.JOBTRACKER:
                     print q
                 db_cur.execute(q)
             db_conn.commit()
