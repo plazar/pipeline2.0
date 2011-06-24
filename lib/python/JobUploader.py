@@ -3,8 +3,10 @@ import warnings
 import traceback
 import glob
 import sys
-import datafile
+import time
 
+import debug
+import datafile
 import header
 import candidates
 import sp_candidates
@@ -83,7 +85,8 @@ def upload_results(job_submit):
     print "\tJob ID: %d, Job submission ID: %d" % \
             (job_submit['job_id'], job_submit['id'])
     if debug.UPLOAD:
-        upload_timing_summary = {}
+        upload.upload_timing_summary = {}
+        starttime = time.time()
     try:
         # Connect to the DB
         db = database.Database('default', autocommit=False)
@@ -93,6 +96,8 @@ def upload_results(job_submit):
         data = datafile.autogen_dataobj(fitsfiles)
         version_number = get_version_number(dir)
 
+        if debug.UPLOAD: 
+            parsetime = time.time()
         # Upload results
         hdr = header.get_header(fitsfiles)
         
@@ -112,6 +117,11 @@ def upload_results(job_submit):
                                              dir)
         print "\tDiagnostics parsed."
         
+        if debug.UPLOAD: 
+            upload.upload_timing_summary['Parsing'] = \
+                upload.upload_timing_summary.setdefault('Parsing', 0) + \
+                (time.time()-parsetime)
+
         # Perform the upload
         header_id = hdr.upload(db)
         for d in diags:
@@ -191,7 +201,10 @@ def upload_results(job_submit):
         if config.basic.delete_rawdata:
             pipeline_utils.clean_up(job_submit['job_id'])
 
-        if debug.UPLOAD:
+        if debug.UPLOAD: 
+            upload.upload_timing_summary['End-to-end'] = \
+                upload.upload_timing_summary.setdefault('End-to-end', 0) + \
+                (time.time()-starttime)
             print "Upload timing summary:"
             for k in sorted(upload.upload_timing_summary.keys()):
                 print "    %s: %.2f s" % (k, upload.upload_timing_summary[k])

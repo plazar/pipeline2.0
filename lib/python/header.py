@@ -15,6 +15,7 @@ import types
 import optparse
 import time
 
+import debug
 import upload
 import datafile
 import database

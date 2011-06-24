@@ -15,6 +15,7 @@ import types
 import binascii
 import time
 
+import debug
 import database
 import upload
 import pipeline_utils

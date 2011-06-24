@@ -21,6 +21,7 @@ import time
 import psr_utils
 import prepfold
 
+import debug
 import database
 import pipeline_utils
 import upload

@@ -14,6 +14,7 @@ import binascii
 import sys
 import time
 
+import debug
 import CornellFTP
 import database
 import upload
