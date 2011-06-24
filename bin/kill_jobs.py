@@ -42,7 +42,7 @@ def main():
 
 
 if __name__ == '__main__':
-    parser = optparse.OptionParser(usage="%prog ID [ID ...]", \
+    parser = pipeline_utils.PipelineOptions(usage="%prog ID [ID ...]", \
                                    description="Kill a job. That is set its " \
                                         "status as 'terminal_failure', and " \
                                         "clean up its datafiles (if applicable). ")
