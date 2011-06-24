@@ -73,16 +73,12 @@ def main():
 
 
 if __name__ == "__main__":
-    parser = optparse.OptionParser(usage="%prog [OPTIONS] FILES ...", \
+    parser = pipeline_utils.PipelineOptions(usage="%prog [OPTIONS] FILES ...", \
                                    description="Add files to the 'files' " \
                                         "table in the job-tracker database.")
     parser.add_option('-g', '--glob', dest='fileglobs', action='append', \
                         help="A (properly quoted) glob expression indentifying " \
                              "files to add to the job-tracker DB.", \
                         default=[])
-    parser.add_option('-d', '--debug', dest='debug', action='store_true', \
-                        help="Set the pipeline to print debugging info.", \
-                        default=False)
     options, args = parser.parse_args()
-    pipeline_utils.DEBUG = options.debug
     main()

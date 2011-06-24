@@ -35,13 +35,9 @@ def main():
         time.sleep(config.background.sleep)       
 
 if __name__=='__main__':
-    parser = optparse.OptionParser(usage="%prog [OPTIONS]", \
+    parser = pipeline_utils.PipelineOptions(usage="%prog [OPTIONS]", \
                                    description="Start the job pooler.")
-    parser.add_option('-d', '--debug', dest='debug', action='store_true', \
-                        help="Set the pipeline to print debugging info.", \
-                        default=False)
     options, args = parser.parse_args()
-    pipeline_utils.DEBUG = options.debug
 
     try:
         main()
