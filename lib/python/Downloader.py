@@ -9,6 +9,7 @@ import traceback
 
 import M2Crypto
 
+import debug
 import mailer
 import OutStream
 import datafile
@@ -73,6 +74,7 @@ def can_request_more():
                                        "WHERE status='waiting'", fetchone=True)[0]
     to_download = jobtracker.query("SELECT * FROM files " \
                                    "WHERE status NOT IN ('downloaded', " \
+                                                        "'added', " \
                                                         "'deleted', " \
                                                         "'terminal_failure')")
     num_to_restore = active_requests
@@ -96,7 +98,7 @@ def get_space_used():
         used: Size of download directory (in bytes)
     """
     files = jobtracker.query("SELECT * FROM files " \
-                             "WHERE status IN ('downloaded', 'unverified')")
+                             "WHERE status IN ('added', 'downloaded', 'unverified')")
 
     total_size = 0
     for file in files:
@@ -360,10 +362,12 @@ def get_num_to_request():
             num_to_request: The size of the request.
     """
     ALLOWABLE_REQUEST_SIZES = [5,10,20,50,100,200]
-    avgrate = jobtracker.query("SELECT AVG(size/(JULIANDAY(updated_at) - " \
-                                            "JULIANDAY(created_at))) " \
-                               "FROM files " \
-                               "WHERE status IN ('downloaded', 'deleted')", \
+    avgrate = jobtracker.query("SELECT AVG(files.size/" \
+                                "(JULIANDAY(download_attempts.updated_at) - " \
+                                "JULIANDAY(download_attempts.created_at))) " \
+                               "FROM files, download_attempts " \
+                               "WHERE files.id=download_attempts.file_id " \
+                                    "AND download_attempts.status='downloaded'", \
                                fetchone=True)[0]
     avgsize = jobtracker.query("SELECT AVG(size/numrequested) FROM requests " \
                                "WHERE numbits=%d AND " \
@@ -371,7 +375,6 @@ def get_num_to_request():
                                 (config.download.request_numbits, \
                                     config.download.request_datatype.lower()), \
                                 fetchone=True)[0]
-  
     if avgrate is None or avgsize is None:
         return min(ALLOWABLE_REQUEST_SIZES)
 
@@ -389,6 +392,14 @@ def get_num_to_request():
     max_num = max_bytes/avgsize
 
     ideal_num_to_request = min([max_num, max_to_request_per_day])
+
+    if debug.DOWNLOAD:
+        print "Average dl rate: %.2f bytes/day" % avgrate
+        print "Average size per request unit: %d bytes" % avgsize
+        print "Max can dl per day: %d" % max_to_request_per_day
+        print "Max num to request: %d" % max_num
+        print "Ideal to request: %d" % ideal_num_to_request
+
     # Return the closest allowable request size without exceeding
     # 'ideal_num_to_request'
     num_to_request = max([0]+[N for N in ALLOWABLE_REQUEST_SIZES \
