@@ -15,7 +15,7 @@ def main():
     fns.update(options.files)
 
     for fn in fns:
-        fn = os.abspath(fn)
+        fn = os.path.abspath(fn)
         rows = jobtracker.query("SELECT * FROM files " \
                                 "WHERE filename='%s' " \
                                     "AND status IN ('added', 'downloaded')" % fn)
