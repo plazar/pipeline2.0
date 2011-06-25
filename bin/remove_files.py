@@ -4,6 +4,9 @@
 This script is used to remove datafiles that are 
 not part of data analysis jobs.
 """
+import os
+import os.path
+
 import pipeline_utils
 import jobtracker
 
@@ -12,6 +15,7 @@ def main():
     fns.update(options.files)
 
     for fn in fns:
+        fn = os.abspath(fn)
         rows = jobtracker.query("SELECT * FROM files " \
                                 "WHERE filename='%s' " \
                                     "AND status IN ('added', 'downloaded')" % fn)
