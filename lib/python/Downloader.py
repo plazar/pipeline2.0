@@ -359,7 +359,7 @@ def get_num_to_request():
         Outputs:
             num_to_request: The size of the request.
     """
-    ALLOWABLE_REQUEST_SIZES = [5,10,100,200]
+    ALLOWABLE_REQUEST_SIZES = [5,10,20,50,100,200]
     avgrate = jobtracker.query("SELECT AVG(size/(JULIANDAY(updated_at) - " \
                                             "JULIANDAY(created_at))) " \
                                "FROM files " \
