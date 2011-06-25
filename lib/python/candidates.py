@@ -85,13 +85,14 @@ class PeriodicityCandidate(upload.Uploadable):
             starttime = time.time()
         cand_id = super(PeriodicityCandidate, self).upload(dbname=dbname, \
                     *args, **kwargs)[0]
+        
+        if not self.compare_with_db(dbname=dbname):
+            raise PeriodicityCandidateError("Periodicity candidate doesn't " \
+                    "match what was uploaded to DB!")
         if debug.UPLOAD:
             upload.upload_timing_summary['candidates'] = \
                 upload.upload_timing_summary.setdefault('candidates', 0) + \
                 (time.time()-starttime)
-        if not self.compare_with_db(dbname=dbname):
-            raise PeriodicityCandidateError("Periodicity candidate doesn't " \
-                    "match what was uploaded to DB!")
         for dep in self.dependents:
             dep.cand_id = cand_id
             dep.upload(dbname=dbname, *args, **kwargs)
@@ -223,13 +224,14 @@ class PeriodicityCandidatePlot(upload.Uploadable):
             starttime = time.time()
         super(PeriodicityCandidatePlot, self).upload(dbname=dbname, \
                     *args, **kwargs)
+        if not self.compare_with_db(dbname=dbname):
+            raise PeriodicityCandidateError("Candidate plot (%s) doesn't " \
+                "match what was uploaded to DB!" % self.plot_type)
+        
         if debug.UPLOAD:
             upload.upload_timing_summary[self.plot_type] = \
                 upload.upload_timing_summary.setdefault(self.plot_type, 0) + \
                 (time.time()-starttime)
-        if not self.compare_with_db(dbname=dbname):
-            raise PeriodicityCandidateError("Candidate plot (%s) doesn't " \
-                "match what was uploaded to DB!" % self.plot_type)
 
     def get_upload_sproc_call(self):
         """Return the EXEC spPDMCandPlotUploader string to upload

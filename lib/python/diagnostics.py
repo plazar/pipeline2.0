@@ -55,14 +55,14 @@ class Diagnostic(upload.Uploadable):
         if debug.UPLOAD: 
             starttime = time.time()
         super(Diagnostic, self).upload(dbname=dbname, *args, **kwargs)
+        if not self.compare_with_db(dbname=dbname):
+            raise DiagnosticError("Diagnostic (%s) doesn't match " \
+                    "what was upload to DB!" % self.name)
+        
         if debug.UPLOAD:
             upload.upload_timing_summary['diagnostics'] = \
                 upload.upload_timing_summary.setdefault('diagnostics', 0) + \
                 (time.time()-starttime)
-
-        if not self.compare_with_db(dbname=dbname):
-            raise DiagnosticError("Diagnostic (%s) doesn't match " \
-                    "what was upload to DB!" % self.name)
 
 class FloatDiagnostic(Diagnostic):
     """An abstract class to represent float-valued PALFA diagnostics.

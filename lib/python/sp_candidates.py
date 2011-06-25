@@ -115,6 +115,9 @@ class SinglePulseTarball(upload.Uploadable):
             starttime = time.time()
         id, path = super(SinglePulseTarball, self).upload(dbname=dbname, \
                     *args, **kwargs)
+        if not self.compare_with_db(dbname=dbname):
+            raise SinglePulseCandidateError("SP tarball doesn't match " \
+                    "what was uploaded to DB!")
         if debug.UPLOAD:
             upload.upload_timing_summary['sp info (db)'] = \
                 upload.upload_timing_summary.setdefault('sp info (db)', 0) + \
@@ -122,9 +125,6 @@ class SinglePulseTarball(upload.Uploadable):
         if id < 0:
             # An error has occurred
             raise SinglePulseCandidateError(path)
-        elif not self.compare_with_db(dbname=dbname):
-            raise SinglePulseCandidateError("SP tarball doesn't match " \
-                    "what was uploaded to DB!")
         else:
             if debug.UPLOAD: 
                 starttime = time.time()
@@ -172,11 +172,17 @@ class SinglePulseBeamPlot(upload.Uploadable):
         if self.header_id is None:
             raise SinglePulseCandidateError("Cannot upload SP plot " \
                     "with header_id == None!")
+        if debug.UPLOAD: 
+            starttime = time.time()
         super(SinglePulseBeamPlot, self).upload(dbname=dbname, \
                 *args, **kwargs)
         if not self.compare_with_db(dbname=dbname):
             raise SinglePulseCandidateError("SP plot doesn't match " \
                     "what was uploaded to DB!")
+        if debug.UPLOAD:
+            upload.upload_timing_summary['sp plots'] = \
+                upload.upload_timing_summary.setdefault('sp plots', 0) + \
+                (time.time()-starttime)
 
     def get_upload_sproc_call(self):
         """Return the EXEC spSPSingleBeamCandPlotLoader string to

@@ -52,14 +52,15 @@ class Header(upload.Uploadable):
         if debug.UPLOAD: 
             starttime = time.time()
         header_id = super(Header, self).upload(dbname=dbname, *args, **kwargs)[0]
+        
+        if not self.compare_with_db(dbname=dbname):
+            raise HeaderError("Header doesn't " \
+                    "match what was uploaded to DB!")
         if debug.UPLOAD:
             upload.upload_timing_summary['header'] = \
                 upload.upload_timing_summary.setdefault('header', 0) + \
                 (time.time()-starttime)
         
-        if not self.compare_with_db(dbname=dbname):
-            raise HeaderError("Header doesn't " \
-                    "match what was uploaded to DB!")
         for dep in self.dependents:
             dep.header_id = header_id
             dep.upload(dbname=dbname, *args, **kwargs)
