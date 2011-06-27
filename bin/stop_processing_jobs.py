@@ -57,7 +57,7 @@ def main():
 
 
 if __name__ == "__main__":
-    parser = optparse.OptionParser(usage="%prog [OPTIONS] QUEUE_ID [QUEUE_ID ...]", \
+    parser = pipeline_utils.PipelineOptions(usage="%prog [OPTIONS] QUEUE_ID [QUEUE_ID ...]", \
                                    description="Stop a job running in the queue. " \
                                         "There are two ways to stop jobs: " \
                                         "1) Failing the job (i.e. the submission " \
