@@ -535,7 +535,7 @@ def verify_files():
                            "WHERE id=%d" % \
                            (jobtracker.nowstr(), last_attempt_id))
         jobtracker.query(queries)
-        return numverified
+    return numverified
 
 
 def recover_failed_downloads():
