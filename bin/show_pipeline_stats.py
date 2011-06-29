@@ -12,7 +12,7 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
     def __init__(self, *args, **kwargs):
         super(PipelineStatsFigure, self).__init__(*args, **kwargs)
         create_times, upload_times, fail_times, bytes, times, \
-            restore_times, restore_sizes = get_data()
+            restore_times, restore_sizes, restore_status = get_data()
         self.jobax = self.add_subplot(3,1,1)
         self.jobax.totline = self.jobax.plot(create_times, \
                     np.arange(1, len(create_times)+1), 'k-', \
@@ -28,8 +28,9 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
         plt.setp(self.jobax.get_yticklabels(), size='x-small')
 
         self.restoreax = self.add_subplot(3,1,2, sharex=self.jobax)
-        self.restoreax.line = self.restoreax.plot(restore_times, \
-                    restore_sizes, 'bo', label="restores", alpha=0.5)[0]
+        self.restoreax.collect = self.restoreax.scatter(restore_times, \
+                    restore_sizes, s=40, marker='o', label="restores", \
+                    facecolor=restore_status, alpha=0.5)
         self.restoreax.set_ylabel("Restore size", size='small')
         self.restoreax.set_yscale("log")
         self.restoreax.set_ylim(0.5, 300)
@@ -64,7 +65,7 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
 
     def update(self):
         create_times, upload_times, fail_times, bytes, times, \
-            restore_times, restore_sizes = get_data()
+            restore_times, restore_sizes, restore_status = get_data()
         self.jobax.totline.set_xdata(create_times)
         self.jobax.totline.set_ydata(np.arange(1, len(create_times)+1))
         self.jobax.upline.set_xdata(upload_times)
@@ -73,8 +74,10 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
         self.jobax.failline.set_ydata(np.arange(1, len(fail_times)+1))
         self.jobax.relim()
 
-        self.restoreax.line.set_xdata(restore_times)
-        self.restoreax.line.set_ydata(restore_sizes)
+        x = self.restoreax.collect.convert_xunits(restore_times)
+        y = self.restoreax.collect.convert_yunits(restore_sizes)
+        self.restoreax.collect.set_offsets(zip(x,y))
+        self.restoreax.collect.set_facecolors(restore_status)
         self.restoreax.relim()
 
         self.diskax.diskline.set_xdata(times)
@@ -97,6 +100,15 @@ def get_data():
 
     restore_times = jobtracker.query("SELECT DATETIME(created_at) FROM requests")
     restore_sizes = jobtracker.query("SELECT numrequested FROM requests")
+    rows = jobtracker.query("SELECT status FROM requests")
+    restore_status = []
+    for r in rows:
+        if r['status'] == 'finished':
+            restore_status.append((0,1,0)) # Greeen
+        elif r['status'] == 'failed':
+            restore_status.append((1,0,0)) # Red
+        else:
+            restore_status.append((0,0,1)) # Blue
 
     bytes_downloaded = jobtracker.query("SELECT files.size, " \
                                             "MAX(DATETIME(download_attempts.updated_at)) " \
@@ -125,7 +137,7 @@ def get_data():
     bytes = np.cumsum(bytes[isort])
 
     return create_times, upload_times, fail_times, bytes, times, \
-            restore_times, restore_sizes
+            restore_times, restore_sizes, restore_status
 
 
 def main():
@@ -138,7 +150,7 @@ def main():
     fig.canvas.mpl_connect("key_press_event", \
                 lambda e: (e.key in ('q', 'Q') and fig.close()))
 
-    timer = fig.canvas.new_timer(60*1000) # Time interval in milliseconds
+    timer = fig.canvas.new_timer(10*1000) # Time interval in milliseconds
     timer.add_callback(fig.update)
     timer.start()
     plt.show()
