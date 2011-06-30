@@ -25,13 +25,18 @@ class ErrorMailer:
         self.msg['Subject'] = subject
         self.msg['To'] = config.email.recipient
         if self.enabled:
+            if config.email.smtp_usessl:
+                # Requires python2.6 or better
+                smpt = smtplib.SMTP_SSL
+            else:
+                smpt = smtplib.SMTP
             if config.email.smtp_host is None:
                 self.msg['From'] = '%s@%s' % (os.getenv('USER'), \
                                                 socket.gethostname())
-                self.client = smtplib.SMTP('localhost', config.email.smtp_port)
+                self.client = smtp('localhost', config.email.smtp_port)
             else:
                 self.msg['From'] = None
-                self.client = smtplib.SMTP(config.email.smtp_host, config.email.smtp_port)
+                self.client = smtp(config.email.smtp_host, config.email.smtp_port)
 
     def send(self):
         if self.enabled:

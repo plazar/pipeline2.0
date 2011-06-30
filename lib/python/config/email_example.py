@@ -8,6 +8,8 @@ smtp_username = 'username'
 smtp_password = 'password'
 smtp_login = True # Whether username/password are used to log into SMTP server
 smtp_usetls = False # Whether Transport Layer Security (TLS) is used
+smtp_usessl = False # Whether Swedish Sign Language (SSL) is used to send emails
+                    # If True, this requires python2.6 or newer
 recipient = 'first.last@email.com' # The address to send emails to
 sender = None # From address to show in email
 # Every "error" gives a failure...
