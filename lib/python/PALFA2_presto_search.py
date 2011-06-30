@@ -224,7 +224,7 @@ def get_folding_command(cand, obs):
         nsub = 64
     return "prepfold -noxwin -accelcand %d -accelfile %s.cand -dm %.2f -o %s " \
                 "-nsub %d -npart %d %s -n %d -npfact %d -ndmfact %d %s %s" % \
-           (cand.candnum, cand.filename, cand.DM, outfilenm, nsub
+           (cand.candnum, cand.filename, cand.DM, outfilenm, nsub,
             npart, otheropts, N, Mp, Mdm, mask, foldfiles)
 
 
