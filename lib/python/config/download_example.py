@@ -27,12 +27,12 @@ numrestored = 5   # max number of files waiting to be restored +
                   # waiting to be downloaded at any given time
 numretries = 3    # max number of times to try to download before failing
 
-request_timeout = 1 # Integer number of hours before an un-restored request 
+request_timeout = 6 # Integer number of hours before an un-restored request 
                     # is marked as failed
 
 # The following control the data type and format requested from Cornell
-request_numbits = 4 # or 16 (which we will likely never serve)
-request_datatype = 'mock' # or 'wapp'
+request_numbits = 4 # 4 or 16 (The pipeline doesn't support 16-bit data)
+request_datatype = 'mock' # 'mock' or 'wapp'
 
 import download_check
 download_check.download.populate_configs(locals())
