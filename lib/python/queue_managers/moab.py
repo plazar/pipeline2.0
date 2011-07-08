@@ -2,6 +2,7 @@ import subprocess
 import os
 import os.path
 import time
+import re
 
 import queue_managers.generic_interface
 import pipeline_utils
@@ -35,7 +36,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         errorlog = os.path.join(config.basic.qsublog_dir, "'$MOAB_JOBID'.ER") 
         stdoutlog = os.devnull
         #-E needed for $MOAB_JOBID to be defined
-        cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1:walltime=47:00:00 -N %s -e %s -o %s %s" %\
+        cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=47:00:00 -N %s -e %s -o %s %s" %\
                    (';'.join(datafiles), outdir, self.property, self.job_basename,\
                       errorlog, stdoutlog, script)
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
@@ -72,7 +73,8 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 
     def is_running(self, queue_id):
         """Must return True/False whether the job is in the queue or not
-            respectively.
+            respectively. If there is a moab communication error, assume job 
+            is still running.
 
         Input:
             queue_id: Unique identifier for a job.
@@ -83,7 +85,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         """
 	state = self._check_job_state(queue_id)
 	     
-        return ( ('DNE' not in state) and ('Completed' not in state) )
+        return ( ('DNE' not in state) and ('Completed' not in state) or ('COMMERR' in state) )
 
     def _check_job_state(self, queue_id):
         """A private method not required by the PipelineQueueManager interface.
@@ -97,10 +99,15 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         """
 
         cmd = "checkjob %s" % queue_id
-        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
-                                stdin=subprocess.PIPE)
-        status = pipe.communicate()[0]
-        pipe.stdin.close()
+        #pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
+        #                        stdin=subprocess.PIPE)
+        #status = pipe.communicate()[0]
+        #pipe.stdin.close()
+
+        lines, comm_err = _exec_check_for_failure(cmd)
+        if comm_err:
+          return 'COMMERR'
+
         lines = status.split('\n')
 	for line in lines:
 	    if line.startswith("State:"):
@@ -108,6 +115,35 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
                return state
         return 'DNE' # does not exist
 	
+
+    def _exec_check_for_failure(self, cmd):
+        """A private method not required by the PipelineQueueManager interface.
+            Executes a moab command and checks for moab communication error.
+
+            Input:
+                cmd: String command to execute.
+
+            Output:
+	        output: Output of the executed command.
+                comm_err: Boolean value. True if there was a communication error.
+        """
+
+        comm_err_re = re.compile("moab may not be running")        
+ 
+        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, \
+                                stdin=subprocess.PIPE)  
+        pipe.stdin.close()
+
+        output = pipe.communicate()[0]
+        error = pipe.communicate()[1]
+
+        if comm_err_re.search(error):
+          comm_err = True
+        else:
+          comm_err = False
+
+        return (output, comm_err)
+
 
     def delete(self, queue_id):
         """Remove the job identified by 'queue_id' from the queue.
@@ -149,10 +185,17 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         numrunning = 0
         numqueued = 0
         cmd = "showq -n -w class=%s" % self.property
-        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
-                                stdin=subprocess.PIPE)
-        jobs = pipe.communicate()[0]
-        pipe.stdin.close()
+        #pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
+        #                        stdin=subprocess.PIPE)
+        #jobs = pipe.communicate()[0]
+        #pipe.stdin.close()
+ 
+        jobs, comm_err = _exec_check_for_failure(cmd)
+        # what do we want to do with a moab comm err here?
+
+        if comm_err:
+          return (9999, 9999)
+
         lines = jobs.split('\n')
         for line in lines:
             if line.startswith(self.job_basename):
