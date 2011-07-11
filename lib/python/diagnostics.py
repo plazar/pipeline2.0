@@ -635,6 +635,9 @@ DIAGNOSTIC_TYPES = [RFIPercentageDiagnostic,
                     SearchParameters,
                     SigmaThreshold,
                     MaxCandsToFold,
+                    PercentZappedTotal,
+                    PercentZappedBelow10Hz,
+                    PercentZappedBelow1Hz,
                    ]
 
 
