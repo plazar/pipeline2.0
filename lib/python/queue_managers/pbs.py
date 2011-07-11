@@ -5,8 +5,7 @@ import time
 
 import PBSQuery
 
-import queue_managers.generic_interface
-import pipeline_utils
+import queue_managers
 import config.basic
 import config.email
 
@@ -41,13 +40,13 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             Output:
                 jobid: A unique job identifier.
         
-            *** NOTE: A pipeline_utils.PipelineError is raised if
-                        the queue submission fails.
+            *** NOTE: A queue_manager.QueueManagerNonFatalError should be
+                        raised if the queue submission fails.
         """
         node = self._get_submit_node()
         if node is None:
             errormsg = "No nodes to accept job submission!\n"
-            raise pipeline_utils.PipelineError(errormsg)
+            raise queue_managers.QueueManagerNonFatalError(errormsg)
         errorlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.ER")
         stdoutlog = os.devnull
         cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' -l nodes=%s:ppn=1 -N %s -e %s -o %s %s" % \
@@ -60,7 +59,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         if not queue_id:
             errormsg  = "No job identifier returned by qsub!\n"
             errormsg += "\tCommand executed: %s\n" % cmd
-            raise pipeline_utils.PipelineError(errormsg)
+            raise queue_manager.QueueManagerNonFatalError(errormsg)
         else:
             # There is occasionally a short delay between submission and 
             # the job appearing on the queue, so sleep for 1 second. 
@@ -132,7 +131,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         Output:
             None
             
-            *** NOTE: A pipeline_utils.PipelineError is raised if
+            *** NOTE: A queue_managers.QueueManagerNonFatalError is raised if
                         the job removal fails.
         """
         cmd = "qsig -s SIGINT %s" % queue_id
@@ -145,7 +144,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         if (queue_id in batch) and ('E' not in batch[queue_id]['job_state']):
             errormsg  = "The job (%s) is still in the queue " % queue_id
             errormsg += "and is not marked as exiting (status = 'E')!\n"
-            raise pipeline_utils.PipelineError(errormsg)
+            raise queue_managers.QueueManagerNonFatalError(errormsg)
 
     def status(self):
         """Return a tuple of number of jobs running and queued for the pipeline

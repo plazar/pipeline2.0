@@ -16,6 +16,7 @@ import jobtracker
 import mailer
 import OutStream
 import pipeline_utils
+import queue_managers
 import config.background
 import config.processing
 import config.jobpooler
@@ -314,7 +315,7 @@ def submit(job_row):
                        "WHERE id=%d" % \
                     (jobtracker.nowstr(), job_row['id']))
         jobtracker.query(queries)
-    except pipeline_utils.PipelineError:
+    except queue_managers.QueueManagerNonFatalError:
         # Error caught during job submission.
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
         errormsg  = "Error while submitting job!\n"
