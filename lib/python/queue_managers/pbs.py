@@ -10,7 +10,8 @@ import config.basic
 import config.email
 
 class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
-    def __init__(self, job_basename, property, max_jobs_per_node):
+    def __init__(self, job_basename, property, max_jobs_per_node, \
+                    queue_name=None):
         """Constructor for the PBS queue manager interface.
 
             Inputs:
@@ -18,6 +19,8 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
                 property: Submit jobs to nodes with this name/propery
                 max_jobs_per_node: The maximum number of jobs to be
                                     submitted to a single node.
+                queue_name: The name of the queue to submit to.
+                                    (Default: None - Don't provide queue name)
 
             Output:
                 pbsmanager: The PBSManager instance.
@@ -25,6 +28,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         self.job_basename = job_basename
         self.property = property
         self.max_jobs_per_node = max_jobs_per_node
+        self.queue_name = queue_name
 
     def submit(self, datafiles, outdir, \
                 script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
@@ -49,8 +53,12 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             raise queue_managers.QueueManagerNonFatalError(errormsg)
         errorlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.ER")
         stdoutlog = os.devnull
-        cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' -l nodes=%s:ppn=1 -N %s -e %s -o %s %s" % \
-                        (';'.join(datafiles), outdir, node, \
+        if self.queue_name is not None:
+            qname_opt = "-q %s" % self.queue_name
+        else:
+            qname_opt = ""
+        cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' %s -l nodes=%s:ppn=1 -N %s -e %s -o %s %s" % \
+                        (';'.join(datafiles), outdir, qname_opt, node, \
                             self.job_basename, errorlog, stdoutlog, script)
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
                                 stdin=subprocess.PIPE)

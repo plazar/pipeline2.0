@@ -15,6 +15,8 @@ import types
 import binascii
 import time
 
+import numpy as np
+
 import debug
 import database
 import upload
@@ -410,13 +412,7 @@ class NumAboveThreshDiagnostic(FloatDiagnostic):
                                     len(candlists))
         candlist = accelcands.parse_candlist(candlists[0])
         
-        # find the search_params.txt file
-        paramfn = os.path.join(self.directory, 'search_params.txt')
-        if os.path.exists(paramfn):
-            tmp, params = {}, {}
-            execfile(paramfn, tmp, params)
-        else:
-            raise DiagnosticError("Search parameter file doesn't exist!")
+        params = get_search_params(self.directory)
         self.value = len([c for c in candlist \
                             if c.sigma >= params['to_prepfold_sigma']])
 
@@ -440,6 +436,56 @@ class ZaplistUsed(PlotDiagnostic):
             zap_file.close()
 
 
+class PercentZappedBelow1Hz(FloatDiagnostic):
+    name = "Percent zapped below 1 Hz"
+    description = "The percentage of the power spectrum slower than 1 Hz " \
+                    "that was zapped."
+
+    def get_diagnostic(self):
+        fctr, width = get_zaplist(self.directory)
+        params = get_search_params(self.directory)
+        lofreqs = np.clip((fctr - 0.5*width), \
+                        1.0/params['sifting_long_period'], 1.0)
+        hifreqs = np.clip((fctr + 0.5*width), \
+                        1.0/params['sifting_long_period'], 1.0)
+        self.value = np.sum(hifreqs-lofreqs) / \
+                        (1.0/params['sifting_short_period'] - 1.0)*100
+
+
+class PercentZappedBelow10Hz(FloatDiagnostic):
+    name = "Percent zapped below 10 Hz"
+    description = "The percentage of the power spectrum slower than 10 Hz " \
+                    "that was zapped."
+
+    def get_diagnostic(self):
+        fctr, width = get_zaplist(self.directory)
+        params = get_search_params(self.directory)
+        lofreqs = np.clip((fctr - 0.5*width), \
+                        1.0/params['sifting_long_period'], 10.0)
+        hifreqs = np.clip((fctr + 0.5*width), \
+                        1.0/params['sifting_long_period'], 10.0)
+        self.value = np.sum(hifreqs-lofreqs) / \
+                        (1.0/params['sifting_short_period'] - 10.0)*100
+
+
+class PercentZappedTotal(FloatDiagnostic):
+    name = "Percent zapped total"
+    description = "The percentage of the power spectrum that was zapped."
+
+    def get_diagnostic(self):
+        fctr, width = get_zaplist(self.directory)
+        params = get_search_params(self.directory)
+        lofreqs = np.clip((fctr - 0.5*width), \
+                        1.0/params['sifting_long_period'], \
+                        1.0/params['sifting_short_period'])
+        hifreqs = np.clip((fctr + 0.5*width), \
+                        1.0/params['sifting_long_period'], \
+                        1.0/params['sifting_short_period'])
+        self.value = np.sum(hifreqs-lofreqs) / \
+                        (1.0/params['sifting_short_period'] - \
+                        1.0/params['sifting_long_period'])*100
+
+
 class SearchParameters(PlotDiagnostic):
     name = "Search parameters"
     description = "The search parameters used when searching data " \
@@ -447,15 +493,11 @@ class SearchParameters(PlotDiagnostic):
 
     def get_diagnostic(self):
         # find the search_params.txt file
-        paramfn = os.path.join(self.directory, 'search_params.txt')
-
-        if os.path.exists(paramfn):
-            self.value = os.path.split(paramfn)[-1]
-            param_file = open(paramfn, 'rb')
-            self.filedata = param_file.read()
-            param_file.close()
-        else:
-            raise DiagnosticError("Search parameter file doesn't exist!")
+        paramfn = get_search_paramfn(self.directory)
+        self.value = os.path.split(paramfn)[-1]
+        param_file = open(paramfn, 'rb')
+        self.filedata = param_file.read()
+        param_file.close()
 
 
 class SigmaThreshold(FloatDiagnostic):
@@ -464,15 +506,9 @@ class SigmaThreshold(FloatDiagnostic):
                     "candidates potentially get folded."
 
     def get_diagnostic(self):
-        # find the search_params.txt file
-        paramfn = os.path.join(self.directory, 'search_params.txt')
-
-        if os.path.exists(paramfn):
-            params = {}
-            execfile(paramfn, {}, params)
-            self.value = params['to_prepfold_sigma']
-        else:
-            raise DiagnosticError("Search parameter file doesn't exist!")
+        # find the search parameters
+        params = get_search_params(self.directory)
+        self.value = params['to_prepfold_sigma']
 
 
 class MaxCandsToFold(FloatDiagnostic):
@@ -481,15 +517,40 @@ class MaxCandsToFold(FloatDiagnostic):
                     "allowed to be folded."
     
     def get_diagnostic(self):
-        # find the search_params.txt file
-        paramfn = os.path.join(self.directory, 'search_params.txt')
+        # find the search parameters
+        params = get_search_params(self.directory)
+        self.value = params['max_cands_to_fold']
 
-        if os.path.exists(paramfn):
-            params = {}
-            execfile(paramfn, {}, params)
-            self.value = params['max_cands_to_fold']
-        else:
-            raise DiagnosticError("Search parameter file doesn't exist!")
+
+def get_search_paramfn(dir):
+    # find the search_params.txt file
+    paramfn = os.path.join(dir, 'search_params.txt')
+    if not os.path.exists(paramfn):
+        raise DiagnosticError("Search parameter file doesn't exist!")
+    return paramfn
+
+
+def get_search_params(dir):
+    paramfn = get_search_paramfn(dir)
+    tmp, params = {}, {}
+    execfile(paramfn, tmp, params)
+    return params
+
+
+def get_zaplistfn(dir):
+    # find the *.zaplist file
+    zaps = glob.glob(os.path.join(dir, '*.zaplist'))
+
+    if len(zaps) != 1:
+        raise DiagnosticError("Wrong number of zaplists found (%d)!" % \
+                            len(zaps))
+    return zaps[0]
+
+
+def get_zaplist(dir):
+    zapfn = get_zaplistfn(dir)
+    fctr, width = np.loadtxt(zapfn, unpack=True)
+    return fctr, width
 
 
 def find_in_tarballs(dir, matchfunc):
@@ -574,6 +635,9 @@ DIAGNOSTIC_TYPES = [RFIPercentageDiagnostic,
                     SearchParameters,
                     SigmaThreshold,
                     MaxCandsToFold,
+                    PercentZappedTotal,
+                    PercentZappedBelow10Hz,
+                    PercentZappedBelow1Hz,
                    ]
 
 
