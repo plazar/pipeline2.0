@@ -141,20 +141,20 @@ def copy_zaplist(fns, workdir):
     # Copy zaplist to working directory
     data = datafile.autogen_dataobj(fns)
 
-    customzaps = []
+    customzapfns = []
     # First, try to find a custom zaplist for this specific data file
     customzapfns.append(os.path.join(config.processing.zaplistdir, \
                         fns[0].replace(".fits", ".zaplist")))
     # Next, try to find custom zaplist for this beam
     customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        "%s.%s.b%d.zaplist" % (data.projid, \
-                        data.timestamp_mjd, data.beamnum)))
+                        "%s.%s.b%d.zaplist" % (data.project_id, \
+                        data.timestamp_mjd, data.beam_id)))
     #
     # Other custom zaplists to use before using MJD zaplist?
     #
     # Try to find custom zaplist for this MJD
     customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        "%s.%s.all.zaplist" % (data.projid, data.timestamp_mjd)))
+                        "%s.%s.all.zaplist" % (data.project_id, data.timestamp_mjd)))
     # Finally, include the old naming convention
     customzapfns.append(os.path.join(config.processing.zaplistdir, \
                         "autozap_mjd%s.zaplist" % data.timestamp_mjd))
