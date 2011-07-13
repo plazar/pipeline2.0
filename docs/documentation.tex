@@ -1,6 +1,6 @@
 \documentclass[12pt]{article}
 
-\usepackage{graphics}
+\usepackage{graphicx}
 
 \begin{document}
 
@@ -87,7 +87,7 @@ Here we will present basic step-by-step instructions for setting up the pipeline
 
     \item[Step 5] Configure ODBC and FreeTDS. This can be done by editing the system-wide configuration files, or by creating the appropriate files (\texttt{.odbc.ini} and \texttt{.freetds.conf}, respectively) in your home area. See Section \ref{sec:dbconf} for details.
 
-    \item[Step 6] Set up the database. This is done using the script \texttt{bin/create\_database.py}.
+    \item[Step 6] Set up the job-tracker database. This is done using the script \texttt{bin/create\_database.py}. (Note that there are possibly some issues associated with accessing the job-tracker database over NFS. See Section \ref{sec:dbdetails} for details.)
 
     \item[Step 7] Perform tests. In the \texttt{tests/} directory there are some tests that can be run to see if you can connect to the common DB (\texttt{commondb\_test.py}), connect to the FTP server and data-restore webservice, use the e-mail system (\texttt{mailer\_test.py}), and FTP server (\texttt{cornellftp\_test.py}). There are also tests to check if the necessary python modules are available (\texttt{install\_test.py}), restore data (\texttt{restore\_test.py}), and submit jobs to the queue \texttt{submit\_test.py}. Note that the job-submission test executes \texttt{test\_job.py} on a worker node. This job checks for necessary software, and for the existence/permissions of directories. A report is printed to screen if there are errors. 
     
@@ -114,13 +114,13 @@ The pipeline is designed to run with minimal user interactaction. To do this the
 
 \begin{figure}
     \centering
-    \includegraphics{./figs/ThreadedDownloadFlow.png}
+    \includegraphics[scale=0.5]{./figs/ThreadedDownloadFlow.pdf}
     \caption{The flow of the download portion of the pipeline. Yellow boxes represent actions. Blue boxes represent changes in status, which are tracked in the job-tracker database. Finally, orange diamonds are decisions. \label{fig:download flow}}
 \end{figure}
 
 \begin{figure}
     \centering
-    \includegraphics{./figs/JobFlow.png}
+    \includegraphics[scale=0.5]{./figs/JobFlow.pdf}
     \caption{The flow of the processing and results upload portions of the pipeline. Yellow boxes represent actions. Blue boxes represent changes in status, which are tracked in the job-tracker database. Finally, orange diamonds are decisions. \label{fig:job flow}}
 \end{figure}
 
@@ -520,6 +520,10 @@ Configurations used by the uploader are set in \texttt{upload.py}.
 
 \subsection{Job-Tracker Database Details}
 \label{sec:dbdetails}
+
+The job-tracker database is an SQL lite database, which is simply a binary file stored on disk. The database file is accessed using python's sqlite3 module. This module is part of python's standard library as of python2.5. 
+
+When setting up the job-tracker database be advised that it is possible there are some issues with accessing the database file over NFS (for more details see item 5 at http://www.sqlite.org/faq.html).
 
 The job-tracker database contains six tables: \texttt{requests}, \texttt{files}, \texttt{download\_attempts}, \texttt{jobs}, \texttt{job\_files}, and \texttt{job\_submits}. Each of these tables is meant to track a particular object (e.g. jobs), or events (e.g. job submissions to the queue).
 
