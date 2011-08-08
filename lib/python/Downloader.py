@@ -297,12 +297,13 @@ def create_file_entries(request):
         dlm_cout.outs("Request (GUID: %s) has failed.\n" \
                         "\tThere are no files to be downloaded." % \
                         request['guid'])
-        queries.append("UPDATE requests " \
-                       "SET updated_at='%s', " \
-                            "status='failed', " \
-                            "details='No files to download' " \
-                       "WHERE id=%d" % \
-                       (jobtracker.nowstr(), request['id']))
+        # redefine 'queries' because there are no files to update
+        queries = ["UPDATE requests " \
+                   "SET updated_at='%s', " \
+                        "status='failed', " \
+                        "details='No files to download' " \
+                   "WHERE id=%d" % \
+                   (jobtracker.nowstr(), request['id'])]
     jobtracker.query(queries)
 
 
