@@ -107,7 +107,7 @@ class Database:
             table = prettytable.PrettyTable(fields)
             for row in self.cursor:
                 table.add_row(row)
-        table.printt()
+            table.printt()
 
     def insert(self, query):
         self.cursor.execute(query)
@@ -217,3 +217,4 @@ if __name__=='__main__':
     except:
         print "\nUnexpected exception occurred!"
         dbprompt.postloop()
+        raise
