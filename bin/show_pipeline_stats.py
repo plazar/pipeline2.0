@@ -29,13 +29,18 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
 
         self.restoreax = self.add_subplot(3,1,2, sharex=self.jobax)
         self.restoreax.collect = self.restoreax.scatter(restore_times, \
-                    restore_sizes, s=40, marker='o', label="restores", \
+                    restore_sizes, s=40, marker='o', \
                     facecolor=restore_status, alpha=0.5)
         self.restoreax.set_ylabel("Restore size", size='small')
         self.restoreax.set_yscale("log")
         self.restoreax.set_ylim(0.5, 300)
         fmt = matplotlib.ticker.LogFormatter()
         self.restoreax.yaxis.set_major_formatter(fmt)
+        self.restoreax.legend([matplotlib.collections.CircleCollection([20], alpha=0.5, facecolors=(0,1,0)), \
+                               matplotlib.collections.CircleCollection([20], alpha=0.5, facecolors=(1,0,0)), \
+                               matplotlib.collections.CircleCollection([20], alpha=0.5, facecolors=(0,0,1))], \
+                               ["Finished", "Failed", "Active"], \
+                               loc="upper left", prop=dict(size='x-small'))
 
         self.diskax = self.add_subplot(3,1,3, sharex=self.jobax)
         self.diskax.diskline = self.diskax.plot(times, bytes/1024.0**3, 'k-')[0]
