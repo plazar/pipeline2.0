@@ -34,6 +34,27 @@ import config.searching
 class PeriodicityCandidate(upload.Uploadable):
     """A class to represent a PALFA periodicity candidate.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'header_id': '%d', \
+              'cand_num': '%d', \
+              'bary_freq': '%.12g', \
+              'bary_freq': '%.12g', \
+              'topo_period': '%.12g', \
+              'bary_period': '%.12g', \
+              'topo_f_dot': '%.12g', \
+              'bary_f_dot': '%.12g', \
+              'dm': '%.12g', \
+              'snr': '%.12g', \
+              'coherent_power': '%.12g', \
+              'incoherent_power': '%.12g', \
+              'num_hits': '%d', \
+              'num_harmonics': '%d', \
+              'institution': '%s', \
+              'pipeline': '%s', \
+              'version_number': '%s', \
+              'presto_sigma': '%.12g'}
+
     def __init__(self, cand_num, pfd , snr, coherent_power, \
                         incoherent_power, num_hits, num_harmonics, \
                         versionnum, sigma, header_id=None):
@@ -86,9 +107,8 @@ class PeriodicityCandidate(upload.Uploadable):
         cand_id = super(PeriodicityCandidate, self).upload(dbname=dbname, \
                     *args, **kwargs)[0]
         
-        if not self.compare_with_db(dbname=dbname):
-            raise PeriodicityCandidateError("Periodicity candidate doesn't " \
-                    "match what was uploaded to DB!")
+        self.compare_with_db(dbname=dbname):
+
         if debug.UPLOAD:
             upload.upload_timing_summary['candidates'] = \
                 upload.upload_timing_summary.setdefault('candidates', 0) + \
@@ -126,13 +146,13 @@ class PeriodicityCandidate(upload.Uploadable):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding candidate from DB and compare values.
-            Return True if all values match. Return False otherwise.
+            Raise a PeriodicityCandidateError if any mismatch is found.
 
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
-            Output:
-                match: Boolean. True if all values match, False otherwise.
+            Outputs:
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
@@ -140,11 +160,11 @@ class PeriodicityCandidate(upload.Uploadable):
             db = database.Database(dbname)
         db.execute("SELECT c.header_id, " \
                         "c.cand_num, " \
-                        "c.frequency, " \
-                        "c.bary_frequency, " \
-                        "c.period, " \
+                        "c.frequency AS topo_freq, " \
+                        "c.bary_frequency AS bary_freq, " \
+                        "c.period AS topo_period, " \
                         "c.bary_period, " \
-                        "c.f_dot, " \
+                        "c.f_dot AS topo_f_dot, " \
                         "c.bary_f_dot, " \
                         "c.dm, " \
                         "c.snr, " \
@@ -177,29 +197,20 @@ class PeriodicityCandidate(upload.Uploadable):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%d' % self.header_id == '%d' % r['header_id']), \
-                     ('%d' % self.cand_num == '%d' % r['cand_num']), \
-                     ('%.12g' % self.topo_freq == '%.12g' % r['frequency']), \
-                     ('%.12g' % self.bary_freq == '%.12g' % r['bary_frequency']), \
-                     ('%.12g' % self.topo_period == '%.12g' % r['period']), \
-                     ('%.12g' % self.bary_period == '%.12g' % r['bary_period']), \
-                     ('%.12g' % self.topo_f_dot == '%.12g' % r['f_dot']), \
-                     ('%.12g' % self.bary_f_dot == '%.12g' % r['bary_f_dot']), \
-                     ('%.12g' % self.dm == '%.12g' % r['dm']), \
-                     ('%.12g' % self.snr == '%.12g' % r['snr']), \
-                     ('%.12g' % self.coherent_power == '%.12g' % r['coherent_power']), \
-                     ('%.12g' % self.incoherent_power == '%.12g' % r['incoherent_power']), \
-                     ('%d' % self.num_hits == '%d' % r['num_hits']), \
-                     ('%d' % self.num_harmonics == '%d' % r['num_harmonics']), \
-                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
-                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower()), \
-                     ('%s' % self.versionnum == '%s' % r['version_number']), \
-                     ('%.12g' % self.sigma == '%.12g' % r['presto_sigma'])]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Candidate doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise PeriodicityCandidateError(errormsg)
 
-                
+
 class PeriodicityCandidatePlot(upload.Uploadable):
     """A class to represent the plot of a PALFA periodicity candidate.
     """
