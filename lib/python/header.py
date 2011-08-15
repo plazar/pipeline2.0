@@ -89,9 +89,8 @@ class Header(upload.Uploadable):
             starttime = time.time()
         header_id = super(Header, self).upload(dbname=dbname, *args, **kwargs)[0]
         
-        if not self.compare_with_db(dbname=dbname):
-            raise HeaderError("Header doesn't " \
-                    "match what was uploaded to DB!")
+        self.compare_with_db(dbname=dbname):
+ 
         if debug.UPLOAD:
             upload.upload_timing_summary['header'] = \
                 upload.upload_timing_summary.setdefault('header', 0) + \
@@ -225,7 +224,7 @@ class Header(upload.Uploadable):
                     errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
                                         (var, local, fromdb))
             if errormsgs:
-                errormsg = "Header doesn't match what was upload to the DB:"
+                errormsg = "Header doesn't match what was uploaded to the DB:"
                 for msg in errormsgs:
                     errormsg += '\n    %s' % msg
                 raise HeaderError(errormsg)
