@@ -214,9 +214,17 @@ class PeriodicityCandidate(upload.Uploadable):
 class PeriodicityCandidatePlot(upload.Uploadable):
     """A class to represent the plot of a PALFA periodicity candidate.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'cand_id': '%d', \
+              'plot_type': '%s', \
+              'filename': '%s', \
+              'datalen': '%d'}
+    
     def __init__(self, plotfn, cand_id=None):
         self.cand_id = cand_id
         self.filename = os.path.split(plotfn)[-1]
+        self.datalen = os.path.getsize(plotfn)
         plot = open(plotfn, 'r')
         self.filedata = plot.read()
         plot.close()
@@ -235,9 +243,7 @@ class PeriodicityCandidatePlot(upload.Uploadable):
             starttime = time.time()
         super(PeriodicityCandidatePlot, self).upload(dbname=dbname, \
                     *args, **kwargs)
-        if not self.compare_with_db(dbname=dbname):
-            raise PeriodicityCandidateError("Candidate plot (%s) doesn't " \
-                "match what was uploaded to DB!" % self.plot_type)
+        self.compare_with_db(dbname=dbname):
         
         if debug.UPLOAD:
             upload.upload_timing_summary[self.plot_type] = \
@@ -257,22 +263,22 @@ class PeriodicityCandidatePlot(upload.Uploadable):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding candidate plot from DB and compare values.
-            Return True if all values match. Return False otherwise.
-
+            Raise a PeriodicityCandidateError if any mismatch is found.
+            
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
             Output:
-                match: Boolean. True if all values match, False otherwise.
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
         else:
             db = database.Database(dbname)
-        db.execute("SELECT plt.pdm_cand_id, " \
-                        "pltype.pdm_plot_type, " \
+        db.execute("SELECT plt.pdm_cand_id AS cand_id, " \
+                        "pltype.pdm_plot_type AS plot_type, " \
                         "plt.filename, " \
-                        "plt.filedata " \
+                        "DATALENGTH(plt.filedata) AS datalen " \
                    "FROM pdm_candidate_plots AS plt " \
                    "LEFT JOIN pdm_plot_types AS pltype " \
                         "ON plt.pdm_plot_type_id=pltype.pdm_plot_type_id " \
@@ -294,13 +300,18 @@ class PeriodicityCandidatePlot(upload.Uploadable):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%d' % self.cand_id == '%d' % r['pdm_cand_id']), \
-                    ('%s' % self.plot_type == '%s' % r['pdm_plot_type']), \
-                    ('%s' % os.path.split(self.filename)[-1] == '%s' % os.path.split(r['filename'])[-1]), \
-                    ('0x%s' % self.filedata.encode('hex') == '0x%s' % binascii.b2a_hex(r['filedata']))]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Candidate plot doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise PeriodicityCandidateError(errormsg)
 
 
 class PeriodicityCandidatePNG(PeriodicityCandidatePlot):
