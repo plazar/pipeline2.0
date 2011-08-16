@@ -15,6 +15,32 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         self.property = property # the argument to the -q flag in msub
         self.max_jobs_per_node = max_jobs_per_node
 
+    def _exec_check_for_failure(self, cmd):
+        """A private method not required by the PipelineQueueManager interface.
+            Executes a moab command and checks for moab communication error.
+
+            Input:
+                cmd: String command to execute.
+
+            Output:
+	        output: Output of the executed command.
+                comm_err: Boolean value. True if there was a communication error.
+        """
+
+        comm_err_re = re.compile(".*moab may not be running.*")        
+ 
+        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE )  
+
+        output, error = pipe.communicate()
+
+        if comm_err_re.search(error):
+          #raise queue_managers.QueueManagerNonFatalError(error)
+          comm_err = True
+        else:
+          comm_err = False
+
+        return (output, comm_err)
+
     def submit(self, datafiles, outdir, \
                 script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
         """Submits a job to the queue to be processed.
@@ -104,7 +130,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         #status = pipe.communicate()[0]
         #pipe.stdin.close()
 
-        lines, comm_err = _exec_check_for_failure(cmd)
+        status, comm_err = self._exec_check_for_failure(cmd)
         if comm_err:
           return 'COMMERR'
 
@@ -115,35 +141,6 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
                return state
         return 'DNE' # does not exist
 	
-
-    def _exec_check_for_failure(self, cmd):
-        """A private method not required by the PipelineQueueManager interface.
-            Executes a moab command and checks for moab communication error.
-
-            Input:
-                cmd: String command to execute.
-
-            Output:
-	        output: Output of the executed command.
-                comm_err: Boolean value. True if there was a communication error.
-        """
-
-        comm_err_re = re.compile("moab may not be running")        
- 
-        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, \
-                                stdin=subprocess.PIPE)  
-        pipe.stdin.close()
-
-        output = pipe.communicate()[0]
-        error = pipe.communicate()[1]
-
-        if comm_err_re.search(error):
-          comm_err = True
-        else:
-          comm_err = False
-
-        return (output, comm_err)
-
 
     def delete(self, queue_id):
         """Remove the job identified by 'queue_id' from the queue.
@@ -190,7 +187,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         #jobs = pipe.communicate()[0]
         #pipe.stdin.close()
  
-        jobs, comm_err = _exec_check_for_failure(cmd)
+        jobs, comm_err = self._exec_check_for_failure(cmd)
         # what do we want to do with a moab comm err here?
 
         if comm_err:
