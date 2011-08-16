@@ -57,9 +57,7 @@ class Diagnostic(upload.Uploadable):
         if debug.UPLOAD: 
             starttime = time.time()
         super(Diagnostic, self).upload(dbname=dbname, *args, **kwargs)
-        if not self.compare_with_db(dbname=dbname):
-            raise DiagnosticError("Diagnostic (%s) doesn't match " \
-                    "what was upload to DB!" % self.name)
+        self.compare_with_db(dbname=dbname):
         
         if debug.UPLOAD:
             upload.upload_timing_summary['diagnostics'] = \
@@ -69,6 +67,18 @@ class Diagnostic(upload.Uploadable):
 class FloatDiagnostic(Diagnostic):
     """An abstract class to represent float-valued PALFA diagnostics.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'obs_name': '%s', \
+              'beam_id': '%d', \
+              'institution': '%s', \
+              'pipeline': '%s', \
+              'version_number': '%s', \
+              'name': '%s', \
+              'description': '%s', \
+              'value': '%.12g', \
+              'obstype': '%s'}
+    
     def __init__(self, *args, **kwargs):
         super(FloatDiagnostic, self).__init__(*args, **kwargs)
         self.value = None # The diagnostic value to upload
@@ -89,13 +99,13 @@ class FloatDiagnostic(Diagnostic):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding diagnostic from DB and compare values.
-            Return True if all values match. Return False otherwise.
+            Raise a DiagnosticError if any mismatch is found.
             
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
-            Output:
-                match: Boolean. True if all values match, False otherwise.
+            Outputs:
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
@@ -106,10 +116,10 @@ class FloatDiagnostic(Diagnostic):
                         "v.institution, " \
                         "v.pipeline, " \
                         "v.version_number, " \
-                        "dtype.diagnostic_type_name, " \
-                        "dtype.diagnostic_type_description, " \
-                        "d.diagnostic_value, " \
-                        "h.obsType " \
+                        "dtype.diagnostic_type_name AS name, " \
+                        "dtype.diagnostic_type_description AS description, " \
+                        "d.diagnostic_value AS value, " \
+                        "h.obsType AS obstype" \
                    "FROM diagnostics AS d " \
                    "LEFT JOIN diagnostic_types AS dtype " \
                         "ON dtype.diagnostic_type_id=d.diagnostic_type_id " \
@@ -158,18 +168,18 @@ class FloatDiagnostic(Diagnostic):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%s' % self.obs_name == '%s' % r['obs_name']), \
-                     ('%d' % self.beam_id == '%s' % r['beam_id']), \
-                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
-                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower()), \
-                     ('%s' % self.version_number == '%s' % r['version_number']), \
-                     ('%s' % self.name == '%s' % r['diagnostic_type_name']), \
-                     ('%s' % self.description == '%s' % r['diagnostic_type_description']), \
-                     ('%.12g' % self.value == '%.12g' % r['diagnostic_value']), \
-                     ('%s' % self.obstype.lower() == '%s' % r['obsType'].lower())]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Float diagnostic doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise DiagnosticError(errormsg)
 
 
 class PlotDiagnostic(Diagnostic):
