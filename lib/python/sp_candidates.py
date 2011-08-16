@@ -25,6 +25,15 @@ import config.basic
 class SinglePulseTarball(upload.Uploadable):
     """A class to represent a tarball of single pulse files.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'header_id': '%d', \
+              'filename': '%s', \
+              'sp_files_type': '%s', \
+              'institution': '%s', \
+              'pipeline': '%s', \
+              'version_number': '%s'}
+    
     def __init__(self, filename, versionnum, header_id=None):
         self.header_id = header_id
         self.filename = filename
@@ -45,13 +54,13 @@ class SinglePulseTarball(upload.Uploadable):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding file info from DB and compare values.
-            Return True if all values match. Return False otherwise.
+            Raise a SinglePulseCandidateError if any mismatch is found.
 
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
             Output:
-                match: Boolean. True if all values match, False otherwise.
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
@@ -88,15 +97,19 @@ class SinglePulseTarball(upload.Uploadable):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%s' % os.path.split(self.filename)[-1] == '%s' % r['filename']), \
-                     ('%d' % self.header_id == '%d' % r['header_id']), \
-                     ('%s' % self.filetype == '%s' % r['sp_files_type']), \
-                     ('%s' % self.versionnum == '%s' % r['version_number']), \
-                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
-                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower())]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Single pulse tarball info doesn't match " \
+                            "what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise SinglePulseCandidateError(errormsg)
 
     def upload(self, dbname='default', *args, **kwargs):
         """And extension to the inherited 'upload' method.
@@ -115,9 +128,8 @@ class SinglePulseTarball(upload.Uploadable):
             starttime = time.time()
         id, path = super(SinglePulseTarball, self).upload(dbname=dbname, \
                     *args, **kwargs)
-        if not self.compare_with_db(dbname=dbname):
-            raise SinglePulseCandidateError("SP tarball doesn't match " \
-                    "what was uploaded to DB!")
+        self.compare_with_db(dbname=dbname):
+        
         if debug.UPLOAD:
             upload.upload_timing_summary['sp info (db)'] = \
                 upload.upload_timing_summary.setdefault('sp info (db)', 0) + \
