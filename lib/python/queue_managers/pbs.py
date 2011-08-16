@@ -44,8 +44,10 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             Output:
                 jobid: A unique job identifier.
         
-            *** NOTE: A queue_manager.QueueManagerNonFatalError should be
+            *** NOTE: A queue_manager.QueueManagerJobFatalError should be
                         raised if the queue submission fails.
+            *** NOTE: A queue_manager.QueueManagerNonFatalError should be
+                        raised if the queue submission could not be performed.
         """
         node = self._get_submit_node()
         if node is None:
