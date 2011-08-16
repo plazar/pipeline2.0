@@ -287,35 +287,9 @@ def submit(job_row):
     
     try:
         outdir = get_output_dir(fns)
-        # Submit job
+        # Attempt to submit the job
         queue_id = config.jobpooler.queue_manager.submit(fns, outdir)
-        msg  = "Submitted job to process:\n" 
-        msg += "\tJob ID: %d, Queue ID: %s\n" % (job_row['id'], queue_id) 
-        msg += "\tData file(s):\n" 
-        for fn in fns:
-            msg += "\t%s\n" % fn
-        jobpool_cout.outs(msg)
-        queries = []
-        queries.append("INSERT INTO job_submits (" \
-                            "job_id, " \
-                            "queue_id, " \
-                            "output_dir, " \
-                            "status, " \
-                            "created_at, " \
-                            "updated_at, " \
-                            "details) " \
-                      "VALUES (%d,'%s','%s','%s','%s','%s','%s')" % \
-                      (job_row['id'], queue_id, outdir, 'running', \
-                        jobtracker.nowstr(), jobtracker.nowstr(), \
-                        'Job submitted to queue'))
-        queries.append("UPDATE jobs " \
-                       "SET status='submitted', " \
-                            "details='Job submitted to queue', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % \
-                    (jobtracker.nowstr(), job_row['id']))
-        jobtracker.query(queries)
-    except queue_managers.QueueManagerNonFatalError:
+    except queue_managers.QueueManagerJobFatalError:
         # Error caught during job submission.
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
         errormsg  = "Error while submitting job!\n"
@@ -344,6 +318,42 @@ def submit(job_row):
                        "WHERE id=%d" % \
                     (jobtracker.nowstr(), job_row['id']))
         jobtracker.query(queries)
+    except queue_managers.QueueManagerNonFatalError:
+        # Do nothing. Don't submit the job. Don't mark the job as 'submitted'.
+        # Don't mark the job as 'failed'. The job submission will be retried.
+        pass
+    except queue_managers.QueueManagerFatalError:
+        # A fatal error occurred. Re-raise!
+        raise
+    else: 
+        # No error occurred
+        msg  = "Submitted job to process:\n" 
+        msg += "\tJob ID: %d, Queue ID: %s\n" % (job_row['id'], queue_id) 
+        msg += "\tData file(s):\n" 
+        for fn in fns:
+            msg += "\t%s\n" % fn
+        jobpool_cout.outs(msg)
+        queries = []
+        queries.append("INSERT INTO job_submits (" \
+                            "job_id, " \
+                            "queue_id, " \
+                            "output_dir, " \
+                            "status, " \
+                            "created_at, " \
+                            "updated_at, " \
+                            "details) " \
+                      "VALUES (%d,'%s','%s','%s','%s','%s','%s')" % \
+                      (job_row['id'], queue_id, outdir, 'running', \
+                        jobtracker.nowstr(), jobtracker.nowstr(), \
+                        'Job submitted to queue'))
+        queries.append("UPDATE jobs " \
+                       "SET status='submitted', " \
+                            "details='Job submitted to queue', " \
+                            "updated_at='%s' " \
+                       "WHERE id=%d" % \
+                    (jobtracker.nowstr(), job_row['id']))
+        jobtracker.query(queries)
+
 
 def get_output_dir(fns):
     """Given a list of data files, 'fns', generate path to output results.
