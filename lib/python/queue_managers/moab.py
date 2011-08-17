@@ -34,7 +34,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         output, error = pipe.communicate()
 
         if comm_err_re.search(error):
-          #raise queue_managers.QueueManagerNonFatalError(error)
+          print error
           comm_err = True
         else:
           comm_err = False
@@ -65,14 +65,19 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=47:00:00 -N %s -e %s -o %s %s" %\
                    (';'.join(datafiles), outdir, self.property, self.job_basename,\
                       errorlog, stdoutlog, script)
-        pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
-                                stdin=subprocess.PIPE)
-        queue_id = pipe.communicate()[0].strip()
-        pipe.stdin.close()
+        #pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
+        #                        stdin=subprocess.PIPE)
+        #queue_id = pipe.communicate()[0].strip()
+        #pipe.stdin.close()
+        queue_id, comm_err = self._exec_check_for_failure(cmd)
+        queue_id = queue_id.strip()
+        if comm_err:
+          errormsg = 'Moab may not be running.'
+          raise queue_managers.QueueManagerFatalError(errormsg)
         if not queue_id:
             errormsg  = "No job identifier returned by msub!\n"
             errormsg += "\tCommand executed: %s\n" % cmd
-            raise pipeline_utils.PipelineError(errormsg)
+            raise queue_managers.QueueManagerFatalError(errormsg)
         else:
             # There is occasionally a short delay between submission and 
             # the job appearing on the queue, so sleep for 1 second. 
