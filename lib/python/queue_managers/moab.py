@@ -27,15 +27,18 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
                 comm_err: Boolean value. True if there was a communication error.
         """
 
-        comm_err_re = re.compile(".*moab may not be running.*")        
+        comm_err_re = re.compile("communication error")        
  
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE )  
 
         output, error = pipe.communicate()
+        if len(error) > 0:
+          print error
 
         if comm_err_re.search(error):
-          print error
           comm_err = True
+        elif len(error) > 0:
+          raise queue_managers.QueueManagerFatalError(error)
         else:
           comm_err = False
 
