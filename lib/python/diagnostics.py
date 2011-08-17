@@ -38,6 +38,9 @@ class Diagnostic(upload.Uploadable):
         self.obstype = obstype.lower()
         self.version_number = version_number
         self.directory = directory
+        # Store a few configurations so the upload can be checked
+        self.pipeline = config.basic.pipeline
+        self.institution = config.basic.institution
 
     def get_diagnostic(self):
         raise NotImplementedError("Method 'get_diagnostic(...)' " \
@@ -57,7 +60,7 @@ class Diagnostic(upload.Uploadable):
         if debug.UPLOAD: 
             starttime = time.time()
         super(Diagnostic, self).upload(dbname=dbname, *args, **kwargs)
-        self.compare_with_db(dbname=dbname):
+        self.compare_with_db(dbname=dbname)
         
         if debug.UPLOAD:
             upload.upload_timing_summary['diagnostics'] = \
@@ -119,7 +122,7 @@ class FloatDiagnostic(Diagnostic):
                         "dtype.diagnostic_type_name AS name, " \
                         "dtype.diagnostic_type_description AS description, " \
                         "d.diagnostic_value AS value, " \
-                        "h.obsType AS obstype" \
+                        "h.obsType AS obstype " \
                    "FROM diagnostics AS d " \
                    "LEFT JOIN diagnostic_types AS dtype " \
                         "ON dtype.diagnostic_type_id=d.diagnostic_type_id " \
@@ -194,7 +197,7 @@ class PlotDiagnostic(Diagnostic):
               'version_number': '%s', \
               'name': '%s', \
               'description': '%s', \
-              'filename': '%s', \
+              'value': '%s', # The binary file's name \
               'datalen': '%d', \
               'obstype': '%s'}
     
@@ -240,9 +243,9 @@ class PlotDiagnostic(Diagnostic):
                         "v.version_number, " \
                         "dtype.diagnostic_plot_type_name AS name, " \
                         "dtype.diagnostic_plot_type_description AS description, " \
-                        "d.filename, " \
+                        "d.filename AS value, " \
                         "DATALENGTH(d.diagnostic_plot) AS datalen, " \
-                        "h.obsType AS obstype" \
+                        "h.obsType AS obstype " \
                    "FROM diagnostic_plots AS d " \
                    "LEFT JOIN diagnostic_plot_types AS dtype " \
                         "ON dtype.diagnostic_plot_type_id=d.diagnostic_plot_type_id " \

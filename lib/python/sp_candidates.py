@@ -29,22 +29,26 @@ class SinglePulseTarball(upload.Uploadable):
     # how to compare them (as values)
     to_cmp = {'header_id': '%d', \
               'filename': '%s', \
-              'sp_files_type': '%s', \
+              'filetype': '%s', \
               'institution': '%s', \
               'pipeline': '%s', \
               'versionnum': '%s'}
     
     def __init__(self, filename, versionnum, header_id=None):
         self.header_id = header_id
-        self.filename = filename
+        self.fullpath = filename
+        self.filename = os.path.split(filename)[-1]
         self.versionnum = versionnum
+        # Store a few configurations so the upload can be checked
+        self.pipeline = config.basic.pipeline
+        self.institution = config.basic.institution
 
     def get_upload_sproc_call(self):
         """Return the EXEC spSinglePulseFileUpload string to upload
             this tarball's info to the PALFA common DB.
         """
         sprocstr = "EXEC spSinglePulseFileUpload " + \
-            "@filename='%s', " % os.path.split(self.filename)[-1] + \
+            "@filename='%s', " % self.filename + \
             "@header_id=%d, " % self.header_id + \
             "@filetype='%s', " % self.filetype + \
             "@institution='%s', " % config.basic.institution + \
@@ -68,10 +72,10 @@ class SinglePulseTarball(upload.Uploadable):
             db = database.Database(dbname)
         db.execute("SELECT spf.header_id, " \
                         "spf.filename, " \
-                        "spft.sp_files_type, " \
+                        "spft.sp_files_type AS filetype, " \
                         "v.institution, " \
                         "v.pipeline, " \
-                        "v.version_number AS versionnum" \
+                        "v.version_number AS versionnum " \
                   "FROM sp_files_info AS spf " \
                   "LEFT JOIN versions AS v ON v.version_id=spf.version_id " \
                   "LEFT JOIN sp_files_types AS spft " \
@@ -128,7 +132,7 @@ class SinglePulseTarball(upload.Uploadable):
             starttime = time.time()
         id, path = super(SinglePulseTarball, self).upload(dbname=dbname, \
                     *args, **kwargs)
-        self.compare_with_db(dbname=dbname):
+        self.compare_with_db(dbname=dbname)
         
         if debug.UPLOAD:
             upload.upload_timing_summary['sp info (db)'] = \
@@ -141,8 +145,8 @@ class SinglePulseTarball(upload.Uploadable):
             if debug.UPLOAD: 
                 starttime = time.time()
             cftp = CornellFTP.CornellFTP()
-            ftp_path = os.path.join(path, os.path.split(self.filename)[-1]) 
-            cftp.upload(self.filename, ftp_path)
+            ftp_path = os.path.join(path, self.filename) 
+            cftp.upload(self.fullpath, ftp_path)
             cftp.quit()
             if debug.UPLOAD:
                 upload.upload_timing_summary['sp info (ftp)'] = \
@@ -180,9 +184,14 @@ class SinglePulseBeamPlot(upload.Uploadable):
         self. header_id = header_id
         self.versionnum = versionnum
         self.filename = os.path.split(plotfn)[-1]
+        self.datalen = os.path.getsize(plotfn)
         plot = open(plotfn, 'r')
         self.filedata = plot.read()
         plot.close()
+        
+        # Store a few configurations so the upload can be checked
+        self.pipeline = config.basic.pipeline
+        self.institution = config.basic.institution
 
     def upload(self, dbname, *args, **kwargs):
         """An extension to the inherited 'upload' method.
@@ -198,7 +207,7 @@ class SinglePulseBeamPlot(upload.Uploadable):
             starttime = time.time()
         super(SinglePulseBeamPlot, self).upload(dbname=dbname, \
                 *args, **kwargs)
-        compare_with_db(dbname=dbname):
+        self.compare_with_db(dbname=dbname)
         
         if debug.UPLOAD:
             upload.upload_timing_summary['sp plots'] = \
@@ -234,12 +243,12 @@ class SinglePulseBeamPlot(upload.Uploadable):
         else:
             db = database.Database(dbname)
         db.execute("SELECT spsb.header_id, " \
-                        "spsbtype.sp_single_beam_plot_type AS sp_files_type, " \
+                        "spsbtype.sp_single_beam_plot_type AS sp_plot_type, " \
                         "spsb.filename, " \
                         "DATALENGTH(spsb.filedata) AS datalen, " \
                         "v.institution, " \
                         "v.pipeline, " \
-                        "v.version_number AS versionnum" \
+                        "v.version_number AS versionnum " \
                     "FROM sp_plots_single_beam AS spsb " \
                     "LEFT JOIN versions AS v on v.version_id=spsb.version_id " \
                     "LEFT JOIN sp_single_beam_plot_types AS spsbtype " \

@@ -52,8 +52,8 @@ class PeriodicityCandidate(upload.Uploadable):
               'num_harmonics': '%d', \
               'institution': '%s', \
               'pipeline': '%s', \
-              'version_number': '%s', \
-              'presto_sigma': '%.12g'}
+              'versionnum': '%s', \
+              'sigma': '%.12g'}
 
     def __init__(self, cand_num, pfd , snr, coherent_power, \
                         incoherent_power, num_hits, num_harmonics, \
@@ -79,6 +79,10 @@ class PeriodicityCandidate(upload.Uploadable):
                                      # and pipeline's githash
         self.sigma = sigma # PRESTO's sigma value
 
+        # Store a few configurations so the upload can be checked
+        self.pipeline = config.basic.pipeline
+        self.institution = config.basic.institution
+    
         # Calculate a few more values
         self.topo_period = 1.0/self.topo_freq
         self.bary_period = 1.0/self.bary_freq
@@ -107,7 +111,7 @@ class PeriodicityCandidate(upload.Uploadable):
         cand_id = super(PeriodicityCandidate, self).upload(dbname=dbname, \
                     *args, **kwargs)[0]
         
-        self.compare_with_db(dbname=dbname):
+        self.compare_with_db(dbname=dbname)
 
         if debug.UPLOAD:
             upload.upload_timing_summary['candidates'] = \
@@ -174,8 +178,8 @@ class PeriodicityCandidate(upload.Uploadable):
                         "c.num_harmonics, " \
                         "v.institution, " \
                         "v.pipeline, " \
-                        "v.version_number, " \
-                        "c.presto_sigma " \
+                        "v.version_number AS versionnum, " \
+                        "c.presto_sigma AS sigma " \
                   "FROM pdm_candidates AS c " \
                   "LEFT JOIN versions AS v ON v.version_id=c.version_id " \
                   "WHERE c.cand_num=%d AND v.version_number='%s' AND " \
@@ -243,7 +247,7 @@ class PeriodicityCandidatePlot(upload.Uploadable):
             starttime = time.time()
         super(PeriodicityCandidatePlot, self).upload(dbname=dbname, \
                     *args, **kwargs)
-        self.compare_with_db(dbname=dbname):
+        self.compare_with_db(dbname=dbname)
         
         if debug.UPLOAD:
             upload.upload_timing_summary[self.plot_type] = \
