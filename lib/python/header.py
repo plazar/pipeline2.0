@@ -89,7 +89,7 @@ class Header(upload.Uploadable):
             starttime = time.time()
         header_id = super(Header, self).upload(dbname=dbname, *args, **kwargs)[0]
         
-        self.compare_with_db(dbname=dbname):
+        self.compare_with_db(dbname=dbname)
  
         if debug.UPLOAD:
             upload.upload_timing_summary['header'] = \
