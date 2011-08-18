@@ -24,6 +24,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 
             Output:
 	        output: Output of the executed command.
+                error: Any error messages from the executed command.
                 comm_err: Boolean value. True if there was a communication error.
         """
 
@@ -37,12 +38,10 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 
         if comm_err_re.search(error):
           comm_err = True
-        elif len(error) > 0:
-          raise queue_managers.QueueManagerFatalError(error)
         else:
           comm_err = False
 
-        return (output, comm_err)
+        return (output, error, comm_err)
 
     def submit(self, datafiles, outdir, \
                 script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
@@ -72,14 +71,14 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         #                        stdin=subprocess.PIPE)
         #queue_id = pipe.communicate()[0].strip()
         #pipe.stdin.close()
-        queue_id, comm_err = self._exec_check_for_failure(cmd)
+        queue_id, error, comm_err = self._exec_check_for_failure(cmd)
         queue_id = queue_id.strip()
         if comm_err:
-          errormsg = 'Moab may not be running.'
-          raise queue_managers.QueueManagerFatalError(errormsg)
+          raise queue_managers.QueueManagerFatalError(error)
         if not queue_id:
             errormsg  = "No job identifier returned by msub!\n"
             errormsg += "\tCommand executed: %s\n" % cmd
+            errormsg += error
             raise queue_managers.QueueManagerFatalError(errormsg)
         else:
             # There is occasionally a short delay between submission and 
@@ -132,13 +131,15 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 	        state: State of the job.
         """
 
+        dne_re = re.compile('ERROR:  cannot locate job')
+
         cmd = "checkjob %s" % queue_id
         #pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
         #                        stdin=subprocess.PIPE)
         #status = pipe.communicate()[0]
         #pipe.stdin.close()
 
-        status, comm_err = self._exec_check_for_failure(cmd)
+        status, error, comm_err = self._exec_check_for_failure(cmd)
         if comm_err:
           return 'COMMERR'
 
@@ -147,7 +148,12 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 	    if line.startswith("State:"):
 	       state = line.split()[1]
                return state
-        return 'DNE' # does not exist
+        if dne_re.match(error):
+          return 'DNE' # does not exist
+        else:
+          errormsg = 'Unable to determine job state for queue id: %d\n' % queue_id
+          errormsg += error
+          raise queue_managers.QueueManagerFatalError(error)
 	
 
     def delete(self, queue_id):
@@ -195,11 +201,13 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         #jobs = pipe.communicate()[0]
         #pipe.stdin.close()
  
-        jobs, comm_err = self._exec_check_for_failure(cmd)
+        jobs, error, comm_err = self._exec_check_for_failure(cmd)
         # what do we want to do with a moab comm err here?
 
         if comm_err:
           return (9999, 9999)
+        elif error:
+          raise queue_managers.QueueManagerFatalError(error) 
 
         lines = jobs.split('\n')
         for line in lines:
