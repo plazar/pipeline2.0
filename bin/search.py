@@ -13,6 +13,7 @@ import shutil
 import subprocess
 
 import datafile
+import astro_utils.calendar
 
 import config.processing
 
@@ -139,30 +140,34 @@ def search(fns, workdir, resultsdir):
 
 def copy_zaplist(fns, workdir):
     # Copy zaplist to working directory
-    data = datafile.autogen_dataobj(fns)
+    filetype = datafile.get_datafile_type(fns)
+    parsed = filetype.fnmatch(fns[0]).groupdict()
+    if 'date' not in parsed.keys():
+        parsed['date'] = "%04d%02d%02d" % \
+                            astro_utils.calendar.MJD_to_date(int(parsed['mjd']))
 
+    if filetype == datafile.WappPsrfitsData:
+        ft_str = "wapp_4bit"
+    else:
+        ft_str = "mock_4bit"
+    customzapdir = os.path.join(config.processing.zaplistdir, \
+                                parsed['date'], ft_str)
     customzapfns = []
     # First, try to find a custom zaplist for this specific data file
-    customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        fns[0].replace(".fits", ".zaplist")))
+    customzapfns.append(fns[0].replace(".fits", ".zaplist"))
     # Next, try to find custom zaplist for this beam
-    customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        "%s.%s.b%d.zaplist" % (data.project_id, \
-                        data.timestamp_mjd, data.beam_id)))
-    #
-    # Other custom zaplists to use before using MJD zaplist?
-    #
+    customzapfns.append("%s.%s.b%s.zaplist" % \
+                        (parsed['projid'], parsed['date'], parsed['beam']))
     # Try to find custom zaplist for this MJD
-    customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        "%s.%s.all.zaplist" % (data.project_id, data.timestamp_mjd)))
-    # Finally, include the old naming convention
-    customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        "autozap_mjd%s.zaplist" % data.timestamp_mjd))
+    customzapfns.append("%s.%s.all.zaplist" % (parsed['projid'], parsed['date']))
+
     for customzapfn in customzapfns:
-        if os.path.exists(customzapfn):
-            # Copy custom zaplist to workdir and rename to the expected zaplist fn
-            shutil.copy(customzapfn, workdir)
-            print "Copied custom zaplist: %s" % customzapfn
+        # Add on path
+        zapfn = os.path.join(customzapdir, customzapfn)
+        if os.path.exists(zapfn):
+            # Copy custom zaplist to workdir
+            shutil.copy(zapfn, workdir)
+            print "Copied custom zaplist: %s" % zapfn
             break
     else:
         # Copy default zaplist
