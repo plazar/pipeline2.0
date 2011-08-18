@@ -301,23 +301,24 @@ def submit(job_row):
                           (job_row['id'], exceptionmsgs[-1])) 
         
         queries = []
+        arglist = []
         queries.append("INSERT INTO job_submits (" \
                             "job_id, " \
                             "status, " \
                             "created_at, " \
                             "updated_at, " \
                             "details) " \
-                      "VALUES (%d,'%s','%s','%s','%s')" % \
-                      (job_row['id'], 'submission_failed', \
+                      "VALUES (?, ?, ?, ?, ?)" )
+        arglist.append( ( job_row['id'], 'submission_failed', \
                         jobtracker.nowstr(), jobtracker.nowstr(), \
-                        errormsg))
+                        errormsg) )
         queries.append("UPDATE jobs " \
                        "SET status='failed', " \
                             "details='Error while submitting job', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % \
-                    (jobtracker.nowstr(), job_row['id']))
-        jobtracker.query(queries)
+                            "updated_at=? " \
+                       "WHERE id=?" )
+        arglist.append( (jobtracker.nowstr(), job_row['id']) )
+        jobtracker.execute(queries, arglist)
     except queue_managers.QueueManagerNonFatalError:
         # Do nothing. Don't submit the job. Don't mark the job as 'submitted'.
         # Don't mark the job as 'failed'. The job submission will be retried.

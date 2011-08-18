@@ -76,8 +76,8 @@ def init_workspace():
     """
     # Generate temporary working directory
     if not os.path.isdir(config.processing.base_working_directory):
-	print "Creating base work directory..."
-	os.makedirs(config.processing.base_working_directory)
+        print "Creating base work directory..."
+        os.makedirs(config.processing.base_working_directory)
     workdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_processing_", \
                         dir=config.processing.base_working_directory)
     resultsdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_results_", \
