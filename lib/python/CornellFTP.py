@@ -28,7 +28,7 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             self.set_pasv(1)
             self.login(username, password)
         except Exception, e:
-            raise CornellFTPError(str(e))
+            raise get_ftp_exception(str(e))
         else:
             cout.outs("CornellFTP - Connected and logged in")
 
@@ -74,7 +74,7 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
         except Exception, e:
             cout.outs("CornellFTP - Upload of %s failed: %s" % \
                         (os.path.split(local_path)[-1], str(e)))
-            raise CornellFTPError("Could not store binary file (%s) " 
+            raise get_ftp_exception("Could not store binary file (%s) " 
                                     "on FTP server: %s" % (ftp_path, str(e)))
         else:
             cout.outs("CornellFTP - Finished upload of: %s" % \
@@ -94,11 +94,32 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
                         "uploaded file on FTP server " \
                         "don't match (%d != %d)." % \
                         (os.path.split(local_path)[-1], local_size, ftp_size))
-            raise CornellFTPError("File sizes of local file and " \
+            raise get_ftp_exception("File sizes of local file and " \
                                     "uploaded file on FTP server " \
                                     "don't match (%d != %d)." % \
                                     (local_size, ftp_size))
 
 
+def get_ftp_exception(msg):
+    """Return a CornellFTPError or a CornellFTPTimeout depending
+        on the string produced by str(msg).
+
+        Input:
+            msg: The exception message to be used. 
+
+        Output:
+            exc: The exception instance to be raised.
+    """
+    if "[Errno 110] Connection timed out" in msg:
+        exc = CornellFTPTimeout(msg)
+    else:
+        exc = CornellFTPError(msg)
+    return exc
+
+
 class CornellFTPError(pipeline_utils.PipelineError):
+    pass
+
+
+class CornellFTPTimeout(pipeline_utils.PipelineError):
     pass

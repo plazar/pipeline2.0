@@ -15,6 +15,7 @@ import jobtracker
 import database
 import upload
 import pipeline_utils
+import CornellFTP
 import config.upload
 import config.basic
 
@@ -161,7 +162,7 @@ def upload_results(job_submit):
         
         # Rolling back changes. 
         db.rollback()
-    except database.DatabaseConnectionError, e:
+    except (database.DatabaseConnectionError, CornellFTP.CornellFTPTimeout), e:
         # Connection error while uploading. We will try again later.
         sys.stderr.write(str(e))
         sys.stderr.write("\tRolling back DB transaction and will re-try later.\n")
