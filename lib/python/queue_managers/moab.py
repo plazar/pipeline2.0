@@ -151,9 +151,9 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         if dne_re.match(error):
           return 'DNE' # does not exist
         else:
-          errormsg = 'Unable to determine job state for queue id: %d\n' % queue_id
+          errormsg = 'Unable to determine job state for queue id: %s\n' % queue_id
           errormsg += error
-          raise queue_managers.QueueManagerFatalError(error)
+          raise queue_managers.QueueManagerFatalError(errormsg)
 	
 
     def delete(self, queue_id):
