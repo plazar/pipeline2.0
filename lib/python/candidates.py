@@ -370,25 +370,30 @@ def get_candidates(versionnum, directory, header_id=None):
                     if c.sigma > params['to_prepfold_sigma']]
     foldedcands = foldedcands[:params['max_cands_to_fold']]
     foldedcands.sort(reverse=True) # Sort by descending sigma
-    
+
+        
     # Create temporary directory
     tempdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_pfds_")
-    tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
-    if len(tarfns) != 1:
-        raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
-                                         "files found in %s" % (len(tarfns), \
-                                            directory))
-    
-    tar = tarfile.open(tarfns[0])
-    try:
-        tar.extractall(path=tempdir)
-    except IOError:
-        if os.path.isdir(tempdir):
-            shutil.rmtree(tempdir)
-        raise PeriodicityCandidateError("Error while extracting pfd files " \
-                                        "from tarball (%s)!" % tarfns[0])
-    finally:
-        tar.close()
+
+    if foldedcands:
+
+        tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
+        if len(tarfns) != 1:
+            raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
+                                             "files found in %s" % (len(tarfns), \
+                                                directory))
+        
+        tar = tarfile.open(tarfns[0])
+        try:
+            tar.extractall(path=tempdir)
+        except IOError:
+            if os.path.isdir(tempdir):
+                shutil.rmtree(tempdir)
+            raise PeriodicityCandidateError("Error while extracting pfd files " \
+                                            "from tarball (%s)!" % tarfns[0])
+        finally:
+            tar.close()
+
     # Loop over candidates that were folded
     cands = []
     for ii, c in enumerate(foldedcands):
