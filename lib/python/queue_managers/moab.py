@@ -10,10 +10,10 @@ import config.basic
 import config.email
 
 class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
-    def __init__(self, job_basename, property, max_jobs_per_node):
+    def __init__(self, job_basename, property, walltime='47:00:00'):
         self.job_basename = job_basename
         self.property = property # the argument to the -q flag in msub
-        self.max_jobs_per_node = max_jobs_per_node
+        self.walltime = walltime
 
     def _exec_check_for_failure(self, cmd):
         """A private method not required by the PipelineQueueManager interface.
@@ -64,8 +64,8 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         errorlog = os.path.join(config.basic.qsublog_dir, "'$MOAB_JOBID'.ER") 
         stdoutlog = os.devnull
         #-E needed for $MOAB_JOBID to be defined
-        cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=47:00:00 -N %s -e %s -o %s %s" %\
-                   (';'.join(datafiles), outdir, self.property, self.job_basename,\
+        cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=%s -N %s -e %s -o %s %s" %\
+                   (';'.join(datafiles), outdir, self.property, self.walltime, self.job_basename,\
                       errorlog, stdoutlog, script)
         #pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
         #                        stdin=subprocess.PIPE)
