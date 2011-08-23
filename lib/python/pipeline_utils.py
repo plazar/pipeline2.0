@@ -134,8 +134,9 @@ def execute(cmd, stdout=None, stderr=sys.stderr):
         By default stdout is None and stderr is sent to sys.stderr.
     """
     # Log command to stdout
-    sys.stdout.write("\n'"+cmd+"'\n")
-    sys.stdout.flush()
+    if debug.SYSCALLS:
+        sys.stdout.write("\n'"+cmd+"'\n")
+        sys.stdout.flush()
 
     stdoutfile = False
     stderrfile = False

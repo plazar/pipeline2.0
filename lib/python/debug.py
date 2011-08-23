@@ -1,6 +1,7 @@
 modes = [('jobtracker', 'Print SQL statements executed on job-tracker DB.'), \
             ('upload', 'Print timing summary for each successful upload.'), \
-            ('download', 'Print extra information in downloader.')]
+            ('download', 'Print extra information in downloader.'), \
+            ('syscalls', 'Print commands being executed as system calls.')]
 modes.sort()
 
 # By default set all debug modes to False
