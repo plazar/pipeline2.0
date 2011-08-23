@@ -44,8 +44,35 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
         sizes = [self.size(os.path.join(ftp_path, fn)) for fn in files]
         return zip(files, sizes)
 
-    def download(self, ftp_path):
-        localfn = os.path.join(config.download.datadir,os.path.basename(ftp_path))
+    def get_modtime(self, ftp_path):
+        """Given a file's path on the FTP server return
+            a datetime.datetime object that represents the file's
+            time of last modification. This is gotten by using 
+            the MDTM command. Fractions of a second are ignored.
+
+            Modification time is returned in GMT.
+
+            Input:
+                ftp_path: path of file on FTP server.
+
+            Output:
+                modtime: datetime.datetime object that encodes the file's
+                    last time of modification.
+        """
+        response = self.sendcmd("MDTM %s")
+        respcode = response.split()[0]
+        if respcode=='213':
+            # All's good
+            # Parse first 14 characters of date string
+            # (Characters 15+ are fractions of a second)
+            modstr = response.split()[1][:14]
+            modtime = datetime.strptime(modstr, "%Y%m%d%H%M%S")
+        else:
+            raise get_ftp_exception(response)
+        return modtime
+
+    def download(self, ftp_path, local_path=config.download.datadir):
+        localfn = os.path.join(local_path, os.path.basename(ftp_path))
         f = open(localfn, 'wb')
         
         # Define a function to write blocks to the file
@@ -102,7 +129,7 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
 
 def get_ftp_exception(msg):
     """Return a CornellFTPError or a CornellFTPTimeout depending
-        on the string produced by str(msg).
+        on the string msg.
 
         Input:
             msg: The exception message to be used. 
