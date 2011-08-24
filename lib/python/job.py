@@ -365,7 +365,7 @@ def get_output_dir(fns):
         Note: 'base_results_directory' is defined in the processing config file.
                 'mjd', 'obs_name', and 'beam_num' are from parsing
                 the job's datafiles. 'proc_date' is the current date
-                in YYMMDD format.
+                in yymmddThhmmss format.
     """
     # Check that files exist
     missingfiles = [fn for fn in fns if not os.path.exists(fn)]
@@ -386,7 +386,7 @@ def get_output_dir(fns):
     mjd = int(data.timestamp_mjd)
     beam_num = data.beam_id
     obs_name = data.obs_name
-    proc_date=datetime.datetime.now().strftime('%y%m%d')
+    proc_date=datetime.datetime.now().strftime('%y%m%dT%H%M%S')
     outdir = os.path.join(config.processing.base_results_directory, \
                                     str(mjd), str(obs_name), \
                                     str(beam_num), proc_date)
