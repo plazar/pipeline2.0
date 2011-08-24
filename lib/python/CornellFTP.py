@@ -110,7 +110,7 @@ def get_ftp_exception(msg):
         Output:
             exc: The exception instance to be raised.
     """
-    if "[Errno 110] Connection timed out" in msg:
+    if "[Errno 110] Connection timed out" in msg or "[Errno 113] No route to host" in msg:
         exc = CornellFTPTimeout(msg)
     else:
         exc = CornellFTPError(msg)

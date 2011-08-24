@@ -86,7 +86,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
                        + ' while trying to submit.\n'
             raise queue_managers.QueueManagerFatalError(errormsg)
 
-          print 'Moab communication error during submission: waiting 30s'
+          print 'Moab communication error during submission: waiting 30s\n'
           time.sleep(30)
           queue_id, comm_err = self._get_submitted_queue_id(job_id)
           
