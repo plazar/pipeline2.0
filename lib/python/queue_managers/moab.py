@@ -8,12 +8,13 @@ import queue_managers.generic_interface
 import pipeline_utils
 import config.basic
 import config.email
+from xml.etree import ElementTree as ET
 
 class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
-    def __init__(self, job_basename, property, max_jobs_per_node):
+    def __init__(self, job_basename, property, walltime='47:00:00'):
         self.job_basename = job_basename
         self.property = property # the argument to the -q flag in msub
-        self.max_jobs_per_node = max_jobs_per_node
+        self.walltime = walltime
 
     def _exec_check_for_failure(self, cmd):
         """A private method not required by the PipelineQueueManager interface.
@@ -43,7 +44,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 
         return (output, error, comm_err)
 
-    def submit(self, datafiles, outdir, \
+    def submit(self, datafiles, outdir, job_id,\
                 script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
@@ -51,6 +52,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
             Inputs:
                 datafiles: A list of the datafiles being processed.
                 outdir: The directory where results will be copied to.
+                job_id: The unique job identifer from the jobtracker database.
                 script: The script to submit to the queue. (Default:
                         '{config.basic.pipelinedir}/bin/search.py')
 
@@ -64,8 +66,8 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         errorlog = os.path.join(config.basic.qsublog_dir, "'$MOAB_JOBID'.ER") 
         stdoutlog = os.devnull
         #-E needed for $MOAB_JOBID to be defined
-        cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=47:00:00 -N %s -e %s -o %s %s" %\
-                   (';'.join(datafiles), outdir, self.property, self.job_basename,\
+        cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=%s -N %s -e %s -o %s %s" %\
+                   (';'.join(datafiles), outdir, self.property, self.walltime, self.job_basename + str(job_id),\
                       errorlog, stdoutlog, script)
         #pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
         #                        stdin=subprocess.PIPE)
@@ -73,8 +75,21 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         #pipe.stdin.close()
         queue_id, error, comm_err = self._exec_check_for_failure(cmd)
         queue_id = queue_id.strip()
-        if comm_err:
-          raise queue_managers.QueueManagerFatalError(error)
+        
+        comm_err_count = 0
+        comm_err_lim = 10
+
+        while comm_err:
+          comm_err_count += 1
+          if comm_err_count > comm_err_lim:
+            errormsg = 'Had more than %d moab communication errors in a row' % comm_err_lim\
+                       + ' while trying to submit.\n'
+            raise queue_managers.QueueManagerFatalError(errormsg)
+
+          print 'Moab communication error during submission: waiting 30s\n'
+          time.sleep(30)
+          queue_id, comm_err = self._get_submitted_queue_id(job_id)
+          
         if not queue_id:
             errormsg  = "No job identifier returned by msub!\n"
             errormsg += "\tCommand executed: %s\n" % cmd
@@ -85,6 +100,27 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
             # the job appearing on the queue, so sleep for 1 second. 
             time.sleep(1)
         return queue_id
+
+    def _get_submitted_queue_id(self, job_id):
+        cmd = 'showq --xml'
+        output, error, comm_err = self._exec_check_for_failure(cmd)
+        
+        if comm_err:
+          return None, comm_err
+
+        else:
+          tree = ET.XML(output)
+          job_name = self.job_basename + str(job_id)
+          queue_id = 0
+
+          for queue in tree:
+            if queue.tag == 'queue':
+              for job in queue:
+                if job.tag == 'job' and job.attrib['JobName'] == job_name:
+                  queue_id = job.attrib['JobID']
+
+          return queue_id, comm_err
+
 
     def can_submit(self):
         """Check if we can submit a job
@@ -151,9 +187,9 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         if dne_re.match(error):
           return 'DNE' # does not exist
         else:
-          errormsg = 'Unable to determine job state for queue id: %d\n' % queue_id
+          errormsg = 'Unable to determine job state for queue id: %s\n' % queue_id
           errormsg += error
-          raise queue_managers.QueueManagerFatalError(error)
+          raise queue_managers.QueueManagerFatalError(errormsg)
 	
 
     def delete(self, queue_id):

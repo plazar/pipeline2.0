@@ -423,6 +423,10 @@ class MinSigmaFoldedDiagnostic(FloatDiagnostic):
                                     "entries in candlist! (%d < %d)" % \
                                     (len(pfdpngs), len(sigmas)))
 
+        if not sigmas:
+            errormsg = 'No candidates folded.'
+            raise DiagnosticNonFatalError(errormsg)
+
         self.value = min(sigmas)
 
 
@@ -621,6 +625,9 @@ class DiagnosticError(pipeline_utils.PipelineError):
     """
     pass
 
+class DiagnosticNonFatalError(pipeline_utils.PipelineError):
+    pass
+
 
 def get_diagnostics(obsname, beamnum, obstype, versionnum, directory):
     """Get diagnostic to common DB.
@@ -646,6 +653,9 @@ def get_diagnostics(obsname, beamnum, obstype, versionnum, directory):
         try:
             d = diagnostic_type(obsname, beamnum, obstype, \
                             versionnum, directory)
+        except DiagnosticNonFatalError:
+            continue
+
         except Exception:
             raise DiagnosticError("Could not create %s object for " \
                                     "observation: %s (beam: %d)" % \

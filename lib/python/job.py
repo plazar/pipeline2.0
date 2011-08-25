@@ -288,7 +288,8 @@ def submit(job_row):
     try:
         outdir = get_output_dir(fns)
         # Attempt to submit the job
-        queue_id = config.jobpooler.queue_manager.submit(fns, outdir)
+        queue_id = config.jobpooler.queue_manager.submit\
+                            (fns, outdir, job_row['id'])
     except queue_managers.QueueManagerJobFatalError:
         # Error caught during job submission.
         exceptionmsgs = traceback.format_exception(*sys.exc_info())

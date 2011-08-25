@@ -9,6 +9,7 @@ import OutStream
 import config.basic
 import config.background
 import config.download
+import subprocess
 
 cout = OutStream.OutStream("CornellFTP Module", \
                 os.path.join(config.basic.log_dir, "downloader.log"), \
@@ -44,21 +45,56 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
         sizes = [self.size(os.path.join(ftp_path, fn)) for fn in files]
         return zip(files, sizes)
 
-    def download(self, ftp_path):
-        localfn = os.path.join(config.download.datadir,os.path.basename(ftp_path))
-        f = open(localfn, 'wb')
+    def get_modtime(self, ftp_path):
+        """Given a file's path on the FTP server return
+            a datetime.datetime object that represents the file's
+            time of last modification. This is gotten by using 
+            the MDTM command. Fractions of a second are ignored.
+
+            Modification time is returned in GMT.
+
+            Input:
+                ftp_path: path of file on FTP server.
+
+            Output:
+                modtime: datetime.datetime object that encodes the file's
+                    last time of modification.
+        """
+        response = self.sendcmd("MDTM %s")
+        respcode = response.split()[0]
+        if respcode=='213':
+            # All's good
+            # Parse first 14 characters of date string
+            # (Characters 15+ are fractions of a second)
+            modstr = response.split()[1][:14]
+            modtime = datetime.strptime(modstr, "%Y%m%d%H%M%S")
+        else:
+            raise get_ftp_exception(response)
+        return modtime
+
+    def download(self, ftp_path, local_path=config.download.datadir):
+        localfn = os.path.join(local_path, os.path.basename(ftp_path))
+
+        username = config.download.ftp_username
+        password = config.download.ftp_password
+        #f = open(localfn, 'wb')
         
         # Define a function to write blocks to the file
-        def write(block):
-            f.write(block)
-            f.flush()
-            os.fsync(f)
+        #def write(block):
+        #    f.write(block)
+        #    f.flush()
+        #    os.fsync(f)
         
-        self.sendcmd("TYPE I")
+        #self.sendcmd("TYPE I")
         cout.outs("CornellFTP - Starting Download of: %s" % \
                         os.path.split(ftp_path)[-1])
-        self.retrbinary("RETR "+ftp_path, write)
-        f.close()
+        #self.retrbinary("RETR "+ftp_path, write)
+        #f.close()
+        lftp_cmd = '"get %s -o %s"' % (ftp_path, localfn)
+        cmd = "lftp -c 'open -e %s -u %s,%s -p 31001 arecibo.tc.cornell.edu'" % (lftp_cmd, username, password)
+
+        subprocess.call(cmd, shell=True)
+
         cout.outs("CornellFTP - Finished download of: %s" % \
                         os.path.split(ftp_path)[-1])
         return localfn 
@@ -102,7 +138,7 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
 
 def get_ftp_exception(msg):
     """Return a CornellFTPError or a CornellFTPTimeout depending
-        on the string produced by str(msg).
+        on the string msg.
 
         Input:
             msg: The exception message to be used. 
@@ -110,7 +146,7 @@ def get_ftp_exception(msg):
         Output:
             exc: The exception instance to be raised.
     """
-    if "[Errno 110] Connection timed out" in msg:
+    if "[Errno 110] Connection timed out" in msg or "[Errno 113] No route to host" in msg:
         exc = CornellFTPTimeout(msg)
     else:
         exc = CornellFTPError(msg)
