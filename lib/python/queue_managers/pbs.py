@@ -5,6 +5,7 @@ import time
 
 import PBSQuery
 
+import debug
 import queue_managers
 import config.basic
 import config.email
@@ -54,7 +55,10 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             errormsg = "No nodes to accept job submission!\n"
             raise queue_managers.QueueManagerNonFatalError(errormsg)
         errorlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.ER")
-        stdoutlog = os.devnull
+        if debug.QMANAGER:
+            stdoutlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.OU")
+        else:
+            stdoutlog = os.devnull
         if self.queue_name is not None:
             qname_opt = "-q %s" % self.queue_name
         else:
@@ -62,6 +66,8 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' %s -l nodes=%s:ppn=1 -N %s -e %s -o %s %s" % \
                         (';'.join(datafiles), outdir, qname_opt, node, \
                             self.job_basename, errorlog, stdoutlog, script)
+        if debug.QMANAGER:
+            print "Job submit command: %s" % cmd
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
                                 stdin=subprocess.PIPE)
         queue_id = pipe.communicate()[0].strip()
