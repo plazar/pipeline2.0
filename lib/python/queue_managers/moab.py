@@ -94,7 +94,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
             errormsg  = "No job identifier returned by msub!\n"
             errormsg += "\tCommand executed: %s\n" % cmd
             errormsg += error
-            raise queue_anagers.QueueManagerFatalError(errormsg)
+            raise queue_managers.QueueManagerFatalError(errormsg)
         else:
             # There is occasionally a short delay between submission and 
             # the job appearing on the queue, so sleep for 1 second. 

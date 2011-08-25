@@ -9,6 +9,7 @@ import OutStream
 import config.basic
 import config.background
 import config.download
+import subprocess
 
 cout = OutStream.OutStream("CornellFTP Module", \
                 os.path.join(config.basic.log_dir, "downloader.log"), \
@@ -46,19 +47,27 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
 
     def download(self, ftp_path):
         localfn = os.path.join(config.download.datadir,os.path.basename(ftp_path))
-        f = open(localfn, 'wb')
+
+        username = config.download.ftp_username
+        password = config.download.ftp_password
+        #f = open(localfn, 'wb')
         
         # Define a function to write blocks to the file
-        def write(block):
-            f.write(block)
-            f.flush()
-            os.fsync(f)
+        #def write(block):
+        #    f.write(block)
+        #    f.flush()
+        #    os.fsync(f)
         
-        self.sendcmd("TYPE I")
+        #self.sendcmd("TYPE I")
         cout.outs("CornellFTP - Starting Download of: %s" % \
                         os.path.split(ftp_path)[-1])
-        self.retrbinary("RETR "+ftp_path, write)
-        f.close()
+        #self.retrbinary("RETR "+ftp_path, write)
+        #f.close()
+        lftp_cmd = '"get %s -o %s"' % (ftp_path, localfn)
+        cmd = "lftp -c 'open -e %s -u %s,%s -p 31001 arecibo.tc.cornell.edu'" % (lftp_cmd, username, password)
+
+        subprocess.call(cmd, shell=True)
+
         cout.outs("CornellFTP - Finished download of: %s" % \
                         os.path.split(ftp_path)[-1])
         return localfn 
