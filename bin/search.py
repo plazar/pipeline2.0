@@ -7,10 +7,12 @@ Patrick Lazarus, May 20, 2010
 
 import sys
 import os
+import os.path
 import socket
 import tempfile
 import shutil
 import subprocess
+import tarfile
 
 import datafile
 import astro_utils.calendar
@@ -150,8 +152,7 @@ def copy_zaplist(fns, workdir):
         ft_str = "wapp_4bit"
     else:
         ft_str = "mock_4bit"
-    customzapdir = os.path.join(config.processing.zaplistdir, \
-                                parsed['date'], ft_str)
+    customzapdir = os.path.join("zaplists", parsed['date'], ft_str)
     customzapfns = []
     # First, try to find a custom zaplist for this specific data file
     customzapfns.append(fns[0].replace(".fits", ".zaplist"))
@@ -161,19 +162,30 @@ def copy_zaplist(fns, workdir):
     # Try to find custom zaplist for this MJD
     customzapfns.append("%s.%s.all.zaplist" % (parsed['projid'], parsed['date']))
 
+    zaptar = tarfile.open(os.path.join(config.processing.zaplistdir, \
+                                        "zaplists.tar.gz"), mode='r')
     for customzapfn in customzapfns:
         # Add on path
         zapfn = os.path.join(customzapdir, customzapfn)
-        if os.path.exists(zapfn):
-            # Copy custom zaplist to workdir
-            shutil.copy(zapfn, workdir)
-            print "Copied custom zaplist: %s" % zapfn
+        try:
+            ti = zaptar.getmember(zapfn)
+            # Write custom zaplist to workdir
+            localfn = os.path.join(workdir, customzapfn)
+            f = open(localfn, 'w')
+            f.write(zaptar.extractfile(ti).read())
+            f.close()
+            print "Copied custom zaplist: %s" % customzapfn
             break
+        except KeyError:
+            # The member we searched for doesn't exist, try next
+            pass
     else:
         # Copy default zaplist
         shutil.copy(config.processing.default_zaplist, workdir)
         print "No custom zaplist found. Copied default zaplist: %s" % \
                 config.processing.default_zaplist
+    
+    zaptar.close()
 
 
 def copy_results(resultsdir, outdir):
