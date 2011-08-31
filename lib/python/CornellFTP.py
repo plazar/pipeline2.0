@@ -91,7 +91,7 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
         #self.retrbinary("RETR "+ftp_path, write)
         #f.close()
         lftp_cmd = '"get %s -o %s"' % (ftp_path, localfn)
-        cmd = "lftp -c 'open -e %s -u %s,%s -p 31001 arecibo.tc.cornell.edu'" % (lftp_cmd, username, password)
+        cmd = "lftp -c 'set xfer:clobber 1; open -e %s -u %s,%s -p 31001 arecibo.tc.cornell.edu'" % (lftp_cmd, username, password)
 
         subprocess.call(cmd, shell=True)
 
@@ -146,7 +146,8 @@ def get_ftp_exception(msg):
         Output:
             exc: The exception instance to be raised.
     """
-    if "[Errno 110] Connection timed out" in msg or "[Errno 113] No route to host" in msg:
+    if "[Errno 110] Connection timed out" in msg or "[Errno 113] No route to host" in msg\
+       or "has been chosen as the deadlock victim. Rerun the transaction." in msg:
         exc = CornellFTPTimeout(msg)
     else:
         exc = CornellFTPError(msg)
