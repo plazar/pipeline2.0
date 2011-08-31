@@ -290,7 +290,8 @@ def submit(job_row):
         # Attempt to submit the job
         queue_id = config.jobpooler.queue_manager.submit\
                             (fns, outdir, job_row['id'])
-    except queue_managers.QueueManagerJobFatalError:
+    except (queue_managers.QueueManagerJobFatalError,\
+              datafile.DataFileError):
         # Error caught during job submission.
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
         errormsg  = "Error while submitting job!\n"
