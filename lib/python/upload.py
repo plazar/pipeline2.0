@@ -69,3 +69,10 @@ class UploadError(pipeline_utils.PipelineError):
     def __init__(self, *args):
         super(UploadError, self).__init__(self, *args)
         self.orig_exc = sys.exc_info() # The exception being wrapped, if any
+
+class UploadNonFatalError(pipeline_utils.PipelineError):
+    """An error to use when jobs are found to have failed when
+        uploading to the PALFA common DB. 
+    """
+    pass 
+

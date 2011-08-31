@@ -311,7 +311,7 @@ class SinglePulseBeamPlotDMs300AndUp(SinglePulseBeamPlot):
     sp_plot_type = "PRESTO singlepulse per-beam plot (DMs 300 and up)"
 
 
-class SinglePulseCandidateError(pipeline_utils.PipelineError):
+class SinglePulseCandidateError(upload.UploadNonFatalError):
     """Error to throw when a single pulse candidate-specific problem is encountered.
     """
     pass

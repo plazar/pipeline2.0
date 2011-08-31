@@ -230,7 +230,7 @@ class Header(upload.Uploadable):
                 raise HeaderError(errormsg)
 
 
-class HeaderError(pipeline_utils.PipelineError):
+class HeaderError(upload.UploadNonFatalError):
     """Error to throw when a header-specific problem is encountered.
     """
     pass
