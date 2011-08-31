@@ -148,11 +148,6 @@ def copy_zaplist(fns, workdir):
         parsed['date'] = "%04d%02d%02d" % \
                             astro_utils.calendar.MJD_to_date(int(parsed['mjd']))
 
-    if filetype == datafile.WappPsrfitsData:
-        ft_str = "wapp_4bit"
-    else:
-        ft_str = "mock_4bit"
-    customzapdir = os.path.join("zaplists", parsed['date'], ft_str)
     customzapfns = []
     # First, try to find a custom zaplist for this specific data file
     customzapfns.append(fns[0].replace(".fits", ".zaplist"))
@@ -164,11 +159,13 @@ def copy_zaplist(fns, workdir):
 
     zaptar = tarfile.open(os.path.join(config.processing.zaplistdir, \
                                         "zaplists.tar.gz"), mode='r')
+    members = zaptar.getmembers()
     for customzapfn in customzapfns:
-        # Add on path
-        zapfn = os.path.join(customzapdir, customzapfn)
-        try:
-            ti = zaptar.getmember(zapfn)
+        matches = [mem for mem in members \
+                    if mem.name.endswith(customzapfn)]
+        if matches:
+            ti = matches[0] # The first TarInfo object found 
+                            # that matches the file name
             # Write custom zaplist to workdir
             localfn = os.path.join(workdir, customzapfn)
             f = open(localfn, 'w')
@@ -176,8 +173,8 @@ def copy_zaplist(fns, workdir):
             f.close()
             print "Copied custom zaplist: %s" % customzapfn
             break
-        except KeyError:
-            # The member we searched for doesn't exist, try next
+        else:
+            # The member we searched for doesn't exist, try next one
             pass
     else:
         # Copy default zaplist
