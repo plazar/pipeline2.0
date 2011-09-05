@@ -21,6 +21,7 @@ delete_rawdata = True
 
 # Should not need to change this unless you rearrange the pipeline filesystem
 wapp_coords_table = os.path.join(pipelinedir, "lib", "PALFA_wapp_coords_table.txt")
+mock_coords_table = os.path.join(pipelinedir, "lib", "PALFA_mock_coords_table.txt")
 log_dir = os.path.join(pipelinedir, "logs")
 qsublog_dir = os.path.join(log_dir, "qsublog")
 
