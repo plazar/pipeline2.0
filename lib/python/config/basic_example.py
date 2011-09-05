@@ -20,7 +20,7 @@ psrfits_utilsdir = "/usr/local/src/psrfits_utils_git/psrfits_utils"
 delete_rawdata = True
 
 # Should not need to change this unless you rearrange the pipeline filesystem
-coords_table = os.path.join(pipelinedir, "lib", "PALFA_coords_table.txt")
+wapp_coords_table = os.path.join(pipelinedir, "lib", "PALFA_wapp_coords_table.txt")
 log_dir = os.path.join(pipelinedir, "logs")
 qsublog_dir = os.path.join(log_dir, "qsublog")
 
