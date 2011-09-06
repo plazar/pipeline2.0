@@ -15,6 +15,12 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         self.job_basename = job_basename
         self.property = property # the argument to the -q flag in msub
         self.walltime = walltime
+       
+        # do a showq to initiate queue list, if comm_err try again
+        self.showq_last_update = time.time() - 1
+        comm_err = True
+        while comm_err:
+            self.queue, comm_err = self._showq(update_time=0)
 
     def _exec_check_for_failure(self, cmd):
         """A private method not required by the PipelineQueueManager interface.
@@ -96,9 +102,11 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
             errormsg += error
             raise queue_managers.QueueManagerFatalError(errormsg)
         else:
+            self.queue = self._showq(update_time=0) # update queue immediately
+
             # There is occasionally a short delay between submission and 
             # the job appearing on the queue, so sleep for 1 second. 
-            time.sleep(1)
+            time.sleep(30)
         return queue_id
 
     def _get_submitted_queue_id(self, job_id):
@@ -167,29 +175,46 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 	        state: State of the job.
         """
 
-        dne_re = re.compile('ERROR:  cannot locate job')
+        #dne_re = re.compile('ERROR:  cannot locate job')
 
-        cmd = "checkjob %s" % queue_id
+        #cmd = "checkjob %s" % queue_id
         #pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
         #                        stdin=subprocess.PIPE)
         #status = pipe.communicate()[0]
         #pipe.stdin.close()
 
-        status, error, comm_err = self._exec_check_for_failure(cmd)
+        #status, error, comm_err = self._exec_check_for_failure(cmd)
+       
+        
+        queue, comm_err = self._showq()
+
+        for job in queue['active']:
+            if job.attrib['JobID'] == str(queue_id):
+              return job.attrib['State']
+        for job in queue['eligible']:
+            if job.attrib['JobID'] == str(queue_id):
+              return job.attrib['State']
+        for job in queue['blocked']:
+            if job.attrib['JobID'] == str(queue_id):
+              return job.attrib['State']
+
         if comm_err:
           return 'COMMERR'
 
-        lines = status.split('\n')
-	for line in lines:
-	    if line.startswith("State:"):
-	       state = line.split()[1]
-               return state
-        if dne_re.match(error):
-          return 'DNE' # does not exist
-        else:
-          errormsg = 'Unable to determine job state for queue id: %s\n' % queue_id
-          errormsg += error
-          raise queue_managers.QueueManagerFatalError(errormsg)
+        print "Job %s does not exist in queue" % queue_id
+        return 'DNE'
+
+        #lines = status.split('\n')
+	#for line in lines:
+	#    if line.startswith("State:"):
+	#       state = line.split()[1]
+        #       return state
+        #if dne_re.match(error):
+        #  return 'DNE' # does not exist
+        #else:
+        #  errormsg = 'Unable to determine job state for queue id: %s\n' % queue_id
+        #  errormsg += error
+        #  raise queue_managers.QueueManagerFatalError(errormsg)
 	
 
     def delete(self, queue_id):
@@ -211,6 +236,9 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         # the queue manager, or if it marked as exiting.
         time.sleep(5)
 
+        #force queue update
+        queue, comm_err = self._showq(update_time=0)
+
         state = self._check_job_state(queue_id)
         if ('Completed' not in state) and ('Canceling' not in state) and ('DNE' not in state):
 	    errormsg  = "The job (%s) is still in the queue " % queue_id
@@ -231,27 +259,33 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         """
         numrunning = 0
         numqueued = 0
-        cmd = "showq -n -w class=%s" % self.property
+        #cmd = "showq -n -w class=%s" % self.property
         #pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
         #                        stdin=subprocess.PIPE)
         #jobs = pipe.communicate()[0]
         #pipe.stdin.close()
  
-        jobs, error, comm_err = self._exec_check_for_failure(cmd)
+        #jobs, error, comm_err = self._exec_check_for_failure(cmd)
         # what do we want to do with a moab comm err here?
+
+        queue, comm_err = self._showq()
 
         if comm_err:
           return (9999, 9999)
         elif error:
           raise queue_managers.QueueManagerFatalError(error) 
 
-        lines = jobs.split('\n')
-        for line in lines:
-            if line.startswith(self.job_basename):
-                if 'Running' in line.split()[2]:
-                    numrunning += 1
-                elif 'Idle' in line.split()[2]:
-                    numqueued += 1
+        numrunning = len(queue['active'])
+        numqueued = len(queue['eligible']) + len(queue['blocked'])
+
+        #lines = jobs.split('\n')
+        #for line in lines:
+        #    if line.startswith(self.job_basename):
+        #        if 'Running' in line.split()[2]:
+        #            numrunning += 1
+        #        elif 'Idle' in line.split()[2]:
+        #            numqueued += 1
+
         return (numrunning, numqueued)
 
     def _get_stderr_path(self, jobid_str):
@@ -318,4 +352,34 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
                 errors = err_f.read()
                 err_f.close()
         return errors
+
+    def _showq(self, update_time=300):
+
+        if time.time() >= self.showq_last_update + update_time:
+            print "Updateing showq cache ..."
+
+            cmd = 'showq -w class=%s --xml' % self.property
+            output, error, comm_err = self._exec_check_for_failure(cmd)
+            
+            queue = {'active': [], 'eligible': [], 'blocked': []}
+
+            if not comm_err:
+                if error:
+                  raise queue_managers.QueueManagerFatalError(error) 
+
+                xml_tree = ET.XML(output)
+		for branch in xml_tree:
+		  if branch.tag == 'queue':
+		    for job in branch:
+	              if job.tag == 'job' and\
+			  job.attrib['JobName'].startswith(self.job_basename):
+	                queue[branch.attrib['option']].append(job)
+
+                self.queue = queue
+                self.showq_last_update = time.time()
+        else:
+            queue = self.queue
+            comm_err = False
+                      
+        return queue, comm_err
 
