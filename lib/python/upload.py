@@ -46,13 +46,21 @@ class Uploadable(object):
         query = str(self.get_upload_sproc_call())
         try:
             db.cursor.execute(query)
-        except:
-            raise UploadError("There was an error executing the following " \
+        except Exception, e:
+            if "has been chosen as the deadlock victim. Rerun the transaction." in e:
+                raise UploadDeadlockError("There was a deadlock error executing "\
+                                            "the following query: %s" %query[:256]) 
+            else:
+                raise UploadError("There was an error executing the following " \
                                 "query: %s" % query[:256])
         try:
             result = db.cursor.fetchone()
-        except:
-            raise UploadError("There was an error fetching the result of " \
+        except Exception, e:
+            if "has been chosen as the deadlock victim. Rerun the transaction." in e:
+                raise UploadDeadlockError("There was a deadlock error fetching "\
+                                            "the following query: %s" %query[:256]) 
+            else:
+                raise UploadError("There was an error fetching the result of " \
                                 "the following query: %s" % query[:256])
         return result
 
@@ -75,4 +83,10 @@ class UploadNonFatalError(pipeline_utils.PipelineError):
         uploading to the PALFA common DB. 
     """
     pass 
+
+class UploadDeadlockError(pipeline_utils.PipelineError):
+    """An error to use when upload failed due to being the victim
+        of a deadlock.
+    """
+    pass
 
