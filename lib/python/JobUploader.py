@@ -165,7 +165,7 @@ def upload_results(job_submit):
         # Rolling back changes. 
         db.rollback()
     except (database.DatabaseConnectionError, CornellFTP.CornellFTPTimeout,\
-               upload.UploadDeadlockError), e:
+               upload.UploadDeadlockError, database.DatabaseDeadlockError), e:
         # Connection error while uploading. We will try again later.
         sys.stderr.write(str(e))
         sys.stderr.write("\tRolling back DB transaction and will re-try later.\n")

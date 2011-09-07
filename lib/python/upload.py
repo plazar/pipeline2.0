@@ -47,7 +47,7 @@ class Uploadable(object):
         try:
             db.cursor.execute(query)
         except Exception, e:
-            if "has been chosen as the deadlock victim. Rerun the transaction." in e:
+            if "has been chosen as the deadlock victim. Rerun the transaction." in str(e):
                 raise UploadDeadlockError("There was a deadlock error executing "\
                                             "the following query: %s" %query[:256]) 
             else:
@@ -56,7 +56,7 @@ class Uploadable(object):
         try:
             result = db.cursor.fetchone()
         except Exception, e:
-            if "has been chosen as the deadlock victim. Rerun the transaction." in e:
+            if "has been chosen as the deadlock victim. Rerun the transaction." in str(e):
                 raise UploadDeadlockError("There was a deadlock error fetching "\
                                             "the following query: %s" %query[:256]) 
             else:

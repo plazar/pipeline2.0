@@ -83,7 +83,13 @@ class Database:
             raise DatabaseConnectionError(msg)
 
     def execute(self, *args, **kwargs):
-        self.cursor.execute(*args, **kwargs)
+        try:
+            self.cursor.execute(*args, **kwargs)
+        except Exception, e:
+            if "has been chosen as the deadlock victim. Rerun the transaction." in str(e):
+                raise DatabaseDeadlockError(e)
+            else:
+                raise 
 
     def commit(self):
         self.conn.commit()
@@ -169,6 +175,8 @@ class Database:
 class DatabaseConnectionError(pipeline_utils.PipelineError):
     pass
 
+class DatabaseDeadlockError(pipeline_utils.PipelineError):
+    pass
 
 class InteractiveDatabasePrompt(cmd.Cmd):
     def __init__(self, dbname='default', *args, **kwargs):
@@ -241,3 +249,4 @@ if __name__=='__main__':
         print "\nUnexpected exception occurred!"
         dbprompt.postloop()
         raise
+
