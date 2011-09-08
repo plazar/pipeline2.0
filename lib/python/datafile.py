@@ -582,8 +582,13 @@ class DataFileError(pipeline_utils.PipelineError):
 
 
 def main():
-    data = autogen_dataobj(sys.argv[1:])
-    print data.__dict__
+    if sys.argv[1]=='preprocess':
+        # Preprocess data files
+        preprocess(sys.argv[2:])
+    else:
+        # Print datafile's header information
+        data = autogen_dataobj(sys.argv[1:])
+        print data.__dict__
 
 
 if __name__=='__main__':
