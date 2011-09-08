@@ -34,7 +34,7 @@ request_timeout = 6 # Integer number of hours before an un-restored request
 request_numbits = 4 # 4 or 16 (The pipeline doesn't support 16-bit data)
 request_datatype = 'mock' # 'mock' or 'wapp'
 
-use_lftp = True # use lftp if True, if False use M2Crypto to retrieve data
+use_lftp = False # use lftp if True, if False use M2Crypto to retrieve data
 
 import download_check
 download_check.download.populate_configs(locals())
