@@ -11,10 +11,10 @@ import config.email
 from xml.etree import ElementTree as ET
 
 class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
-    def __init__(self, job_basename, property, walltime='47:00:00'):
+    def __init__(self, job_basename, property, walltime_per_gb=50):
         self.job_basename = job_basename
         self.property = property # the argument to the -q flag in msub
-        self.walltime = walltime
+        self.walltime_per_gb = walltime_per_gb
        
         # do a showq to initiate queue list, if comm_err try again
         self.showq_last_update = time.time() - 1
@@ -68,12 +68,21 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
             *** NOTE: A pipeline_utils.PipelineError is raised if
                         the queue submission fails.
         """
+        
+        filesize = 0 
+        for file in datafiles:
+            filesize += os.stat(file).st_size   
+
+        filesize /= 1024.0**3
+
+        walltime = str( int( self.walltime_per_gb * filesize) ) + ':00:00'
+        print 'Filesize:',filesize,'GB Walltime:', walltime
 	
         errorlog = os.path.join(config.basic.qsublog_dir, "'$MOAB_JOBID'.ER") 
         stdoutlog = os.devnull
         #-E needed for $MOAB_JOBID to be defined
         cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=%s -N %s -e %s -o %s %s" %\
-                   (';'.join(datafiles), outdir, self.property, self.walltime, self.job_basename + str(job_id),\
+                   (';'.join(datafiles), outdir, self.property, walltime, self.job_basename + str(job_id),\
                       errorlog, stdoutlog, script)
         #pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
         #                        stdin=subprocess.PIPE)
@@ -102,7 +111,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
             errormsg += error
             raise queue_managers.QueueManagerFatalError(errormsg)
         else:
-            self.queue = self._showq(update_time=0) # update queue immediately
+            queue, comm_err = self._showq(update_time=0) # update queue immediately
 
             # There is occasionally a short delay between submission and 
             # the job appearing on the queue, so sleep for 1 second. 
@@ -272,8 +281,8 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 
         if comm_err:
           return (9999, 9999)
-        elif error:
-          raise queue_managers.QueueManagerFatalError(error) 
+        #elif error:
+        #  raise queue_managers.QueueManagerFatalError(error) 
 
         numrunning = len(queue['active'])
         numqueued = len(queue['eligible']) + len(queue['blocked'])
