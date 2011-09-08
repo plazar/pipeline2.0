@@ -73,27 +73,39 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
         return modtime
 
     def download(self, ftp_path, local_path=config.download.datadir):
+
         localfn = os.path.join(local_path, os.path.basename(ftp_path))
 
-        username = config.download.ftp_username
-        password = config.download.ftp_password
-        #f = open(localfn, 'wb')
-        
-        # Define a function to write blocks to the file
-        #def write(block):
-        #    f.write(block)
-        #    f.flush()
-        #    os.fsync(f)
-        
-        #self.sendcmd("TYPE I")
-        cout.outs("CornellFTP - Starting Download of: %s" % \
-                        os.path.split(ftp_path)[-1])
-        #self.retrbinary("RETR "+ftp_path, write)
-        #f.close()
-        lftp_cmd = '"get %s -o %s"' % (ftp_path, localfn)
-        cmd = "lftp -c 'set xfer:clobber 1; open -e %s -u %s,%s -p 31001 arecibo.tc.cornell.edu'" % (lftp_cmd, username, password)
 
-        subprocess.call(cmd, shell=True)
+        if config.download.use_lftp:
+
+            username = config.download.ftp_username
+            password = config.download.ftp_password
+
+            lftp_cmd = '"get %s -o %s"' % (ftp_path, localfn)
+            cmd = "lftp -c 'set xfer:clobber 1; open -e %s -u %s,%s " %\
+                     (lftp_cmd, username, password)\
+                     + "-p 31001 arecibo.tc.cornell.edu'"
+
+            cout.outs("CornellFTP - Starting Download of: %s" % \
+                        os.path.split(ftp_path)[-1])
+
+            subprocess.call(cmd, shell=True)
+
+        else:
+            f = open(localfn, 'wb')
+        
+            # Define a function to write blocks to the file
+            def write(block):
+                f.write(block)
+                f.flush()
+                os.fsync(f)
+        
+            self.sendcmd("TYPE I")
+            cout.outs("CornellFTP - Starting Download of: %s" % \
+                        os.path.split(ftp_path)[-1])
+            self.retrbinary("RETR "+ftp_path, write)
+            f.close()
 
         cout.outs("CornellFTP - Finished download of: %s" % \
                         os.path.split(ftp_path)[-1])
@@ -146,8 +158,7 @@ def get_ftp_exception(msg):
         Output:
             exc: The exception instance to be raised.
     """
-    if "[Errno 110] Connection timed out" in msg or "[Errno 113] No route to host" in msg\
-       or "has been chosen as the deadlock victim. Rerun the transaction." in msg:
+    if "[Errno 110] Connection timed out" in msg or "[Errno 113] No route to host" in msg:
         exc = CornellFTPTimeout(msg)
     else:
         exc = CornellFTPError(msg)

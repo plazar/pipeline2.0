@@ -93,6 +93,11 @@ def upload_results(job_submit):
         db = database.Database('default', autocommit=False)
         # Prepare for upload
         dir = job_submit['output_dir']
+        if not os.path.exists(dir):
+            errormsg = 'ERROR: Results directory, %s, does not exist for job_id=%d' %\
+                       (dir, job_submit['job_id'])
+            raise upload.UploadNonFatalError(errormsg)
+
         fitsfiles = get_fitsfiles(job_submit)
         data = datafile.autogen_dataobj(fitsfiles)
         version_number = get_version_number(dir)
@@ -129,10 +134,7 @@ def upload_results(job_submit):
             d.upload(db)
         print "\tEverything uploaded and checked successfully. header_id=%d" % \
                     header_id
-    except (header.HeaderError, \
-            candidates.PeriodicityCandidateError, \
-            diagnostics.DiagnosticError, \
-            sp_candidates.SinglePulseCandidateError):
+    except (upload.UploadNonFatalError):
         # Parsing error caught. Job attempt has failed!
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
         errormsg  = "Error while checking results!\n"
@@ -162,7 +164,8 @@ def upload_results(job_submit):
         
         # Rolling back changes. 
         db.rollback()
-    except (database.DatabaseConnectionError, CornellFTP.CornellFTPTimeout), e:
+    except (database.DatabaseConnectionError, CornellFTP.CornellFTPTimeout,\
+               upload.UploadDeadlockError, database.DatabaseDeadlockError), e:
         # Connection error while uploading. We will try again later.
         sys.stderr.write(str(e))
         sys.stderr.write("\tRolling back DB transaction and will re-try later.\n")

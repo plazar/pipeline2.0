@@ -330,7 +330,7 @@ class PeriodicityCandidatePFD(PeriodicityCandidatePlot):
     plot_type = "pfd binary"
 
 
-class PeriodicityCandidateError(pipeline_utils.PipelineError):
+class PeriodicityCandidateError(upload.UploadNonFatalError):
     """Error to throw when a candidate-specific problem is encountered.
     """
     pass

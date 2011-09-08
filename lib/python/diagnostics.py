@@ -619,7 +619,7 @@ def find_in_tarballs(dir, matchfunc):
     raise DiagnosticError("Could not find matching file!")
 
 
-class DiagnosticError(pipeline_utils.PipelineError):
+class DiagnosticError(upload.UploadNonFatalError):
     """Error to throw when a diagnostic-specific problem 
         is encountered.
     """

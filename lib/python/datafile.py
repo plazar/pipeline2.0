@@ -193,7 +193,7 @@ class Data(object):
             self.galactic_longitude = float(l[0])
             self.galactic_latitude = float(b[0])
         else:
-            raise ValueError("Bad number of matches (%d) in coords table! " \
+            raise DataFileError("Bad number of matches (%d) in coords table! " \
                              "(Files: %s)" % (len(matches), ", ".join(self.fns)))
 
     # These are class methods.
