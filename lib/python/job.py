@@ -400,7 +400,7 @@ def get_output_dir(fns):
         outdir = "%s_%d" % (baseoutdir, counter)
     
     # Make the directory immediately so the pipeline knows it's taken
-    os.mkdir(outdir)
+    os.makedirs(outdir)
 
     # Send an email if our first choice for outdir wasn't available
     if counter:
