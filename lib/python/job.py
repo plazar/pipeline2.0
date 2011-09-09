@@ -387,9 +387,30 @@ def get_output_dir(fns):
     mjd = int(data.timestamp_mjd)
     beam_num = data.beam_id
     obs_name = data.obs_name
-    proc_date=datetime.datetime.now().strftime('%y%m%dT%H%M%S')
-    outdir = os.path.join(config.processing.base_results_directory, \
+    proc_date = datetime.datetime.now().strftime('%y%m%dT%H%M%S')
+    baseoutdir = os.path.join(config.processing.base_results_directory, \
                                     str(mjd), str(obs_name), \
                                     str(beam_num), proc_date)
+    outdir = baseoutdir
+    
+    # Make sure our output directory doesn't already exist
+    counter = 0
+    while os.path.exists(outdir):
+        counter += 1
+        outdir = "%s_%d" % (baseoutdir, counter)
+    
+    # Make the directory immediately so the pipeline knows it's taken
+    os.mkdir(outdir)
+
+    # Send an email if our first choice for outdir wasn't available
+    if counter:
+        errormsg = "The first-choice output directory '%s' " \
+                    "already existed. Had to settle for '%s' " \
+                    "after %d tries. \n\n " \
+                    "Data files:\n " \
+                    "\t%s" % (baseoutdir, outdir, counter, "\n\t".join(fns))
+        notification = mailer.ErrorMailer(errormsg, \
+                        subject="Job outdir existance warning")
+        notification.send()
     return outdir
 
