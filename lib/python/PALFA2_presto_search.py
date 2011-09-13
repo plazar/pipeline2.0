@@ -512,9 +512,9 @@ def search_job(job):
             
                 # Now de-disperse using the subbands
                 cmd = "prepsubband -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
-                        "-numout %d -o %s/%s %s/subbands/%s.sub[0-9]*" % \
+                        "-nsub %d -numout %d -o %s/%s %s/subbands/%s.sub[0-9]*" % \
                         (ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
-                        ddplan.dmsperpass, ddplan.dd_downsamp, 
+                        ddplan.dmsperpass, ddplan.dd_downsamp, ddplan.numsub,
                         psr_utils.choose_N(job.orig_N/ddplan.downsamp),
                         job.tempdir, job.basefilenm, job.tempdir, subbasenm)
                 job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
