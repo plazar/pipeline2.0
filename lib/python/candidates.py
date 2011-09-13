@@ -34,6 +34,27 @@ import config.searching
 class PeriodicityCandidate(upload.Uploadable):
     """A class to represent a PALFA periodicity candidate.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'header_id': '%d', \
+              'cand_num': '%d', \
+              'bary_freq': '%.12g', \
+              'bary_freq': '%.12g', \
+              'topo_period': '%.12g', \
+              'bary_period': '%.12g', \
+              'topo_f_dot': '%.12g', \
+              'bary_f_dot': '%.12g', \
+              'dm': '%.12g', \
+              'snr': '%.12g', \
+              'coherent_power': '%.12g', \
+              'incoherent_power': '%.12g', \
+              'num_hits': '%d', \
+              'num_harmonics': '%d', \
+              'institution': '%s', \
+              'pipeline': '%s', \
+              'versionnum': '%s', \
+              'sigma': '%.12g'}
+
     def __init__(self, cand_num, pfd , snr, coherent_power, \
                         incoherent_power, num_hits, num_harmonics, \
                         versionnum, sigma, header_id=None):
@@ -58,6 +79,10 @@ class PeriodicityCandidate(upload.Uploadable):
                                      # and pipeline's githash
         self.sigma = sigma # PRESTO's sigma value
 
+        # Store a few configurations so the upload can be checked
+        self.pipeline = config.basic.pipeline
+        self.institution = config.basic.institution
+    
         # Calculate a few more values
         self.topo_period = 1.0/self.topo_freq
         self.bary_period = 1.0/self.bary_freq
@@ -86,9 +111,8 @@ class PeriodicityCandidate(upload.Uploadable):
         cand_id = super(PeriodicityCandidate, self).upload(dbname=dbname, \
                     *args, **kwargs)[0]
         
-        if not self.compare_with_db(dbname=dbname):
-            raise PeriodicityCandidateError("Periodicity candidate doesn't " \
-                    "match what was uploaded to DB!")
+        self.compare_with_db(dbname=dbname)
+
         if debug.UPLOAD:
             upload.upload_timing_summary['candidates'] = \
                 upload.upload_timing_summary.setdefault('candidates', 0) + \
@@ -126,13 +150,13 @@ class PeriodicityCandidate(upload.Uploadable):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding candidate from DB and compare values.
-            Return True if all values match. Return False otherwise.
+            Raise a PeriodicityCandidateError if any mismatch is found.
 
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
-            Output:
-                match: Boolean. True if all values match, False otherwise.
+            Outputs:
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
@@ -140,11 +164,11 @@ class PeriodicityCandidate(upload.Uploadable):
             db = database.Database(dbname)
         db.execute("SELECT c.header_id, " \
                         "c.cand_num, " \
-                        "c.frequency, " \
-                        "c.bary_frequency, " \
-                        "c.period, " \
+                        "c.frequency AS topo_freq, " \
+                        "c.bary_frequency AS bary_freq, " \
+                        "c.period AS topo_period, " \
                         "c.bary_period, " \
-                        "c.f_dot, " \
+                        "c.f_dot AS topo_f_dot, " \
                         "c.bary_f_dot, " \
                         "c.dm, " \
                         "c.snr, " \
@@ -154,8 +178,8 @@ class PeriodicityCandidate(upload.Uploadable):
                         "c.num_harmonics, " \
                         "v.institution, " \
                         "v.pipeline, " \
-                        "v.version_number, " \
-                        "c.presto_sigma " \
+                        "v.version_number AS versionnum, " \
+                        "c.presto_sigma AS sigma " \
                   "FROM pdm_candidates AS c " \
                   "LEFT JOIN versions AS v ON v.version_id=c.version_id " \
                   "WHERE c.cand_num=%d AND v.version_number='%s' AND " \
@@ -177,35 +201,34 @@ class PeriodicityCandidate(upload.Uploadable):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%d' % self.header_id == '%d' % r['header_id']), \
-                     ('%d' % self.cand_num == '%d' % r['cand_num']), \
-                     ('%.12g' % self.topo_freq == '%.12g' % r['frequency']), \
-                     ('%.12g' % self.bary_freq == '%.12g' % r['bary_frequency']), \
-                     ('%.12g' % self.topo_period == '%.12g' % r['period']), \
-                     ('%.12g' % self.bary_period == '%.12g' % r['bary_period']), \
-                     ('%.12g' % self.topo_f_dot == '%.12g' % r['f_dot']), \
-                     ('%.12g' % self.bary_f_dot == '%.12g' % r['bary_f_dot']), \
-                     ('%.12g' % self.dm == '%.12g' % r['dm']), \
-                     ('%.12g' % self.snr == '%.12g' % r['snr']), \
-                     ('%.12g' % self.coherent_power == '%.12g' % r['coherent_power']), \
-                     ('%.12g' % self.incoherent_power == '%.12g' % r['incoherent_power']), \
-                     ('%d' % self.num_hits == '%d' % r['num_hits']), \
-                     ('%d' % self.num_harmonics == '%d' % r['num_harmonics']), \
-                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
-                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower()), \
-                     ('%s' % self.versionnum == '%s' % r['version_number']), \
-                     ('%.12g' % self.sigma == '%.12g' % r['presto_sigma'])]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Candidate doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise PeriodicityCandidateError(errormsg)
 
-                
+
 class PeriodicityCandidatePlot(upload.Uploadable):
     """A class to represent the plot of a PALFA periodicity candidate.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'cand_id': '%d', \
+              'plot_type': '%s', \
+              'filename': '%s', \
+              'datalen': '%d'}
+    
     def __init__(self, plotfn, cand_id=None):
         self.cand_id = cand_id
         self.filename = os.path.split(plotfn)[-1]
+        self.datalen = os.path.getsize(plotfn)
         plot = open(plotfn, 'r')
         self.filedata = plot.read()
         plot.close()
@@ -224,9 +247,7 @@ class PeriodicityCandidatePlot(upload.Uploadable):
             starttime = time.time()
         super(PeriodicityCandidatePlot, self).upload(dbname=dbname, \
                     *args, **kwargs)
-        if not self.compare_with_db(dbname=dbname):
-            raise PeriodicityCandidateError("Candidate plot (%s) doesn't " \
-                "match what was uploaded to DB!" % self.plot_type)
+        self.compare_with_db(dbname=dbname)
         
         if debug.UPLOAD:
             upload.upload_timing_summary[self.plot_type] = \
@@ -246,22 +267,22 @@ class PeriodicityCandidatePlot(upload.Uploadable):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding candidate plot from DB and compare values.
-            Return True if all values match. Return False otherwise.
-
+            Raise a PeriodicityCandidateError if any mismatch is found.
+            
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
             Output:
-                match: Boolean. True if all values match, False otherwise.
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
         else:
             db = database.Database(dbname)
-        db.execute("SELECT plt.pdm_cand_id, " \
-                        "pltype.pdm_plot_type, " \
+        db.execute("SELECT plt.pdm_cand_id AS cand_id, " \
+                        "pltype.pdm_plot_type AS plot_type, " \
                         "plt.filename, " \
-                        "plt.filedata " \
+                        "DATALENGTH(plt.filedata) AS datalen " \
                    "FROM pdm_candidate_plots AS plt " \
                    "LEFT JOIN pdm_plot_types AS pltype " \
                         "ON plt.pdm_plot_type_id=pltype.pdm_plot_type_id " \
@@ -283,13 +304,18 @@ class PeriodicityCandidatePlot(upload.Uploadable):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%d' % self.cand_id == '%d' % r['pdm_cand_id']), \
-                    ('%s' % self.plot_type == '%s' % r['pdm_plot_type']), \
-                    ('%s' % os.path.split(self.filename)[-1] == '%s' % os.path.split(r['filename'])[-1]), \
-                    ('0x%s' % self.filedata.encode('hex') == '0x%s' % binascii.b2a_hex(r['filedata']))]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Candidate plot doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise PeriodicityCandidateError(errormsg)
 
 
 class PeriodicityCandidatePNG(PeriodicityCandidatePlot):
@@ -304,7 +330,7 @@ class PeriodicityCandidatePFD(PeriodicityCandidatePlot):
     plot_type = "pfd binary"
 
 
-class PeriodicityCandidateError(pipeline_utils.PipelineError):
+class PeriodicityCandidateError(upload.UploadNonFatalError):
     """Error to throw when a candidate-specific problem is encountered.
     """
     pass
@@ -344,25 +370,30 @@ def get_candidates(versionnum, directory, header_id=None):
                     if c.sigma > params['to_prepfold_sigma']]
     foldedcands = foldedcands[:params['max_cands_to_fold']]
     foldedcands.sort(reverse=True) # Sort by descending sigma
-    
+
+        
     # Create temporary directory
     tempdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_pfds_")
-    tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
-    if len(tarfns) != 1:
-        raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
-                                         "files found in %s" % (len(tarfns), \
-                                            directory))
-    
-    tar = tarfile.open(tarfns[0])
-    try:
-        tar.extractall(path=tempdir)
-    except IOError:
-        if os.path.isdir(tempdir):
-            shutil.rmtree(tempdir)
-        raise PeriodicityCandidateError("Error while extracting pfd files " \
-                                        "from tarball (%s)!" % tarfns[0])
-    finally:
-        tar.close()
+
+    if foldedcands:
+
+        tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
+        if len(tarfns) != 1:
+            raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
+                                             "files found in %s" % (len(tarfns), \
+                                                directory))
+        
+        tar = tarfile.open(tarfns[0])
+        try:
+            tar.extractall(path=tempdir)
+        except IOError:
+            if os.path.isdir(tempdir):
+                shutil.rmtree(tempdir)
+            raise PeriodicityCandidateError("Error while extracting pfd files " \
+                                            "from tarball (%s)!" % tarfns[0])
+        finally:
+            tar.close()
+
     # Loop over candidates that were folded
     cands = []
     for ii, c in enumerate(foldedcands):

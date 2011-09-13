@@ -193,7 +193,7 @@ class Data(object):
             self.galactic_longitude = float(l[0])
             self.galactic_latitude = float(b[0])
         else:
-            raise ValueError("Bad number of matches (%d) in coords table! " \
+            raise DataFileError("Bad number of matches (%d) in coords table! " \
                              "(Files: %s)" % (len(matches), ", ".join(self.fns)))
 
     # These are class methods.
@@ -582,8 +582,13 @@ class DataFileError(pipeline_utils.PipelineError):
 
 
 def main():
-    data = autogen_dataobj(sys.argv[1:])
-    print data.__dict__
+    if sys.argv[1]=='preprocess':
+        # Preprocess data files
+        preprocess(sys.argv[2:])
+    else:
+        # Print datafile's header information
+        data = autogen_dataobj(sys.argv[1:])
+        print data.__dict__
 
 
 if __name__=='__main__':

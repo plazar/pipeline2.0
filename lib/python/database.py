@@ -83,7 +83,13 @@ class Database:
             raise DatabaseConnectionError(msg)
 
     def execute(self, *args, **kwargs):
-        self.cursor.execute(*args, **kwargs)
+        try:
+            self.cursor.execute(*args, **kwargs)
+        except Exception, e:
+            if "has been chosen as the deadlock victim. Rerun the transaction." in str(e):
+                raise DatabaseDeadlockError(e)
+            else:
+                raise 
 
     def commit(self):
         self.conn.commit()
@@ -100,6 +106,9 @@ class Database:
             # database connection is already closed
             pass
 
+    def fetchall(self):
+        return self.cursor.fetchall()
+
     def showall(self):
         desc = self.cursor.description
         if desc is not None:
@@ -107,7 +116,7 @@ class Database:
             table = prettytable.PrettyTable(fields)
             for row in self.cursor:
                 table.add_row(row)
-        table.printt()
+            table.printt()
 
     def insert(self, query):
         self.cursor.execute(query)
@@ -166,6 +175,8 @@ class Database:
 class DatabaseConnectionError(pipeline_utils.PipelineError):
     pass
 
+class DatabaseDeadlockError(pipeline_utils.PipelineError):
+    pass
 
 class InteractiveDatabasePrompt(cmd.Cmd):
     def __init__(self, dbname='default', *args, **kwargs):
@@ -181,6 +192,22 @@ class InteractiveDatabasePrompt(cmd.Cmd):
     def complete_switch(self, text, line, begidx, endidx):
         return [k for k in DATABASES.keys() if k.startswith(text)]
 
+    def do_exec(self, line):
+        self.default(line)
+
+    def complete_exec(self, text, line, begidx, endidx):
+        token_num = len(line.split())
+        if token_num==2:
+            return [sp for sp in self.sprocs if sp.startswith(text)]
+        #elif token_num>2:
+        #    query = "EXEC sp_sproc_columns " \
+        #                "@procedure_name='%s'" % line.split()[1]
+        #    self.db.execute(query)
+        #    return [row[3] for row in self.db.fetchall() \
+        #                if row[3].startswith(text)]
+        else:
+            return []
+
     def open_db_conn(self, dbname):
         if dbname == 'default':
             self.dbname = DEFAULTDB
@@ -188,6 +215,10 @@ class InteractiveDatabasePrompt(cmd.Cmd):
             self.dbname = dbname
         self.db = Database(self.dbname)
         self.prompt = "%s > " % self.dbname
+
+        # get listing of sprocs
+        self.db.execute("EXEC sp_stored_procedures")
+        self.sprocs = [sp[2].split(';')[0] for sp in self.db.fetchall()]
 
     def close_db_conn(self):
         self.db.close()
@@ -217,3 +248,5 @@ if __name__=='__main__':
     except:
         print "\nUnexpected exception occurred!"
         dbprompt.postloop()
+        raise
+

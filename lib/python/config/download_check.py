@@ -18,6 +18,7 @@ download.add_config('ftp_password', config_types.StrConfig())
 download.add_config('request_timeout', config_types.IntConfig())
 download.add_config('request_numbits', config_types.IntConfig())
 download.add_config('request_datatype', config_types.StrConfig())
+download.add_config('use_lftp', config_types.BoolConfig())
 
 if __name__=='__main__':
     import download as configs

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates
 import jobtracker
 import config.download
+import pipeline_utils
 
 
 class PipelineStatsFigure(matplotlib.figure.Figure):
@@ -29,13 +30,18 @@ class PipelineStatsFigure(matplotlib.figure.Figure):
 
         self.restoreax = self.add_subplot(3,1,2, sharex=self.jobax)
         self.restoreax.collect = self.restoreax.scatter(restore_times, \
-                    restore_sizes, s=40, marker='o', label="restores", \
+                    restore_sizes, s=40, marker='o', \
                     facecolor=restore_status, alpha=0.5)
         self.restoreax.set_ylabel("Restore size", size='small')
         self.restoreax.set_yscale("log")
         self.restoreax.set_ylim(0.5, 300)
         fmt = matplotlib.ticker.LogFormatter()
         self.restoreax.yaxis.set_major_formatter(fmt)
+        self.restoreax.legend([matplotlib.collections.CircleCollection([20], alpha=0.5, facecolors=(0,1,0)), \
+                               matplotlib.collections.CircleCollection([20], alpha=0.5, facecolors=(1,0,0)), \
+                               matplotlib.collections.CircleCollection([20], alpha=0.5, facecolors=(0,0,1))], \
+                               ["Finished", "Failed", "Active"], \
+                               loc="upper left", prop=dict(size='x-small'))
 
         self.diskax = self.add_subplot(3,1,3, sharex=self.jobax)
         self.diskax.diskline = self.diskax.plot(times, bytes/1024.0**3, 'k-')[0]
@@ -140,7 +146,7 @@ def get_data():
             restore_times, restore_sizes, restore_status
 
 
-def main():
+def main(options):
     fig = plt.figure(FigureClass=PipelineStatsFigure)
 
     # print "Num jobs (all jobs):", len(create_times)
@@ -153,8 +159,19 @@ def main():
     timer = fig.canvas.new_timer(10*1000) # Time interval in milliseconds
     timer.add_callback(fig.update)
     timer.start()
-    plt.show()
 
+    if options.plot_file: 
+      plt.savefig(options.plot_file)
+    if not options.noninteractive:
+      plt.show()
 
 if __name__=='__main__':
-    main()
+    parser = pipeline_utils.PipelineOptions(usage="%prog [OPTIONS]")
+    parser.add_option("-n", "--noninteractive", action="store_true", 
+                       dest="noninteractive", help="Don't plot interactively", 
+                       default=False)
+    parser.add_option("-f", "--file", dest="plot_file", 
+                       help="File to save plot to.", default=None)
+    options, args = parser.parse_args()
+
+    main(options)

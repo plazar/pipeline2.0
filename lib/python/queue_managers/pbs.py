@@ -5,6 +5,7 @@ import time
 
 import PBSQuery
 
+import debug
 import queue_managers
 import config.basic
 import config.email
@@ -30,7 +31,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         self.max_jobs_per_node = max_jobs_per_node
         self.queue_name = queue_name
 
-    def submit(self, datafiles, outdir, \
+    def submit(self, datafiles, outdir, job_id, \
                 script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
@@ -38,6 +39,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             Inputs:
                 datafiles: A list of the datafiles being processed.
                 outdir: The directory where results will be copied to.
+                job_id: The unique job identifer from the jobtracker database.
                 script: The script to submit to the queue. (Default:
                         '{config.basic.pipelinedir}/bin/search.py')
 
@@ -54,7 +56,10 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             errormsg = "No nodes to accept job submission!\n"
             raise queue_managers.QueueManagerNonFatalError(errormsg)
         errorlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.ER")
-        stdoutlog = os.devnull
+        if debug.QMANAGER:
+            stdoutlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.OU")
+        else:
+            stdoutlog = os.devnull
         if self.queue_name is not None:
             qname_opt = "-q %s" % self.queue_name
         else:
@@ -62,6 +67,8 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' %s -l nodes=%s:ppn=1 -N %s -e %s -o %s %s" % \
                         (';'.join(datafiles), outdir, qname_opt, node, \
                             self.job_basename, errorlog, stdoutlog, script)
+        if debug.QMANAGER:
+            print "Job submit command: %s" % cmd
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
                                 stdin=subprocess.PIPE)
         queue_id = pipe.communicate()[0].strip()

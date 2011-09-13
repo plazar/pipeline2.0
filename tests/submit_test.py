@@ -13,7 +13,7 @@ import config.jobpooler
 # Submit 'test_job.py' to the queue.
 print "Submitting job to queue"
 queue_id = config.jobpooler.queue_manager.submit(datafiles=['testfn1', 'testfn2'], \
-                                        outdir='/fake/out/dir/', \
+                                        outdir='/fake/out/dir/', job_id='testjob',\
                                         script=os.path.join(config.basic.pipelinedir, \
                                                             'tests', 'test_job.py'))
 count = 1

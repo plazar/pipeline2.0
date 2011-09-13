@@ -38,6 +38,9 @@ class Diagnostic(upload.Uploadable):
         self.obstype = obstype.lower()
         self.version_number = version_number
         self.directory = directory
+        # Store a few configurations so the upload can be checked
+        self.pipeline = config.basic.pipeline
+        self.institution = config.basic.institution
 
     def get_diagnostic(self):
         raise NotImplementedError("Method 'get_diagnostic(...)' " \
@@ -57,9 +60,7 @@ class Diagnostic(upload.Uploadable):
         if debug.UPLOAD: 
             starttime = time.time()
         super(Diagnostic, self).upload(dbname=dbname, *args, **kwargs)
-        if not self.compare_with_db(dbname=dbname):
-            raise DiagnosticError("Diagnostic (%s) doesn't match " \
-                    "what was upload to DB!" % self.name)
+        self.compare_with_db(dbname=dbname)
         
         if debug.UPLOAD:
             upload.upload_timing_summary['diagnostics'] = \
@@ -69,6 +70,18 @@ class Diagnostic(upload.Uploadable):
 class FloatDiagnostic(Diagnostic):
     """An abstract class to represent float-valued PALFA diagnostics.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'obs_name': '%s', \
+              'beam_id': '%d', \
+              'institution': '%s', \
+              'pipeline': '%s', \
+              'version_number': '%s', \
+              'name': '%s', \
+              'description': '%s', \
+              'value': '%.12g', \
+              'obstype': '%s'}
+    
     def __init__(self, *args, **kwargs):
         super(FloatDiagnostic, self).__init__(*args, **kwargs)
         self.value = None # The diagnostic value to upload
@@ -89,13 +102,13 @@ class FloatDiagnostic(Diagnostic):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding diagnostic from DB and compare values.
-            Return True if all values match. Return False otherwise.
+            Raise a DiagnosticError if any mismatch is found.
             
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
-            Output:
-                match: Boolean. True if all values match, False otherwise.
+            Outputs:
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
@@ -106,10 +119,10 @@ class FloatDiagnostic(Diagnostic):
                         "v.institution, " \
                         "v.pipeline, " \
                         "v.version_number, " \
-                        "dtype.diagnostic_type_name, " \
-                        "dtype.diagnostic_type_description, " \
-                        "d.diagnostic_value, " \
-                        "h.obsType " \
+                        "dtype.diagnostic_type_name AS name, " \
+                        "dtype.diagnostic_type_description AS description, " \
+                        "d.diagnostic_value AS value, " \
+                        "h.obsType AS obstype " \
                    "FROM diagnostics AS d " \
                    "LEFT JOIN diagnostic_types AS dtype " \
                         "ON dtype.diagnostic_type_id=d.diagnostic_type_id " \
@@ -158,27 +171,41 @@ class FloatDiagnostic(Diagnostic):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%s' % self.obs_name == '%s' % r['obs_name']), \
-                     ('%d' % self.beam_id == '%s' % r['beam_id']), \
-                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
-                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower()), \
-                     ('%s' % self.version_number == '%s' % r['version_number']), \
-                     ('%s' % self.name == '%s' % r['diagnostic_type_name']), \
-                     ('%s' % self.description == '%s' % r['diagnostic_type_description']), \
-                     ('%.12g' % self.value == '%.12g' % r['diagnostic_value']), \
-                     ('%s' % self.obstype.lower() == '%s' % r['obsType'].lower())]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Float diagnostic doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise DiagnosticError(errormsg)
 
 
 class PlotDiagnostic(Diagnostic):
     """An abstract class to represent binary PALFA diagnostics.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'obs_name': '%s', \
+              'beam_id': '%d', \
+              'institution': '%s', \
+              'pipeline': '%s', \
+              'version_number': '%s', \
+              'name': '%s', \
+              'description': '%s', \
+              'value': '%s', # The binary file's name \
+              'datalen': '%d', \
+              'obstype': '%s'}
+    
     def __init__(self, *args, **kwargs):
         super(PlotDiagnostic, self).__init__(*args, **kwargs)
         self.value = None # The binary file's name
         self.filedata = None # The binary file's data
+        self.datalen = None # The number of bytes in the binary file
         self.get_diagnostic()
 
     def get_upload_sproc_call(self):
@@ -197,13 +224,13 @@ class PlotDiagnostic(Diagnostic):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding diagnostic plot from DB and compare values.
-            Return True if all values match. Return False otherwise.
+            Raise a DiagnosticError if any mismatch is found.
             
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
             Output:
-                match: Boolean. True if all values match, False otherwise.
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
@@ -214,11 +241,11 @@ class PlotDiagnostic(Diagnostic):
                         "v.institution, " \
                         "v.pipeline, " \
                         "v.version_number, " \
-                        "dtype.diagnostic_plot_type_name, " \
+                        "dtype.diagnostic_plot_type_name AS name, " \
                         "dtype.diagnostic_plot_type_description AS description, " \
-                        "d.filename, " \
-                        "d.diagnostic_plot, " \
-                        "h.obsType " \
+                        "d.filename AS value, " \
+                        "DATALENGTH(d.diagnostic_plot) AS datalen, " \
+                        "h.obsType AS obstype " \
                    "FROM diagnostic_plots AS d " \
                    "LEFT JOIN diagnostic_plot_types AS dtype " \
                         "ON dtype.diagnostic_plot_type_id=d.diagnostic_plot_type_id " \
@@ -267,19 +294,18 @@ class PlotDiagnostic(Diagnostic):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%s' % self.obs_name == '%s' % r['obs_name']), \
-                     ('%d' % self.beam_id == '%s' % r['beam_id']), \
-                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
-                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower()), \
-                     ('%s' % self.version_number == '%s' % r['version_number']), \
-                     ('%s' % self.name == '%s' % r['diagnostic_plot_type_name']), \
-                     ('%s' % self.description == '%s' % r['description']), \
-                     ('0x%s' % self.filedata.encode('hex') == '0x%s' % binascii.b2a_hex(r['diagnostic_plot'])), \
-                     ('%s' % os.path.split(self.value)[-1] == '%s' % os.path.split(r['filename'])[-1]), \
-                     ('%s' % self.obstype.lower() == '%s' % r['obsType'].lower())]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Float diagnostic doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise DiagnosticError(errormsg)
 
 
 class RFIPercentageDiagnostic(FloatDiagnostic):
@@ -317,6 +343,7 @@ class RFIPlotDiagnostic(PlotDiagnostic):
                                 len(rfipngs))
         else:
             self.value = os.path.split(rfipngs[0])[-1]
+            self.datalen = os.path.getsize(rfipngs[0])
             rfipng_file = open(rfipngs[0], 'rb')
             self.filedata = rfipng_file.read()
             rfipng_file.close()
@@ -337,6 +364,7 @@ class AccelCandsDiagnostic(PlotDiagnostic):
         accelcandsfile = open(candlists[0], 'r')
         self.value = os.path.split(accelcandsfile.name)[-1]
         self.filedata = accelcandsfile.read()
+        self.datalen = os.path.getsize(accelcandsfile.name)
         accelcandsfile.close()
 
 
@@ -395,6 +423,10 @@ class MinSigmaFoldedDiagnostic(FloatDiagnostic):
                                     "entries in candlist! (%d < %d)" % \
                                     (len(pfdpngs), len(sigmas)))
 
+        if not sigmas:
+            errormsg = 'No candidates folded.'
+            raise DiagnosticNonFatalError(errormsg)
+
         self.value = min(sigmas)
 
 
@@ -431,6 +463,7 @@ class ZaplistUsed(PlotDiagnostic):
                                 len(zaps))
         else:
             self.value = os.path.split(zaps[0])[-1]
+            self.datalen = os.path.getsize(zaps[0])
             zap_file = open(zaps[0], 'rb')
             self.filedata = zap_file.read()
             zap_file.close()
@@ -495,6 +528,7 @@ class SearchParameters(PlotDiagnostic):
         # find the search_params.txt file
         paramfn = get_search_paramfn(self.directory)
         self.value = os.path.split(paramfn)[-1]
+        self.datalen = os.path.getsize(paramfn)
         param_file = open(paramfn, 'rb')
         self.filedata = param_file.read()
         param_file.close()
@@ -585,10 +619,13 @@ def find_in_tarballs(dir, matchfunc):
     raise DiagnosticError("Could not find matching file!")
 
 
-class DiagnosticError(pipeline_utils.PipelineError):
+class DiagnosticError(upload.UploadNonFatalError):
     """Error to throw when a diagnostic-specific problem 
         is encountered.
     """
+    pass
+
+class DiagnosticNonFatalError(pipeline_utils.PipelineError):
     pass
 
 
@@ -616,6 +653,9 @@ def get_diagnostics(obsname, beamnum, obstype, versionnum, directory):
         try:
             d = diagnostic_type(obsname, beamnum, obstype, \
                             versionnum, directory)
+        except DiagnosticNonFatalError:
+            continue
+
         except Exception:
             raise DiagnosticError("Could not create %s object for " \
                                     "observation: %s (beam: %d)" % \

@@ -288,8 +288,10 @@ def submit(job_row):
     try:
         outdir = get_output_dir(fns)
         # Attempt to submit the job
-        queue_id = config.jobpooler.queue_manager.submit(fns, outdir)
-    except queue_managers.QueueManagerJobFatalError:
+        queue_id = config.jobpooler.queue_manager.submit\
+                            (fns, outdir, job_row['id'])
+    except (queue_managers.QueueManagerJobFatalError,\
+              datafile.DataFileError):
         # Error caught during job submission.
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
         errormsg  = "Error while submitting job!\n"
@@ -301,23 +303,24 @@ def submit(job_row):
                           (job_row['id'], exceptionmsgs[-1])) 
         
         queries = []
+        arglist = []
         queries.append("INSERT INTO job_submits (" \
                             "job_id, " \
                             "status, " \
                             "created_at, " \
                             "updated_at, " \
                             "details) " \
-                      "VALUES (%d,'%s','%s','%s','%s')" % \
-                      (job_row['id'], 'submission_failed', \
+                      "VALUES (?, ?, ?, ?, ?)" )
+        arglist.append( ( job_row['id'], 'submission_failed', \
                         jobtracker.nowstr(), jobtracker.nowstr(), \
-                        errormsg))
+                        errormsg) )
         queries.append("UPDATE jobs " \
                        "SET status='failed', " \
                             "details='Error while submitting job', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % \
-                    (jobtracker.nowstr(), job_row['id']))
-        jobtracker.query(queries)
+                            "updated_at=? " \
+                       "WHERE id=?" )
+        arglist.append( (jobtracker.nowstr(), job_row['id']) )
+        jobtracker.execute(queries, arglist)
     except queue_managers.QueueManagerNonFatalError:
         # Do nothing. Don't submit the job. Don't mark the job as 'submitted'.
         # Don't mark the job as 'failed'. The job submission will be retried.
@@ -363,7 +366,7 @@ def get_output_dir(fns):
         Note: 'base_results_directory' is defined in the processing config file.
                 'mjd', 'obs_name', and 'beam_num' are from parsing
                 the job's datafiles. 'proc_date' is the current date
-                in YYMMDD format.
+                in yymmddThhmmss format.
     """
     # Check that files exist
     missingfiles = [fn for fn in fns if not os.path.exists(fn)]
@@ -384,7 +387,7 @@ def get_output_dir(fns):
     mjd = int(data.timestamp_mjd)
     beam_num = data.beam_id
     obs_name = data.obs_name
-    proc_date=datetime.datetime.now().strftime('%y%m%d')
+    proc_date=datetime.datetime.now().strftime('%y%m%dT%H%M%S')
     outdir = os.path.join(config.processing.base_results_directory, \
                                     str(mjd), str(obs_name), \
                                     str(beam_num), proc_date)

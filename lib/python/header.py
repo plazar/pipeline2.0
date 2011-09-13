@@ -27,12 +27,48 @@ warnings.filterwarnings("error", message="Input is not a valid sexigesimal strin
 class Header(upload.Uploadable):
     """PALFA Header object. 
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'obs_name': '%s', \
+              'beam_id': '%d', \
+              'original_file': '%s', \
+              'sample_time': '%f', \
+              'observation_time': '%f', \
+              'timestamp_mjd': '%.10f', \
+              'num_samples_per_record': '%d', \
+              'center_freq': '%f', \
+              'channel_bandwidth': '%f', \
+              'num_channels_per_record': '%d', \
+              'num_ifs': '%d', \
+              'orig_right_ascension': '%.4f', \
+              'orig_declination': '%.4f', \
+              'orig_galactic_longitude': '%.8f', \
+              'orig_galactic_latitude': '%.8f', \
+              'source_name': '%s', \
+              'start_ast': '%.8f', \
+              'start_lst': '%.8f', \
+              'project_id': '%s', \
+              'observers': '%s', \
+              'file_size': '%d', \
+              'data_size': '%d', \
+              'num_samples': '%d', \
+              'orig_ra_deg': '%.8f', \
+              'orig_dec_deg': '%.8f', \
+              'right_ascension': '%.4f', \
+              'declination': '%.4f', \
+              'galactic_longitude': '%.8f', \
+              'galactic_latitude': '%.8f', \
+              'ra_deg': '%.8f', \
+              'dec_deg': '%.8f', \
+              'obstype': '%s'}
+    
     def __init__(self, datafns, *args, **kwargs):
         if isinstance(datafns, datafile.Data):
             self.data = datafns
         else:
             self.data = datafile.autogen_dataobj(datafns, *args, **kwargs)
-        
+       
+
         # List of dependents (ie other uploadables that require 
         # the header_id from this header)
         self.dependents = []
@@ -53,9 +89,8 @@ class Header(upload.Uploadable):
             starttime = time.time()
         header_id = super(Header, self).upload(dbname=dbname, *args, **kwargs)[0]
         
-        if not self.compare_with_db(dbname=dbname):
-            raise HeaderError("Header doesn't " \
-                    "match what was uploaded to DB!")
+        self.compare_with_db(dbname=dbname)
+ 
         if debug.UPLOAD:
             upload.upload_timing_summary['header'] = \
                 upload.upload_timing_summary.setdefault('header', 0) + \
@@ -114,13 +149,13 @@ class Header(upload.Uploadable):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding header from DB and compare values.
-            Return True if all values match. Return False otherwise.
+            Raise a HeaderError if any mismatch is found.
 
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
             Outputs:
-                match: Boolean. True if all values match, False otherwise.
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
@@ -128,7 +163,7 @@ class Header(upload.Uploadable):
             db = database.Database(dbname)
         db.execute("SELECT obs.obs_name, " \
                           "h.beam_id, " \
-                          "h.original_wapp_file, " \
+                          "h.original_wapp_file AS original_file, " \
                           "h.sample_time, " \
                           "h.observation_time, " \
                           "h.timestamp_mjd, " \
@@ -160,7 +195,7 @@ class Header(upload.Uploadable):
                           "h.galactic_latitude, " \
                           "h.ra_deg, " \
                           "h.dec_deg, " \
-                          "h.obsType " \
+                          "h.obsType  AS obstype " \
                    "FROM headers AS h " \
                    "LEFT JOIN observations AS obs ON obs.obs_id=h.obs_id " \
                    "WHERE obs.obs_name='%s' AND h.beam_id=%d " % \
@@ -181,48 +216,21 @@ class Header(upload.Uploadable):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%s' % r['obs_name'].lower() == '%s' % self.obs_name.lower()),  \
-                     ('%d' % r['beam_id'] == '%d' % self.beam_id),  \
-                     ('%s' % r['original_wapp_file'].lower() == '%s' % self.original_file.lower()),  \
-                     ('%f' % r['sample_time'] == '%f' % self.sample_time),  \
-                     ('%f' % r['observation_time'] == '%f' % self.observation_time),  \
-                     ('%.10f' % r['timestamp_mjd'] == '%.10f' % self.timestamp_mjd),  \
-                     ('%d' % r['num_samples_per_record'] == '%d' % self.num_samples_per_record),  \
-                     ('%f' % r['center_freq'] == '%f' % self.center_freq),  \
-                     ('%f' % r['channel_bandwidth'] == '%f' % self.channel_bandwidth),  \
-                     ('%d' % r['num_channels_per_record'] == '%d' % self.num_channels_per_record),  \
-                     ('%d' % r['num_ifs'] == '%d' % self.num_ifs),  \
-                     ('%.4f' % r['orig_right_ascension'] == '%.4f' % self.orig_right_ascension),  \
-                     ('%.4f' % r['orig_declination'] == '%.4f' % self.orig_declination),  \
-                     ('%.8f' % r['orig_galactic_longitude'] == '%.8f' % self.orig_galactic_longitude),  \
-                     ('%.8f' % r['orig_galactic_latitude'] == '%.8f' % self.orig_galactic_latitude),  \
-                     ('%s' % r['source_name'].lower() == '%s' % self.source_name.lower()),  \
-                     ('%d' % r['sum_id'] == '%d' % self.sum_id),  \
-                     ('%.4f' % r['orig_start_az'] == '%.4f' % self.orig_start_az),  \
-                     ('%.4f' % r['orig_start_za'] == '%.4f' % self.orig_start_za),  \
-                     ('%.8f' % r['start_ast'] == '%.8f' % self.start_ast),  \
-                     ('%.8f' % r['start_lst'] == '%.8f' % self.start_lst),  \
-                     ('%s' % r['project_id'].lower() == '%s' % self.project_id.lower()),  \
-                     ('%s' % r['observers'].lower() == '%s' % self.observers.lower()),  \
-                     ('%d' % r['file_size'] == '%d' % self.file_size),  \
-                     ('%d' % r['data_size'] == '%d' % self.data_size),  \
-                     ('%d' % r['num_samples'] == '%d' % self.num_samples),  \
-                     ('%.8f' % r['orig_ra_deg'] == '%.8f' % self.orig_ra_deg),  \
-                     ('%.8f' % r['orig_dec_deg'] == '%.8f' % self.orig_dec_deg),  \
-                     ('%.4f' % r['right_ascension'] == '%.4f' % self.right_ascension),  \
-                     ('%.4f' % r['declination'] == '%.4f' % self.declination),  \
-                     ('%.8f' % r['galactic_longitude'] == '%.8f' % self.galactic_longitude),  \
-                     ('%.8f' % r['galactic_latitude'] == '%.8f' % self.galactic_latitude),  \
-                     ('%.8f' % r['ra_deg'] == '%.8f' % self.ra_deg),  \
-                     ('%.8f' % r['dec_deg'] == '%.8f' % self.dec_deg),  \
-                     ('%s' % r['obsType'].lower() == '%s' % self.obstype.lower())]
-
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Header doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise HeaderError(errormsg)
 
 
-class HeaderError(pipeline_utils.PipelineError):
+class HeaderError(upload.UploadNonFatalError):
     """Error to throw when a header-specific problem is encountered.
     """
     pass

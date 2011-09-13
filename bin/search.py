@@ -7,12 +7,15 @@ Patrick Lazarus, May 20, 2010
 
 import sys
 import os
+import os.path
 import socket
 import tempfile
 import shutil
 import subprocess
+import tarfile
 
 import datafile
+import astro_utils.calendar
 
 import config.processing
 
@@ -75,8 +78,8 @@ def init_workspace():
     """
     # Generate temporary working directory
     if not os.path.isdir(config.processing.base_working_directory):
-	print "Creating base work directory..."
-	os.makedirs(config.processing.base_working_directory)
+        print "Creating base work directory..."
+        os.makedirs(config.processing.base_working_directory)
     workdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_processing_", \
                         dir=config.processing.base_working_directory)
     resultsdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_results_", \
@@ -139,36 +142,47 @@ def search(fns, workdir, resultsdir):
 
 def copy_zaplist(fns, workdir):
     # Copy zaplist to working directory
-    data = datafile.autogen_dataobj(fns)
+    filetype = datafile.get_datafile_type(fns)
+    parsed = filetype.fnmatch(fns[0]).groupdict()
+    if 'date' not in parsed.keys():
+        parsed['date'] = "%04d%02d%02d" % \
+                            astro_utils.calendar.MJD_to_date(int(parsed['mjd']))
 
     customzapfns = []
     # First, try to find a custom zaplist for this specific data file
-    customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        fns[0].replace(".fits", ".zaplist")))
+    customzapfns.append(fns[0].replace(".fits", ".zaplist"))
     # Next, try to find custom zaplist for this beam
-    customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        "%s.%s.b%d.zaplist" % (data.project_id, \
-                        data.timestamp_mjd, data.beam_id)))
-    #
-    # Other custom zaplists to use before using MJD zaplist?
-    #
+    customzapfns.append("%s.%s.b%s.zaplist" % \
+                        (parsed['projid'], parsed['date'], parsed['beam']))
     # Try to find custom zaplist for this MJD
-    customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        "%s.%s.all.zaplist" % (data.project_id, data.timestamp_mjd)))
-    # Finally, include the old naming convention
-    customzapfns.append(os.path.join(config.processing.zaplistdir, \
-                        "autozap_mjd%s.zaplist" % data.timestamp_mjd))
+    customzapfns.append("%s.%s.all.zaplist" % (parsed['projid'], parsed['date']))
+
+    zaptar = tarfile.open(os.path.join(config.processing.zaplistdir, \
+                                        "zaplists.tar.gz"), mode='r')
+    members = zaptar.getmembers()
     for customzapfn in customzapfns:
-        if os.path.exists(customzapfn):
-            # Copy custom zaplist to workdir and rename to the expected zaplist fn
-            shutil.copy(customzapfn, workdir)
+        matches = [mem for mem in members \
+                    if mem.name.endswith(customzapfn)]
+        if matches:
+            ti = matches[0] # The first TarInfo object found 
+                            # that matches the file name
+            # Write custom zaplist to workdir
+            localfn = os.path.join(workdir, customzapfn)
+            f = open(localfn, 'w')
+            f.write(zaptar.extractfile(ti).read())
+            f.close()
             print "Copied custom zaplist: %s" % customzapfn
             break
+        else:
+            # The member we searched for doesn't exist, try next one
+            pass
     else:
         # Copy default zaplist
         shutil.copy(config.processing.default_zaplist, workdir)
         print "No custom zaplist found. Copied default zaplist: %s" % \
                 config.processing.default_zaplist
+    
+    zaptar.close()
 
 
 def copy_results(resultsdir, outdir):

@@ -11,6 +11,8 @@ import subprocess
 import types
 import traceback
 import optparse
+import time
+import datetime
 
 import debug
 
@@ -134,8 +136,9 @@ def execute(cmd, stdout=None, stderr=sys.stderr):
         By default stdout is None and stderr is sent to sys.stderr.
     """
     # Log command to stdout
-    sys.stdout.write("\n'"+cmd+"'\n")
-    sys.stdout.flush()
+    if debug.SYSCALLS:
+        sys.stdout.write("\n'"+cmd+"'\n")
+        sys.stdout.flush()
 
     stdoutfile = False
     stderrfile = False
@@ -163,6 +166,56 @@ def execute(cmd, stdout=None, stderr=sys.stderr):
         stdout.close()
     if stderrfile:
         stderr.close()
+
+
+def get_modtime(file, local=False):
+    """Get modification time of a file.
+
+        Inputs:
+            file: The file to get modification time for.
+            local: Boolean value. If true return modtime with respect 
+                to local timezone. Otherwise return modtime with respect
+                to GMT. (Default: GMT).
+
+        Outputs:
+            modtime: A datetime.datetime object that encodes the modification
+                time of 'file'.
+    """
+    if local:
+        modtime = datetime.datetime(*time.localtime(os.path.getmtime(file))[:6])
+    else:
+        modtime = datetime.datetime(*time.gmtime(os.path.getmtime(file))[:6])
+    return modtime
+
+
+def get_zaplist_tarball(force_download=False):
+    """Download zaplist tarball. If the local version has a
+        modification time equal to, or later than, the version
+        on the FTP server don't download unless 'force_download'
+        is True.
+
+        Input:
+            force_download: Download zaplist tarball regardless
+                of modification times.
+
+        Outputs:
+            None
+    """
+    import config.processing
+    import CornellFTP
+    cftp = CornellFTP.CornellFTP()
+    
+    zaptarfile = os.path.join(config.processing.zaplistdir, "zaplists.tar.gz")
+    ftpzappath = "/zaplists/zaplists.tar.gz"
+    if force_download or (not os.path.exists(zaptarfile)) or \
+            (cftp.get_modtime(ftpzappath) > get_modtime(zaptarfile)):
+        # Download the file on the FTP
+        cftp.download(ftpzappath, config.processing.zaplistdir)
+    else:
+        # Do nothing
+        Pass
+
+    cftp.close()
 
 
 class PipelineOptions(optparse.OptionParser):

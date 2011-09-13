@@ -25,17 +25,30 @@ import config.basic
 class SinglePulseTarball(upload.Uploadable):
     """A class to represent a tarball of single pulse files.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'header_id': '%d', \
+              'filename': '%s', \
+              'filetype': '%s', \
+              'institution': '%s', \
+              'pipeline': '%s', \
+              'versionnum': '%s'}
+    
     def __init__(self, filename, versionnum, header_id=None):
         self.header_id = header_id
-        self.filename = filename
+        self.fullpath = filename
+        self.filename = os.path.split(filename)[-1]
         self.versionnum = versionnum
+        # Store a few configurations so the upload can be checked
+        self.pipeline = config.basic.pipeline
+        self.institution = config.basic.institution
 
     def get_upload_sproc_call(self):
         """Return the EXEC spSinglePulseFileUpload string to upload
             this tarball's info to the PALFA common DB.
         """
         sprocstr = "EXEC spSinglePulseFileUpload " + \
-            "@filename='%s', " % os.path.split(self.filename)[-1] + \
+            "@filename='%s', " % self.filename + \
             "@header_id=%d, " % self.header_id + \
             "@filetype='%s', " % self.filetype + \
             "@institution='%s', " % config.basic.institution + \
@@ -45,13 +58,13 @@ class SinglePulseTarball(upload.Uploadable):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding file info from DB and compare values.
-            Return True if all values match. Return False otherwise.
+            Raise a SinglePulseCandidateError if any mismatch is found.
 
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
             Output:
-                match: Boolean. True if all values match, False otherwise.
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
@@ -59,10 +72,10 @@ class SinglePulseTarball(upload.Uploadable):
             db = database.Database(dbname)
         db.execute("SELECT spf.header_id, " \
                         "spf.filename, " \
-                        "spft.sp_files_type, " \
+                        "spft.sp_files_type AS filetype, " \
                         "v.institution, " \
                         "v.pipeline, " \
-                        "v.version_number " \
+                        "v.version_number AS versionnum " \
                   "FROM sp_files_info AS spf " \
                   "LEFT JOIN versions AS v ON v.version_id=spf.version_id " \
                   "LEFT JOIN sp_files_types AS spft " \
@@ -88,15 +101,19 @@ class SinglePulseTarball(upload.Uploadable):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%s' % os.path.split(self.filename)[-1] == '%s' % r['filename']), \
-                     ('%d' % self.header_id == '%d' % r['header_id']), \
-                     ('%s' % self.filetype == '%s' % r['sp_files_type']), \
-                     ('%s' % self.versionnum == '%s' % r['version_number']), \
-                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
-                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower())]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Single pulse tarball info doesn't match " \
+                            "what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise SinglePulseCandidateError(errormsg)
 
     def upload(self, dbname='default', *args, **kwargs):
         """And extension to the inherited 'upload' method.
@@ -115,9 +132,8 @@ class SinglePulseTarball(upload.Uploadable):
             starttime = time.time()
         id, path = super(SinglePulseTarball, self).upload(dbname=dbname, \
                     *args, **kwargs)
-        if not self.compare_with_db(dbname=dbname):
-            raise SinglePulseCandidateError("SP tarball doesn't match " \
-                    "what was uploaded to DB!")
+        self.compare_with_db(dbname=dbname)
+        
         if debug.UPLOAD:
             upload.upload_timing_summary['sp info (db)'] = \
                 upload.upload_timing_summary.setdefault('sp info (db)', 0) + \
@@ -129,8 +145,8 @@ class SinglePulseTarball(upload.Uploadable):
             if debug.UPLOAD: 
                 starttime = time.time()
             cftp = CornellFTP.CornellFTP()
-            ftp_path = os.path.join(path, os.path.split(self.filename)[-1]) 
-            cftp.upload(self.filename, ftp_path)
+            ftp_path = os.path.join(path, self.filename) 
+            cftp.upload(self.fullpath, ftp_path)
             cftp.quit()
             if debug.UPLOAD:
                 upload.upload_timing_summary['sp info (ftp)'] = \
@@ -154,13 +170,28 @@ class SinglePulseInfTarball(SinglePulseTarball):
 class SinglePulseBeamPlot(upload.Uploadable):
     """A class to represent a per-beam single pulse plot.
     """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'header_id': '%d', \
+              'filename': '%s', \
+              'sp_plot_type': '%s', \
+              'institution': '%s', \
+              'pipeline': '%s', \
+              'versionnum': '%s', \
+              'datalen': '%d'}
+    
     def __init__(self, plotfn, versionnum, header_id=None):
         self. header_id = header_id
         self.versionnum = versionnum
         self.filename = os.path.split(plotfn)[-1]
+        self.datalen = os.path.getsize(plotfn)
         plot = open(plotfn, 'r')
         self.filedata = plot.read()
         plot.close()
+        
+        # Store a few configurations so the upload can be checked
+        self.pipeline = config.basic.pipeline
+        self.institution = config.basic.institution
 
     def upload(self, dbname, *args, **kwargs):
         """An extension to the inherited 'upload' method.
@@ -176,9 +207,8 @@ class SinglePulseBeamPlot(upload.Uploadable):
             starttime = time.time()
         super(SinglePulseBeamPlot, self).upload(dbname=dbname, \
                 *args, **kwargs)
-        if not self.compare_with_db(dbname=dbname):
-            raise SinglePulseCandidateError("SP plot doesn't match " \
-                    "what was uploaded to DB!")
+        self.compare_with_db(dbname=dbname)
+        
         if debug.UPLOAD:
             upload.upload_timing_summary['sp plots'] = \
                 upload.upload_timing_summary.setdefault('sp plots', 0) + \
@@ -200,25 +230,25 @@ class SinglePulseBeamPlot(upload.Uploadable):
 
     def compare_with_db(self, dbname='default'):
         """Grab corresponding singlepulse plot from DB and compare values.
-            Return True if all values match. Return False otherwise.
+            Raise a SinglePulseCandidateError if any mismatch is found.
 
             Input:
                 dbname: Name of database to connect to, or a database
                         connection to use (Defaut: 'default').
             Output:
-                match: Boolean. True if all values match, False otherwise.
+                None
         """
         if isinstance(dbname, database.Database):
             db = dbname
         else:
             db = database.Database(dbname)
         db.execute("SELECT spsb.header_id, " \
-                        "spsbtype.sp_single_beam_plot_type, " \
+                        "spsbtype.sp_single_beam_plot_type AS sp_plot_type, " \
                         "spsb.filename, " \
-                        "spsb.filedata, " \
+                        "DATALENGTH(spsb.filedata) AS datalen, " \
                         "v.institution, " \
                         "v.pipeline, " \
-                        "v.version_number " \
+                        "v.version_number AS versionnum " \
                     "FROM sp_plots_single_beam AS spsb " \
                     "LEFT JOIN versions AS v on v.version_id=spsb.version_id " \
                     "LEFT JOIN sp_single_beam_plot_types AS spsbtype " \
@@ -245,16 +275,19 @@ class SinglePulseBeamPlot(upload.Uploadable):
         else:
             desc = [d[0] for d in db.cursor.description]
             r = dict(zip(desc, rows[0]))
-            matches = [('%s' % os.path.split(self.filename)[-1] == '%s' % r['filename']), \
-                     ('%d' % self.header_id == '%d' % r['header_id']), \
-                     ('%s' % self.sp_plot_type == '%s' % r['sp_single_beam_plot_type']), \
-                     ('%s' % self.versionnum == '%s' % r['version_number']), \
-                     ('%s' % config.basic.institution.lower() == '%s' % r['institution'].lower()), \
-                     ('%s' % config.basic.pipeline.lower() == '%s' % r['pipeline'].lower()), \
-                     ('0x%s' % self.filedata.encode('hex') == '0x%s' % binascii.b2a_hex(r['filedata']))]
-            # Match is True if _all_ matches are True
-            match = all(matches)
-        return match
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Single pulse tarball info doesn't match " \
+                            "what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise SinglePulseCandidateError(errormsg)
 
 
 class SinglePulseBeamPlotDMs0_110(SinglePulseBeamPlot):
@@ -278,7 +311,7 @@ class SinglePulseBeamPlotDMs300AndUp(SinglePulseBeamPlot):
     sp_plot_type = "PRESTO singlepulse per-beam plot (DMs 300 and up)"
 
 
-class SinglePulseCandidateError(pipeline_utils.PipelineError):
+class SinglePulseCandidateError(upload.UploadNonFatalError):
     """Error to throw when a single pulse candidate-specific problem is encountered.
     """
     pass
