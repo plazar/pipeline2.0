@@ -74,8 +74,12 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
             filesize += os.stat(file).st_size   
 
         filesize /= 1024.0**3
-
-        walltime = str( int( self.walltime_per_gb * filesize) ) + ':00:00'
+        
+        walltime_hrs = int( self.walltime_per_gb * filesize)
+        if walltime_hrs < 16:
+            walltime = '16:00:00'
+        else:
+            walltime = str( walltime_hrs ) + ':00:00'
         print 'Filesize:',filesize,'GB Walltime:', walltime
 	
         errorlog = os.path.join(config.basic.qsublog_dir, "'$MOAB_JOBID'.ER") 
