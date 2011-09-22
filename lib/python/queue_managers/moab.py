@@ -8,6 +8,8 @@ import queue_managers.generic_interface
 import pipeline_utils
 import config.basic
 import config.email
+import debug
+
 from xml.etree import ElementTree as ET
 
 class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
