@@ -83,7 +83,10 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         print 'Filesize:',filesize,'GB Walltime:', walltime
 	
         errorlog = os.path.join(config.basic.qsublog_dir, "'$MOAB_JOBID'.ER") 
-        stdoutlog = os.devnull
+        if debug.PROCESSING:
+            stdoutlog = os.path.join(config.basic.qsublog_dir, "'$MOAB_JOBID'.OU")
+        else:
+            stdoutlog = os.devnull
         #-E needed for $MOAB_JOBID to be defined
         cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=%s -N %s -e %s -o %s %s" %\
                    (';'.join(datafiles), outdir, self.property, walltime, self.job_basename + str(job_id),\
@@ -92,6 +95,8 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         #                        stdin=subprocess.PIPE)
         #queue_id = pipe.communicate()[0].strip()
         #pipe.stdin.close()
+        if debug.QMANAGER:
+            print "Job submit command: %s" % cmd
         queue_id, error, comm_err = self._exec_check_for_failure(cmd)
         queue_id = queue_id.strip()
         

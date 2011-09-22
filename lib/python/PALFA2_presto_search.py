@@ -462,6 +462,20 @@ def set_up_job(filenms, workdir, resultsdir):
     # Create a directory to hold all the subbands
     job.tempdir = tempfile.mkdtemp(suffix="_tmp", prefix=job.basefilenm, \
                         dir=config.processing.base_tmp_dir)
+    
+    #####
+    # Print some info useful for debugging
+    print "Initial contents of workdir (%s): " % workdir
+    for fn in os.listdir(workdir):
+        print "    %s" % fn
+    print "Initial contents of resultsdir (%s): " % resultsdir
+    for fn in os.listdir(resultsdir):
+        print "    %s" % fn
+    print "Initial contents of job.tempdir (%s): " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    #####
+
     return job
 
 
@@ -512,9 +526,9 @@ def search_job(job):
             
                 # Now de-disperse using the subbands
                 cmd = "prepsubband -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
-                        "-numout %d -o %s/%s %s/subbands/%s.sub[0-9]*" % \
+                        "-nsub %d -numout %d -o %s/%s %s/subbands/%s.sub[0-9]*" % \
                         (ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
-                        ddplan.dmsperpass, ddplan.dd_downsamp, 
+                        ddplan.dmsperpass, ddplan.dd_downsamp, ddplan.numsub,
                         psr_utils.choose_N(job.orig_N/ddplan.downsamp),
                         job.tempdir, job.basefilenm, job.tempdir, subbasenm)
                 job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
@@ -668,6 +682,19 @@ def search_job(job):
 
     job.sifting_time = time.time() - job.sifting_time
 
+    #####
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) before folding: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) before folding: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    print "Contents of job.tempdir (%s) before folding: " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    ######
+
     # Fold the best candidates
     cands_folded = 0
     for cand in all_accel_cands:
@@ -678,6 +705,18 @@ def search_job(job):
             cands_folded += 1
     job.num_cands_folded = cands_folded
 
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) after folding: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) after folding: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    print "Contents of job.tempdir (%s) after folding: " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    #####
+    
     # Now step through the .ps files and convert them to .png and gzip them
 
     psfiles = glob.glob("*.ps")
@@ -687,6 +726,18 @@ def search_job(job):
                             (psfile+"[0]", psfile[:-3]+".png"))
         timed_execute("gzip "+psfile)
     
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) after conversion: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) after conversion: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    print "Contents of job.tempdir (%s) after conversion: " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    #####
+
 
 def clean_up(job):
     """Clean up.
@@ -727,6 +778,19 @@ def clean_up(job):
     resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", "*.png", \
                     "*.zaplist", "search_params.txt", "*.accelcands", \
                     "*_merge.out"]
+    
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) before copy: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) before copy: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    print "Contents of job.tempdir (%s) before copy: " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    #####
+    
     for resultglob in resultglobs:
             for file in glob.glob(resultglob):
                 shutil.move(file, job.outputdir)
@@ -735,7 +799,20 @@ def clean_up(job):
     try:
         shutil.rmtree(job.tempdir)
     except: pass
-   
+  
+    #####
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) after copy: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) after copy: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    print "Contents of job.tempdir (%s) after copy: " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    #####
+
 
 class PrestoError(Exception):
     """Error to throw when a PRESTO program returns with 
