@@ -8,6 +8,7 @@ import os
 import re
 import os.path
 import datetime
+import time
 import sys
 import traceback
 
@@ -270,6 +271,8 @@ def submit_jobs():
     for job in jobs:
         if config.jobpooler.queue_manager.can_submit():
             submit(job)
+            if config.jobpooler.submit_sleep:
+                time.sleep(config.jobpooler.submit_sleep)
         else:
             break
 

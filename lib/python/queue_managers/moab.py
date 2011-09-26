@@ -127,7 +127,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 
             # There is occasionally a short delay between submission and 
             # the job appearing on the queue, so sleep for 1 second. 
-            time.sleep(30)
+            time.sleep(1)
         return queue_id
 
     def _get_submitted_queue_id(self, job_id):
