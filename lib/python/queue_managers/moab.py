@@ -37,7 +37,8 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
                 comm_err: Boolean value. True if there was a communication error.
         """
 
-        comm_err_re = re.compile("communication error")        
+        comm_err_re = re.compile("(communication error)|"\
+                                  + "(moab may not be running)")        
  
         pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE )  
 
@@ -376,7 +377,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
     def _showq(self, update_time=300):
 
         if time.time() >= self.showq_last_update + update_time:
-            print "Updateing showq cache ..."
+            print "Updating showq cache ..."
 
             cmd = 'showq -w class=%s --xml' % self.property
             output, error, comm_err = self._exec_check_for_failure(cmd)
