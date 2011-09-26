@@ -481,7 +481,7 @@ def presubmission_check(fns):
     except datafile.DataFileError, e:
         raise FailedPreCheckError(e)
     #check if observation is too short
-    limit = 60.0 # make a config parameter
+    limit = float(config.jobpooler.obstime_limit)
     obs_time = data.observation_time
     if obs_time < limit:
         errormsg = 'Observation is too short (%.2f s < %.2f s)' % (obs_time, limit) 
