@@ -85,7 +85,7 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             lftp_cmd = '"get %s -o %s"' % (ftp_path, localfn)
             cmd = "lftp -c 'set xfer:clobber 1; open -e %s -u %s,%s " %\
                      (lftp_cmd, username, password)\
-                     + "-p 31001 arecibo.tc.cornell.edu'"
+                     + "-p 31001 arecibo.tc.cornell.edu' > /dev/null"
 
             cout.outs("CornellFTP - Starting Download of: %s" % \
                         os.path.split(ftp_path)[-1])
