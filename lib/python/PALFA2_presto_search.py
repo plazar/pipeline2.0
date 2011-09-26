@@ -808,9 +808,9 @@ def clean_up(job):
     print "Contents of resultsdir (%s) after copy: " % job.outputdir
     for fn in os.listdir(job.outputdir):
         print "    %s" % fn
-    print "Contents of job.tempdir (%s) after copy: " % job.tempdir
-    for fn in os.listdir(job.tempdir):
-        print "    %s" % fn
+    #print "Contents of job.tempdir (%s) after copy: " % job.tempdir
+    #for fn in os.listdir(job.tempdir):
+    #    print "    %s" % fn
     #####
 
 
