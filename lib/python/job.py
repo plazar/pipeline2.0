@@ -286,10 +286,61 @@ def submit(job_row):
     fns = pipeline_utils.get_fns_for_jobid(job_row['id']) 
     
     try:
+        presubmission_check(fns)
         outdir = get_output_dir(fns)
         # Attempt to submit the job
         queue_id = config.jobpooler.queue_manager.submit\
                             (fns, outdir, job_row['id'])
+    except (FailedPreCheckError):
+        # Error caught during presubmission check.
+        exceptionmsgs = traceback.format_exception(*sys.exc_info())
+        errormsg += "Job ID: %d " % job_row['id']
+        errormsg  = "failed presubmission check!\n\n"
+        errormsg += "".join(exceptionmsgs)
+
+        jobpool_cout.outs("Job ID: %d failed presubmission check!\n\t%s\n" % \
+                          (job_row['id'], exceptionmsgs[-1])) 
+        
+        if config.email.send_on_terminal_failures:
+            # Send error email
+            msg  = "Presubmission check failed!\n"
+            msg += "Job ID: %d\n\n" % \
+                    (jobi_row['id'])
+            msg += errormsg
+            msg += "\n*** Job has been terminally failed. ***\n"
+            msg += "*** Job will NOT be re-submitted! ***\n"
+            if config.basic.delete_rawdata:
+                jobpool_cout.outs("Job #%d will NOT be retried. " \
+                                    "Data files will be deleted." % job['id'])
+                msg += "*** Raw data files will be deleted. ***\n"
+            else:
+                jobpool_cout.outs("Job #%d will NOT be retried. " % job['id'])
+            notification = mailer.ErrorMailer(msg, \
+                            subject="Job failed presubmission check - Terminal")
+            notification.send()
+
+        if config.basic.delete_rawdata:
+            pipeline_utils.clean_up(job['id'])
+
+        queries = []
+        arglist = []
+        queries.append("INSERT INTO job_submits (" \
+                            "job_id, " \
+                            "status, " \
+                            "created_at, " \
+                            "updated_at, " \
+                            "details) " \
+                      "VALUES (?, ?, ?, ?, ?)" )
+        arglist.append( ( job_row['id'], 'precheck_failed', \
+                        jobtracker.nowstr(), jobtracker.nowstr(), \
+                        errormsg) )
+        queries.append("UPDATE jobs " \
+                       "SET status='terminal_failure', " \
+                            "details='Failed presubmission check', " \
+                            "updated_at=? " \
+                       "WHERE id=?" )
+        arglist.append( (jobtracker.nowstr(), job_row['id']) )
+        jobtracker.execute(queries, arglist)
     except (queue_managers.QueueManagerJobFatalError,\
               datafile.DataFileError):
         # Error caught during job submission.
@@ -368,13 +419,6 @@ def get_output_dir(fns):
                 the job's datafiles. 'proc_date' is the current date
                 in yymmddThhmmss format.
     """
-    # Check that files exist
-    missingfiles = [fn for fn in fns if not os.path.exists(fn)]
-    if missingfiles:
-        errormsg = "The following files cannot be found:\n"
-        for missing in missingfiles:
-            errormsg += "\t%s\n" % missing
-        raise pipeline_utils.PipelineError(errormsg)
 
     # Get info from datafile headers
     data = datafile.autogen_dataobj([fns[0]])
@@ -414,3 +458,35 @@ def get_output_dir(fns):
         notification.send()
     return outdir
 
+def presubmission_check(fns):
+    """Check to see if datafiles meet the critera for submission.
+    """
+    # Check that files exist
+    missingfiles = [fn for fn in fns if not os.path.exists(fn)]
+    if missingfiles:
+        errormsg = "The following files cannot be found:\n"
+        for missing in missingfiles:
+            errormsg += "\t%s\n" % missing
+        raise pipeline_utils.PipelineError(errormsg) # if files missing want to crash
+    try:
+        #for WAPP, check if coords are in table
+        data = datafile.autogen_dataobj([fns[0]])
+        if not isinstance(data, datafile.PsrfitsData):
+            errormsg  = "Data must be of PSRFITS format.\n"
+            errormsg += "\tData type: %s\n" % type(data)
+            raise FailedPreCheckError(errormsg)
+    except datafile.DataFileError, e:
+        raise FailedPreCheckError(e)
+    #check if observation is too short
+    limit = 60.0 # make a config parameter
+    obs_time = data.observation_time
+    if obs_time < limit:
+        errormsg = 'Observation is too short (%.2f s < %.2f s)' % (obs_time, limit) 
+        raise FailedPreCheckError(errormsg)
+    #check if datafile has been successfully processed in the past
+
+class FailedPreCheckError(pipeline_utils.PipelineError):
+    """Error to raise when datafile has failed the presubmssion check.
+        Job should be terminally failed and Cornell (eventually) notified.
+    """
+    pass
