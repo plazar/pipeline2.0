@@ -2,7 +2,8 @@ modes = [('jobtracker', 'Print SQL statements executed on job-tracker DB.'), \
             ('upload', 'Print timing summary for each successful upload.'), \
             ('download', 'Print extra information in downloader.'), \
             ('syscalls', 'Print commands being executed as system calls.'), \
-            ('qmanager', 'Print extra information in queue manager.')]
+            ('qmanager', 'Print extra information in queue manager.'), \
+            ('commondb', 'Print SQL statements executed on common DB.')]
 modes.sort()
 
 # By default set all debug modes to False

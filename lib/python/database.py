@@ -7,6 +7,7 @@ import cmd
 import prettytable
 import pyodbc
 
+import debug
 import pipeline_utils
 import config.commondb
 
@@ -82,9 +83,11 @@ class Database:
 
             raise DatabaseConnectionError(msg)
 
-    def execute(self, *args, **kwargs):
+    def execute(self, query, *args, **kwargs):
+        if debug.COMMONDB:
+            print query
         try:
-            self.cursor.execute(*args, **kwargs)
+            self.cursor.execute(query, *args, **kwargs)
         except Exception, e:
             if "has been chosen as the deadlock victim. Rerun the transaction." in str(e):
                 raise DatabaseDeadlockError(e)
