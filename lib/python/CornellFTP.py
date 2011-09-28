@@ -98,8 +98,8 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             # Define a function to write blocks to the file
             def write(block):
                 f.write(block)
-                f.flush()
-                os.fsync(f)
+                #f.flush()
+                #os.fsync(f)
         
             self.sendcmd("TYPE I")
             cout.outs("CornellFTP - Starting Download of: %s" % \
