@@ -1,4 +1,4 @@
-import stringio
+import StringIO
 import os
 import pipeline_utils
 import config.basic
@@ -8,24 +8,12 @@ import config.basic
 def version_num():
     """Compute version number and return it as a string.
     """
-    strio = StringIO.StringIO()
-    pipeline_utils.execute("git rev-parse HEAD", \
-                            dir=os.getenv('PRESTO'), \
-                            stdout=strio, shell=True)
-    prestohash = strio.getvalue().strip()
-    strio.close()
-    strio = StringIO.StringIO()
-    pipeline_utils.execute("git rev-parse HEAD", \
-                            dir=config.basic.pipelinedir, \
-                            stdout=strio, shell=True)
-    pipelinehash = strio.getvalue().strip()
-    strio.close()
-    strio = StringIO.StringIO()
-    pipeline_utils.execute("git rev-parse HEAD", \
-                            dir=config.basic.psrfits_utilsdir, \
-                            stdout=strio, shell=True)
-    psrfits_utilshash = strio.getvalue().strip()
-    strio.close()
+    prestohash = pipeline_utils.execute("git rev-parse HEAD", \
+                            dir=os.getenv('PRESTO'))[0].strip()
+    pipelinehash = pipeline_utils.execute("git rev-parse HEAD", \
+                            dir=config.basic.pipelinedir)[0].strip()
+    psrfits_utilshash = pipeline_utils.execute("git rev-parse HEAD", \
+                            dir=config.basic.psrfits_utilsdir)[0].strip()
     vernum = 'PRESTO:%s;PIPELINE:%s;PSRFITS_UTILS:%s' % \
                             (prestohash, pipelinehash, psrfits_utilshash)
     return vernum

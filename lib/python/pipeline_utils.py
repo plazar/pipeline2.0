@@ -125,7 +125,7 @@ def can_add_file(fn, verbose=False):
     return True
 
 
-def execute(cmd, stdout=None, stderr=sys.stderr, dir=None): 
+def execute(cmd, stdout=subprocess.PIPE, stderr=sys.stderr, dir=None): 
     """Execute the command 'cmd' after logging the command
         to STDOUT. Execute the command in the directory 'dir',
         which defaults to the current directory is not provided.
@@ -133,7 +133,11 @@ def execute(cmd, stdout=None, stderr=sys.stderr, dir=None):
         Output standard output to 'stdout' and standard
         error to 'stderr'. Both are strings containing filenames.
         If values are None, the out/err streams are not recorded.
-        By default stdout is None and stderr is sent to sys.stderr.
+        By default stdout is subprocess.PIPE and stderr is sent 
+        to sys.stderr.
+
+        Returns (stdoutdata, stderrdata). These will both be None, 
+        unless subprocess.PIPE is provided.
     """
     # Log command to stdout
     if debug.SYSCALLS:
@@ -150,7 +154,10 @@ def execute(cmd, stdout=None, stderr=sys.stderr, dir=None):
         stderrfile = True
     
     # Run (and time) the command. Check for errors.
-    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=stderr, cwd=dir)
+    pipe = subprocess.Popen(cmd, shell=True, cwd=dir, \
+                            stdout=stdout, stderr=stderr)
+    (stdoutdata, stderrdata) = pipe.communicate()
+    retcode = pipe.returncode 
     if retcode < 0:
         raise PipelineError("Execution of command (%s) terminated by signal (%s)!" % \
                                 (cmd, -retcode))
@@ -167,7 +174,7 @@ def execute(cmd, stdout=None, stderr=sys.stderr, dir=None):
     if stderrfile:
         stderr.close()
 
-
+    return (stdoutdata, stderrdata)
 def get_modtime(file, local=False):
     """Get modification time of a file.
 
