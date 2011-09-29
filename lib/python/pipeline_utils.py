@@ -125,10 +125,10 @@ def can_add_file(fn, verbose=False):
     return True
 
 
-def execute(cmd, stdout=None, stderr=sys.stderr): 
+def execute(cmd, stdout=None, stderr=sys.stderr, dir=None): 
     """Execute the command 'cmd' after logging the command
-        to STDOUT.  Return the wall-clock amount of time
-        the command took to execute.
+        to STDOUT. Execute the command in the directory 'dir',
+        which defaults to the current directory is not provided.
 
         Output standard output to 'stdout' and standard
         error to 'stderr'. Both are strings containing filenames.
@@ -150,7 +150,7 @@ def execute(cmd, stdout=None, stderr=sys.stderr):
         stderrfile = True
     
     # Run (and time) the command. Check for errors.
-    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=stderr)
+    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=stderr, cwd=dir)
     if retcode < 0:
         raise PipelineError("Execution of command (%s) terminated by signal (%s)!" % \
                                 (cmd, -retcode))
