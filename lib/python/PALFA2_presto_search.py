@@ -474,6 +474,7 @@ def set_up_job(filenms, workdir, resultsdir):
     print "Initial contents of job.tempdir (%s): " % job.tempdir
     for fn in os.listdir(job.tempdir):
         print "    %s" % fn
+    sys.stdout.flush()
     #####
 
     return job
@@ -676,6 +677,9 @@ def search_job(job):
         all_accel_cands = sifting.remove_harmonics(all_accel_cands)
         # Note:  the candidates will be sorted in _sigma_ order, not _SNR_!
         all_accel_cands.sort(sifting.cmp_sigma)
+        print "Sending candlist to stdout before writing to file"
+        sifting.write_candlist(all_accel_cands)
+        sys.stdout.flush()
         sifting.write_candlist(all_accel_cands, job.basefilenm+".accelcands")
         # Moving of results to resultsdir now happens in clean_up(...)
         # shutil.copy(job.basefilenm+".accelcands", job.outputdir)
@@ -693,17 +697,21 @@ def search_job(job):
     print "Contents of job.tempdir (%s) before folding: " % job.tempdir
     for fn in os.listdir(job.tempdir):
         print "    %s" % fn
-    ######
+    sys.stdout.flush()
+    #####
 
     # Fold the best candidates
     cands_folded = 0
     for cand in all_accel_cands:
+        print "At cand %s" % str(cand)
         if cands_folded == config.searching.max_cands_to_fold:
             break
         if cand.sigma >= config.searching.to_prepfold_sigma:
+            print "...folding"
             job.folding_time += timed_execute(get_folding_command(cand, job))
             cands_folded += 1
     job.num_cands_folded = cands_folded
+    sys.stdout.flush()
 
     # Print some info useful for debugging
     print "Contents of workdir (%s) after folding: " % job.workdir
@@ -715,6 +723,7 @@ def search_job(job):
     print "Contents of job.tempdir (%s) after folding: " % job.tempdir
     for fn in os.listdir(job.tempdir):
         print "    %s" % fn
+    sys.stdout.flush()
     #####
     
     # Now step through the .ps files and convert them to .png and gzip them
@@ -736,6 +745,7 @@ def search_job(job):
     print "Contents of job.tempdir (%s) after conversion: " % job.tempdir
     for fn in os.listdir(job.tempdir):
         print "    %s" % fn
+    sys.stdout.flush()
     #####
 
 
@@ -767,12 +777,17 @@ def clean_up(job):
                  "*_DM[0-9]*.inf",
                  "*.pfd",
                  "*.pfd.bestprof"]
+    print "Tarring up results"
     for (tar_suffix, tar_glob) in zip(tar_suffixes, tar_globs):
+        print "Opening tarball %s" % (job.basefilenm+tar_suffix)
+        print "Using glob %s" % tar_glob
         tf = tarfile.open(job.basefilenm+tar_suffix, "w:gz")
         for infile in glob.glob(tar_glob):
+            print "    Adding file %s" % infile
             tf.add(infile)
             os.remove(infile)
         tf.close()
+    sys.stdout.flush()
     
     # Copy all the important stuff to the output directory
     resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", "*.png", \
@@ -789,6 +804,7 @@ def clean_up(job):
     print "Contents of job.tempdir (%s) before copy: " % job.tempdir
     for fn in os.listdir(job.tempdir):
         print "    %s" % fn
+    sys.stdout.flush()
     #####
     
     for resultglob in resultglobs:
@@ -811,6 +827,7 @@ def clean_up(job):
     #print "Contents of job.tempdir (%s) after copy: " % job.tempdir
     #for fn in os.listdir(job.tempdir):
     #    print "    %s" % fn
+    sys.stdout.flush()
     #####
 
 
