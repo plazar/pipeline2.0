@@ -332,6 +332,7 @@ class WappPsrfitsData(PsrfitsData):
         # Parse filename to get the scan number
         m = self.fnmatch(fitsfns[0])
         self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
@@ -414,6 +415,7 @@ class MockPsrfitsData(PsrfitsData):
         # Parse filename to get the scan number
         m = self.fnmatch(fitsfns[0])
         self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
@@ -529,6 +531,7 @@ class MergedMockPsrfitsData(PsrfitsData):
         self.beam_id = int(m.groupdict()['beam'])
         self.get_correct_positions() # This sets self.right_ascension, etc.
         self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])

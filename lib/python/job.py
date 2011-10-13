@@ -224,7 +224,7 @@ def recover_failed_jobs():
         else:
             # We've run out of attempts for this job
             if config.email.send_on_terminal_failures or \
-                    config.email.send_on_failure:
+                    config.email.send_on_failures:
                 # Send error email
                 msg  = "Error! Job submit status: %s\n" % \
                             str(submits[0]['status'])
