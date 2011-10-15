@@ -297,8 +297,8 @@ def submit(job_row):
     except (FailedPreCheckError):
         # Error caught during presubmission check.
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
-        errormsg += "Job ID: %d " % job_row['id']
-        errormsg  = "failed presubmission check!\n\n"
+        errormsg = "Job ID: %d " % job_row['id']
+        errormsg += "failed presubmission check!\n\n"
         errormsg += "".join(exceptionmsgs)
 
         jobpool_cout.outs("Job ID: %d failed presubmission check!\n\t%s\n" % \
@@ -308,22 +308,22 @@ def submit(job_row):
             # Send error email
             msg  = "Presubmission check failed!\n"
             msg += "Job ID: %d\n\n" % \
-                    (jobi_row['id'])
+                    (job_row['id'])
             msg += errormsg
             msg += "\n*** Job has been terminally failed. ***\n"
             msg += "*** Job will NOT be re-submitted! ***\n"
             if config.basic.delete_rawdata:
                 jobpool_cout.outs("Job #%d will NOT be retried. " \
-                                    "Data files will be deleted." % job['id'])
+                                    "Data files will be deleted." % job_row['id'])
                 msg += "*** Raw data files will be deleted. ***\n"
             else:
-                jobpool_cout.outs("Job #%d will NOT be retried. " % job['id'])
+                jobpool_cout.outs("Job #%d will NOT be retried. " % job_row['id'])
             notification = mailer.ErrorMailer(msg, \
                             subject="Job failed presubmission check - Terminal")
             notification.send()
 
         if config.basic.delete_rawdata:
-            pipeline_utils.clean_up(job['id'])
+            pipeline_utils.clean_up(job_row['id'])
 
         queries = []
         arglist = []
