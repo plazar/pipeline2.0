@@ -344,9 +344,12 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
 		for branch in xml_tree:
 		  if branch.tag == 'queue':
 		    for job in branch:
-	              if job.tag == 'job' and\
-			  job.attrib['JobName'].startswith(self.job_basename):
-	                queue[branch.attrib['option']].append(job)
+                      try:
+	                if job.tag == 'job' and\
+			   job.attrib['JobName'].startswith(self.job_basename):
+	                  queue[branch.attrib['option']].append(job)
+                      except KeyError:
+                        pass
 
                 self.queue = queue
                 self.showq_last_update = time.time()
