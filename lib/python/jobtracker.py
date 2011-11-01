@@ -6,6 +6,55 @@ import debug
 import config.background
 
 
+class JobtrackerDatabase(object):
+    """An object to interface with the jobtracker database.
+    """
+    def __init__(self, db=config.background.jobtracker_db):
+        """Constructor for JobtrackerDatabase objects.
+            
+            Inputs:
+                db: The database file to connect to. (Default: %s)
+
+            Output:
+                A JobtrackerDatabase instance.
+        """ % config.background.jobtracker_db
+        self.attached_DBs = [] # databases that are attached.
+        self.db = db
+        self.connect()
+
+    def connect(self, timeout=40):
+        """Establish a database connection. Self self.conn and self.cursor.
+            
+            NOTE: The database connected to is automatically attached as "jt".
+
+            Inputs:
+                timeout: Number of seconds to wait for a lock to be 
+                    released before raising an exception. (Default: 40s)
+
+            Outputs:
+                None
+        """
+        self.conn = sqlite3.connect(self.db, timeout=timeout)
+        self.conn.isolation_level = 'DEFERRED' # Why DEFFERED?
+        self.conn.row_factory = sqlite3.Row
+        self.cursor = self.conn.cursor()
+        self.attach(self.db, 'jt')
+
+    def attach(self, db, abbrev):
+        """Attach another database to the connection.
+
+            Inputs:
+                db: The database file to attach.
+                abbrev: The abbreviated name that should be used when
+                    referring to the attached DB in SQL queries.
+
+            Outputs:
+                None
+        """
+        self.cursor.execute("ATTACH DATABASE ? AS ?", (db, abbrev))
+        self.attached_DBs.append((db, abbrev))
+
+
 def nowstr():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
