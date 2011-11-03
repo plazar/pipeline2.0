@@ -54,6 +54,107 @@ class JobtrackerDatabase(object):
         self.cursor.execute("ATTACH DATABASE ? AS ?", (db, abbrev))
         self.attached_DBs.append((db, abbrev))
 
+    def show_attached(self):
+        """Print all currently attached databases in the follwoing format:
+            <database> AS <alias>
+
+            Inputs:
+                None
+            
+            Outputs:
+                None
+        """
+        for attached in self.attached_DBs:
+            print "%s AS %s" % attached
+
+    def execute(self, query, *args, **kwargs):
+        """Execute a single query.
+
+            Inputs:
+                query: The SQL query to execute.
+                *NOTE: all other arguments are passed to the database
+                    cursor's execute method.
+
+            Outputs:
+                None
+        """
+        if debug.JOBTRACKER:
+            print query
+        try:
+            self.cursor.execute(query, *args, **kwargs)
+
+    def commit(self):
+        """Commit the currently open transaction.
+            
+            Inputs:
+                None
+
+            Outputs:
+                None
+        """
+        self.conn.commit()
+
+    def rollback(self):
+        """Roll back the currently open transaction.
+
+            Inputs:
+                None
+
+            Outputs:
+                None
+        """
+        self.conn.rollback()
+
+    def close(self):
+        """Close the database connection.
+
+            Inputs:
+                None
+
+            Outputs:
+                None
+        """
+        self.conn.close()
+
+    def fetchone(self):
+        """Fetch a single row from the last executed query and return it.
+            
+            Inputs:
+                None
+
+            Output:
+                row: The row pointed at by the DB cursor.
+        """
+        return self.cursor.fetchone()
+
+    def fetchall(self):
+        """Fetch all rows from the last executed query and return them.
+            
+            Inputs:
+                None
+
+            Output:
+                rows: A list of rows pointed at by the DB cursor.
+        """
+        return self.cursor.fetchall()
+
+    def showall(self):
+        """Prettily show the rows currently pointed at by the DB cursor.
+
+            Intputs:
+                None
+
+            Outputs:
+                None
+        """
+        desc = self.cursor.description
+        if desc is not None:
+            fields = [d[0] for d in desc] 
+            table = prettytable.PrettyTable(fields)
+            for row in self.cursor:
+                table.add_row(row)
+            table.printt()
+
 
 def nowstr():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
