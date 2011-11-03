@@ -2,6 +2,9 @@ import sqlite3
 import time
 import datetime
 import types
+
+import prettytable
+
 import debug 
 import config.background
 
