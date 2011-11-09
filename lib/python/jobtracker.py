@@ -1,3 +1,4 @@
+import sys
 import sqlite3
 import time
 import datetime
@@ -12,20 +13,22 @@ import config.background
 class JobtrackerDatabase(object):
     """An object to interface with the jobtracker database.
     """
-    def __init__(self, db=config.background.jobtracker_db):
+    def __init__(self, db=config.background.jobtracker_db, autocommit=True):
         """Constructor for JobtrackerDatabase objects.
             
             Inputs:
                 db: The database file to connect to. (Default: %s)
+                autocommit: boolean, determines if autocommit should
+                                be turned on or off.
 
             Output:
                 A JobtrackerDatabase instance.
         """ % config.background.jobtracker_db
         self.attached_DBs = [] # databases that are attached.
         self.db = db
-        self.connect()
+        self.connect(autocommit=autocommit)
 
-    def connect(self, timeout=40):
+    def connect(self, timeout=40, autocommit=True):
         """Establish a database connection. Self self.conn and self.cursor.
             
             NOTE: The database connected to is automatically attached as "jt".
@@ -33,12 +36,19 @@ class JobtrackerDatabase(object):
             Inputs:
                 timeout: Number of seconds to wait for a lock to be 
                     released before raising an exception. (Default: 40s)
+                autocommit: boolean, determines if autocommit should
+                                be turned on or off.
 
             Outputs:
                 None
         """
         self.conn = sqlite3.connect(self.db, timeout=timeout)
-        self.conn.isolation_level = 'DEFERRED' # Why DEFFERED?
+        if autocommit:
+            self.conn.isolation_level = None
+        else:
+            # Don't allow any other connections to read/write database during
+            # a transaction.
+            self.conn.isolation_level = 'EXCLUSIVE'
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
         self.attach(self.db, 'jt')
@@ -85,6 +95,10 @@ class JobtrackerDatabase(object):
             print query
         try:
             self.cursor.execute(query, *args, **kwargs)
+        except sqlite3.OperationalError, e:
+            sys.stderr.write("sqlite3.OperationError encountered. " \
+                             "Rolling back.\n    %s" % str(e))
+            self.conn.rollback()
 
     def commit(self):
         """Commit the currently open transaction.
@@ -157,6 +171,67 @@ class JobtrackerDatabase(object):
             for row in self.cursor:
                 table.add_row(row)
             table.printt()
+    
+    def union(self, tablename):
+        """Return a string that is the SQL syntax to return
+            the union of 'tablename' for all attached databases.
+
+            Input:
+                tablename: The name of the table to unionize.
+
+            Output:
+                unionstr: The SQL string to perform the union.
+        """
+        return "(%s)" % " UNION ".join(["SELECT * FROM %s.%s" % \
+                    (attached[1], tablename) 
+                    for attached in self.attached_DBs])
+
+    def copy(self, db_orig, db_dest, tablename, whereclause=None):
+        """Copy rows in 'db_orig's 'tablename' to the corresponding
+            table in 'db_dest'. All rows matching 'whereclause' are
+            copied. Entire rows are copied.
+
+            Inputs:
+                db_orig: The alias of the database of origin.
+                db_dest: The destination database's alias.
+                tablename: The table where rows are being copied.
+                whereclause: An optional where clause that determines
+                    which rows are copied. They "WHERE" keyword should
+                    be omitted. (Default: copy all rows).
+
+            Outputs:
+                None
+        """
+        query = "INSERT INTO %s.%s SELECT * FROM %s.%s" % \
+                    (db_dest, tablename, db_orig, tablename)
+        if whereclause is not None:
+            query += " WHERE %s" % whereclause
+        self.execute(query)
+
+    def move(self, db_orig, db_dest, tablename, whereclause=None):
+        """Move rows in 'db_orig's 'tablename' to the corresponding
+            table in 'db_dest'. All rows matching 'whereclause' are
+            moved.
+
+            Inputs:
+                db_orig: The alias of the database of origin.
+                db_dest: The destination database's alias.
+                tablename: The table where rows are being moved.
+                whereclause: An optional where clause that determines
+                    which rows are moved. They "WHERE" keyword should
+                    be omitted. (Default: move all rows).
+
+            Outputs:
+                None
+
+            NOTE: Moving is accomplished by first calling self.copy(...)
+                and then deleting the rows from the origin database.
+        """
+        self.copy(db_orig, db_dest, tablename, whereclause)
+        query = "DELETE FROM %s.%s" % (db_orig, tablename)
+        if whereclause is not None:
+            query += " WHERE %s" % whereclause
+        self.execute(query)
 
 
 def nowstr():
