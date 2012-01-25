@@ -478,7 +478,7 @@ def presubmission_check(fns):
             errormsg  = "Data must be of PSRFITS format.\n"
             errormsg += "\tData type: %s\n" % type(data)
             raise FailedPreCheckError(errormsg)
-    except datafile.DataFileError, e:
+    except (datafile.DataFileError, ValueError), e:
         raise FailedPreCheckError(e)
     #check if observation is too short
     limit = float(config.jobpooler.obstime_limit)
