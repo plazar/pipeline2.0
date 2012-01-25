@@ -88,7 +88,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         else:
             stdoutlog = os.devnull
         #-E needed for $MOAB_JOBID to be defined
-        cmd = "msub -E -V -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=%s -N %s -e %s -o %s %s" %\
+        cmd = "msub -E -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=%s -N %s -e %s -o %s %s" %\
                    (';'.join(datafiles), outdir, self.property, walltime, self.job_basename + str(job_id),\
                       errorlog, stdoutlog, script)
 
