@@ -583,7 +583,7 @@ def get_zaplistfn(dir):
 
 def get_zaplist(dir):
     zapfn = get_zaplistfn(dir)
-    fctr, width = np.loadtxt(zapfn, unpack=True)
+    fctr, width = np.loadtxt(zapfn, usecols=(-2,-1), unpack=True)
     return fctr, width
 
 
