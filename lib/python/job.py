@@ -143,6 +143,9 @@ def update_jobs_status_from_queue():
                 # Errors during processing...
                 errormsg = config.jobpooler.queue_manager.get_errors(submit['queue_id'])
 
+                if errormsg.count("\n") > 100:
+                    errormsg = string.join(errormsg.split("\n")[:50],"\n")
+
                 jobpool_cout.outs("Processing of Job #%d (Submit ID: %d; Queue ID: %s) " \
                                     "had errors." % \
                                 (submit['job_id'], submit['id'], submit['queue_id']))
