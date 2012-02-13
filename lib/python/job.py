@@ -11,6 +11,7 @@ import datetime
 import time
 import sys
 import traceback
+import string
 
 import datafile
 import jobtracker
@@ -142,6 +143,9 @@ def update_jobs_status_from_queue():
             if config.jobpooler.queue_manager.had_errors(submit['queue_id']):
                 # Errors during processing...
                 errormsg = config.jobpooler.queue_manager.get_errors(submit['queue_id'])
+
+                if errormsg.count("\n") > 100:
+                    errormsg = string.join(errormsg.split("\n")[:50],"\n")
 
                 jobpool_cout.outs("Processing of Job #%d (Submit ID: %d; Queue ID: %s) " \
                                     "had errors." % \
@@ -478,7 +482,7 @@ def presubmission_check(fns):
             errormsg  = "Data must be of PSRFITS format.\n"
             errormsg += "\tData type: %s\n" % type(data)
             raise FailedPreCheckError(errormsg)
-    except datafile.DataFileError, e:
+    except (datafile.DataFileError, ValueError), e:
         raise FailedPreCheckError(e)
     #check if observation is too short
     limit = float(config.jobpooler.obstime_limit)
