@@ -13,6 +13,7 @@ import traceback
 import optparse
 import time
 import datetime
+import string
 
 import debug
 
@@ -32,6 +33,8 @@ class PipelineError(Exception):
             msg += "\n\n========== Original Traceback ==========\n"
             msg += "".join(traceback.format_exception(*self.orig_exc_info))
             msg += "\n(See PipelineError traceback above)\n"
+        if msg.count("\n") > 100:
+            msg = string.join(msg.split("\n")[:50],"\n")
         return msg
 
 
