@@ -20,6 +20,13 @@ DATABASES = {
         'HOST': config.commondb.host,
         'DSN':  'FreeTDSDSN'
         },
+    'common2': {
+        'DATABASE': 'palfaCandDB2',
+        'UID':  config.commondb.username,
+        'PWD':  config.commondb.password,
+        'HOST': config.commondb.host,
+        'DSN':  'FreeTDSDSN'
+        },
     'common-copy': {
         'DATABASE': 'palfa-common-copy',
         'UID':  config.commondb.username,
