@@ -93,8 +93,8 @@ def upload_results(job_submit):
         db = database.Database('default', autocommit=False)
         # Prepare for upload
         dir = job_submit['output_dir']
-        if not os.path.exists(dir):
-            errormsg = 'ERROR: Results directory, %s, does not exist for job_id=%d' %\
+        if not os.path.exists(dir) or not os.listdir(dir):
+            errormsg = 'ERROR: Results directory, %s, does not exist or is empty for job_id=%d' %\
                        (dir, job_submit['job_id'])
             raise upload.UploadNonFatalError(errormsg)
 

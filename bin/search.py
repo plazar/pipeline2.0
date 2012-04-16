@@ -178,9 +178,17 @@ def copy_zaplist(fns, workdir):
             pass
     else:
         # Copy default zaplist
-        shutil.copy(config.processing.default_zaplist, workdir)
+        if filetype == datafile.WappPsrfitsData:
+            zapfn = config.processing.default_wapp_zaplist
+        elif ( filetype == datafile.MockPsrfitsData or
+             filetype == datafile.MergedMockPsrfitsData ):
+            zapfn = config.processing.default_mock_zaplist
+        else:
+            raise ValueError("No default zaplist for data files of type %s" % \
+                                filetype.__name__)
+        shutil.copy(zapfn, workdir)
         print "No custom zaplist found. Copied default zaplist: %s" % \
-                config.processing.default_zaplist
+                zapfn
     
     zaptar.close()
 

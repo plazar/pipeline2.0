@@ -332,6 +332,7 @@ class WappPsrfitsData(PsrfitsData):
         # Parse filename to get the scan number
         m = self.fnmatch(fitsfns[0])
         self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
@@ -414,6 +415,7 @@ class MockPsrfitsData(PsrfitsData):
         # Parse filename to get the scan number
         m = self.fnmatch(fitsfns[0])
         self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
@@ -485,6 +487,7 @@ class MockPsrfitsData(PsrfitsData):
         """
         infiles = " ".join(fns)
         fnmatchdict = cls.fnmatch(fns[0]).groupdict()
+        obsdata = cls(fns)
         outbasenm = "%(projid)s.%(date)s.%(source)s.b%(beam)s.%(scan)s" % \
                         fnmatchdict
         
@@ -498,8 +501,17 @@ class MockPsrfitsData(PsrfitsData):
         mergecmd = "combine_mocks %s -o %s" % (infiles, outbasenm)
         pipeline_utils.execute(mergecmd, stdout=outbasenm+"_merge.out")
 
-        # Remove first 7 rows from file
-        rowdelcmd = "fitsdelrow %s[SUBINT] 1 7" % outfile
+        # According to Julia Deneva the cal signal was set to fire for 6s before
+        # MJD 55723, and for only 5s as of this day. To be conservative we
+        # remove 2s more (the cal occasionally stays on for ~1s longer than
+        # expected.)
+        if obsdata.timestamp_mjd > 55724:
+            # Remove first 7 rows (i.e. 7 seconds) from file
+            numrows = 7
+        else:
+            # Remove first 8 rows (i.e. 8 seconds) from file
+            numrows = 8
+        rowdelcmd = "fitsdelrow %s[SUBINT] 1 %d" % (outfile, numrows)
         pipeline_utils.execute(rowdelcmd)
         
         # Rename file to remove the '_0001' that was added
@@ -529,6 +541,7 @@ class MergedMockPsrfitsData(PsrfitsData):
         self.beam_id = int(m.groupdict()['beam'])
         self.get_correct_positions() # This sets self.right_ascension, etc.
         self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
@@ -585,6 +598,13 @@ def main():
     if sys.argv[1]=='preprocess':
         # Preprocess data files
         preprocess(sys.argv[2:])
+    elif sys.argv[1]=='group+preprocess':
+        # Group files
+        groups = group_files(sys.argv[2:])
+        # Preprocess each group
+        for group in groups:
+            if is_complete(group):
+                preprocess(group)
     else:
         # Print datafile's header information
         data = autogen_dataobj(sys.argv[1:])
