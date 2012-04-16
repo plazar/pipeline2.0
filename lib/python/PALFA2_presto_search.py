@@ -204,11 +204,11 @@ def get_folding_command(cand, obs):
     elif p < 0.5:
         Mp, Mdm, N = 1, 1, 100
         npart = 30
-        otheropts = "-pstep 1 -pdstep 2 -dmstep 1"
+        otheropts = "-pstep 1 -pdstep 2 -dmstep 1 -nodmsearch"
     else:
         Mp, Mdm, N = 1, 1, 200
         npart = 30
-        otheropts = "-nopdsearch -pstep 1 -pdstep 2 -dmstep 1"
+        otheropts = "-nopdsearch -pstep 1 -pdstep 2 -dmstep 1 -nodmsearch"
 
     # If prepfold is instructed to use more subbands than there are rows in the PSRFITS file
     # it doesn't use any data when folding since the amount of data for each part is
