@@ -134,6 +134,8 @@ def upload_results(job_submit):
             d.upload(db)
         print "\tEverything uploaded and checked successfully. header_id=%d" % \
                     header_id
+
+
     except (upload.UploadNonFatalError):
         # Parsing error caught. Job attempt has failed!
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
@@ -184,35 +186,45 @@ def upload_results(job_submit):
         # No errors encountered. Commit changes to the DB.
         db.commit()
 
-        # Update database statuses
-        queries = []
-        queries.append("UPDATE job_submits " \
-                       "SET status='uploaded', " \
-                            "details='Upload successful (header_id=%d)', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % 
-                       (header_id, jobtracker.nowstr(), job_submit['id']))
-        queries.append("UPDATE jobs " \
-                       "SET status='uploaded', " \
-                            "details='Upload successful (header_id=%d)', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % \
-                       (header_id, jobtracker.nowstr(), job_submit['job_id']))
-        jobtracker.query(queries)
+        #FTP any FTPables
+        try:
+            cftp = CornellFTP.CornellFTP()
+            hdr.upload_FTP(cftp,db)
+            cftp.quit()
+        except:
+            # add error handling here to catch FTP fails and do something smart
+            db.rollback()
+            raise
+        else:
+	    # Update database statuses
+	    queries = []
+	    queries.append("UPDATE job_submits " \
+			   "SET status='uploaded', " \
+				"details='Upload successful (header_id=%d)', " \
+				"updated_at='%s' " \
+			   "WHERE id=%d" % 
+			   (header_id, jobtracker.nowstr(), job_submit['id']))
+	    queries.append("UPDATE jobs " \
+			   "SET status='uploaded', " \
+				"details='Upload successful (header_id=%d)', " \
+				"updated_at='%s' " \
+			   "WHERE id=%d" % \
+			   (header_id, jobtracker.nowstr(), job_submit['job_id']))
+	    jobtracker.query(queries)
 
-        print "Results successfully uploaded"
+	    print "Results successfully uploaded"
 
-        if config.basic.delete_rawdata:
-            pipeline_utils.clean_up(job_submit['job_id'])
+	    if config.basic.delete_rawdata:
+		pipeline_utils.clean_up(job_submit['job_id'])
 
-        if debug.UPLOAD: 
-            upload.upload_timing_summary['End-to-end'] = \
-                upload.upload_timing_summary.setdefault('End-to-end', 0) + \
-                (time.time()-starttime)
-            print "Upload timing summary:"
-            for k in sorted(upload.upload_timing_summary.keys()):
-                print "    %s: %.2f s" % (k, upload.upload_timing_summary[k])
-        print "" # Just a blank line
+	    if debug.UPLOAD: 
+		upload.upload_timing_summary['End-to-end'] = \
+		    upload.upload_timing_summary.setdefault('End-to-end', 0) + \
+		    (time.time()-starttime)
+		print "Upload timing summary:"
+		for k in sorted(upload.upload_timing_summary.keys()):
+		    print "    %s: %.2f s" % (k, upload.upload_timing_summary[k])
+	    print "" # Just a blank line
 
 def get_fitsfiles(job_submit):
     """Find the fits files associated with this job.

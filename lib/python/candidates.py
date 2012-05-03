@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#
+/usr/bin/env python
 
 """
 A candidate uploader for the PALFA survey.
@@ -29,9 +30,10 @@ from formats import accelcands
 
 # get configurations
 import config.basic
+import config.upload
 import config.searching
 
-class PeriodicityCandidate(upload.Uploadable):
+class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
     """A class to represent a PALFA periodicity candidate.
     """
     # A dictionary which contains variables to compare (as keys) and
@@ -119,8 +121,14 @@ class PeriodicityCandidate(upload.Uploadable):
                 (time.time()-starttime)
         for dep in self.dependents:
             dep.cand_id = cand_id
+            dep.timestamp_mjd = self.timestamp_mjd
             dep.upload(dbname=dbname, *args, **kwargs)
         return cand_id
+
+    def upload_FTP(self, cftp, dbname):
+        for dep in self.dependents:
+           if isinstance(dep,upload.FTPable):
+               dep.upload_FTP(cftp,dbname=dbname)
 
     def get_upload_sproc_call(self):
         """Return the EXEC spPDMCandUploaderFindsVersion string to upload
@@ -323,11 +331,161 @@ class PeriodicityCandidatePNG(PeriodicityCandidatePlot):
     """
     plot_type = "prepfold plot"
 
+class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
+    """A class to represent a periodicity candidate binary that
+       needs to be FTPed to Cornell.
+    """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    # NEED TO UPDATE FOR BINARIES!
+    to_cmp = {'cand_id': '%d', \
+              'filetype': '%s', \
+              'filename': '%s'}
+    
+    def __init__(self, filename, cand_id=None):
+        self.cand_id = cand_id
+        self.fullpath = filename 
+        self.filename = os.path.split(filename)[-1]
+        self.ftp_base = config.upload.pfd_ftp_dir
 
-class PeriodicityCandidatePFD(PeriodicityCandidatePlot):
+    def get_upload_sproc_call(self):
+        """Return the EXEC spPFDBLAH string to upload
+            this binary's info to the PALFA common DB.
+        """
+        sprocstr = "EXEC spPDMCandBinFSLoader " + \
+            "@pdm_cand_id=%d, " % self.cand_id + \
+            "@pdm_plot_type='%s', " % self.filetype + \
+            "@filename='%s', " % self.filename + \
+            "@file_location='%s', " % self.ftp_path + \
+            "@uploaded=0 "
+
+        return sprocstr
+
+    def compare_with_db(self,dbname='default'):
+        """Grab corresponding file info from DB and compare values.
+            Raise a PeriodicityCandidateError if any mismatch is found.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+            Output:
+                None
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+        db.execute("SELECT bin.pdm_cand_id AS cand_id, " \
+                        "pltype.pdm_plot_type AS filetype, " \
+                        "bin.filename, " \
+                        "bin.file_location AS ftp_path " \
+                   "FROM PDM_Candidate_Binaries_Filesystem AS bin " \
+                   "LEFT JOIN pdm_plot_types AS pltype " \
+                        "ON bin.pdm_plot_type_id=pltype.pdm_plot_type_id " \
+                   "WHERE bin.pdm_cand_id=%d AND pltype.pdm_plot_type='%s' " % \
+                        (self.cand_id, self.filetype))
+        rows = db.cursor.fetchall()
+        if type(dbname) == types.StringType:
+            db.close()
+        if not rows:
+            # No matching entry in common DB
+            raise ValueError("No matching entry in common DB!\n" \
+                                "(pdm_cand_id: %d, filetype: %s)" % \
+                                (self.cand_id, self.filetype))
+        elif len(rows) > 1:
+            # Too many matching entries!
+            raise ValueError("Too many matching entries in common DB!\n" \
+                                "(pdm_cand_id: %d, filetype: %s)" % \
+                                (self.cand_id, self.filetype))
+        else:
+            desc = [d[0] for d in db.cursor.description]
+            r = dict(zip(desc, rows[0]))
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Candidate binary info doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise PeriodicityCandidateError(errormsg)
+
+    def upload(self, dbname, *args, **kwargs):
+        """An extension to the inherited 'upload' method.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+        """
+        if self.cand_id is None:
+            raise PeriodicityCandidateError("Cannot upload binary with " \
+                    "pdm_cand_id == None!")
+
+        mjd = int(self.timestamp_mjd)
+        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
+
+        if debug.UPLOAD: 
+            starttime = time.time()
+        super(PeriodicityCandidateBinary, self).upload(dbname=dbname, \
+                         *args, **kwargs)
+        self.compare_with_db(dbname=dbname)
+        
+        if debug.UPLOAD:
+            upload.upload_timing_summary[self.filetype + ' (db)'] = \
+                upload.upload_timing_summary.setdefault(self.filetype + ' (db)', 0) + \
+                (time.time()-starttime)
+
+    def upload_FTP(self, cftp, dbname='default'): 
+        """An extension to the inherited 'upload_FTP' method.
+            This method FTP's the file to Cornell.
+
+            Input:
+                cftp: A CornellFTP connection.
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+
+        if self.cand_id is None:
+            raise PeriodicityCandidateError("Cannot FTP upload binary with " \
+                    "pdm_cand_id == None!")
+        if self.ftp_path is None:
+            raise PeriodicityCandidateError("Cannot FTP upload binary with " \
+                    "ftp_path == None!")
+
+        if debug.UPLOAD: 
+            starttime = time.time()
+        try:
+            ftp_fullpath = os.path.join(self.ftp_path, self.filename) 
+            if not cftp.dir_exists(self.ftp_path):
+                cftp.mkd(self.ftp_path)
+
+            cftp.upload(self.fullpath, ftp_fullpath)
+        except Exception, e:
+            raise PeriodicityCandidateError("Error while uploading file %s via FTP:\n%s " %\
+                                            (self.filename, str(e))) 
+        else:
+            db.execute("EXEC spPDMCandBinUploadConf " + \
+                   "@pdm_plot_type='%s', " % self.filetype + \
+                   "@filename='%s', " % self.filename + \
+                   "@file_location='%s', " % self.ftp_path + \
+                   "@uploaded=1") 
+            db.commit() 
+
+        if debug.UPLOAD:
+            upload.upload_timing_summary[self.filetype + ' (ftp)'] = \
+                upload.upload_timing_summary.setdefault(self.filetype + ' (ftp)', 0) + \
+                (time.time()-starttime)
+        
+
+class PeriodicityCandidatePFD(PeriodicityCandidateBinary):
     """A class to represent periodicity candidate PFD files.
     """
-    plot_type = "pfd binary"
+    filetype = "pfd binary"
 
 
 class PeriodicityCandidateError(upload.UploadNonFatalError):
@@ -418,7 +576,7 @@ def get_candidates(versionnum, directory, header_id=None):
         cand.add_dependent(PeriodicityCandidatePNG(pngfn))
         cands.append(cand)
         
-    shutil.rmtree(tempdir)
+    #shutil.rmtree(tempdir)
     return cands
 
 

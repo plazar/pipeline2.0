@@ -68,6 +68,12 @@ class Uploadable(object):
         s = self.get_upload_sproc_call()
         return s.replace('@', '\n    @')
  
+class FTPable(object):
+    """An object that can be uploaded to the Cornell DB via FTP
+    """
+    def upload_FTP(self):
+        raise NotImplementedError("upload_FTP() should be defined by a " \
+                                  "subclass of FTPable.")
 
 class UploadError(pipeline_utils.PipelineError):
     """An error to do with uploading to the PALFA common DB.
