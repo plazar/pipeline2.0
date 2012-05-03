@@ -536,10 +536,10 @@ def search_job(job):
             
             else:  # Not using subbands
                 cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
-                        "-numout %d -o %s/%s %s"%\
+                        "-numout %d -nsub %d -o %s/%s %s"%\
                         (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
                         ddplan.dmsperpass, ddplan.dd_downsamp*ddplan.sub_downsamp, 
-                        psr_utils.choose_N(job.orig_N/ddplan.downsamp),
+                        psr_utils.choose_N(job.orig_N/ddplan.downsamp), ddplan.numsub, 
                         job.tempdir, job.basefilenm, job.filenmstr)
                 job.dedispersing_time += timed_execute(cmd)
             

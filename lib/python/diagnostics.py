@@ -482,7 +482,7 @@ class PercentZappedBelow1Hz(FloatDiagnostic):
         hifreqs = np.clip((fctr + 0.5*width), \
                         1.0/params['sifting_long_period'], 1.0)
         self.value = np.sum(hifreqs-lofreqs) / \
-                        (1.0/params['sifting_short_period'] - 1.0)*100
+                        (1.0 - 1.0/params['sifting_long_period'])*100
 
 
 class PercentZappedBelow10Hz(FloatDiagnostic):
@@ -498,7 +498,7 @@ class PercentZappedBelow10Hz(FloatDiagnostic):
         hifreqs = np.clip((fctr + 0.5*width), \
                         1.0/params['sifting_long_period'], 10.0)
         self.value = np.sum(hifreqs-lofreqs) / \
-                        (1.0/params['sifting_short_period'] - 10.0)*100
+                        (10.0 - 1.0/params['sifting_long_period'])*100
 
 
 class PercentZappedTotal(FloatDiagnostic):
