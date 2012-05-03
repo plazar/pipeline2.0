@@ -20,7 +20,7 @@ def version_num():
 
 # Directory on the FTP server to upload PFDs and singlepulse files (do not change unless asked by Adam)
 pfd_ftp_dir = 'pfd'
-sp_ftp_dir = 'singlePulse'
+sp_ftp_dir = 'singlePulse/reprocessing'
 
 import upload_check
 upload_check.upload.populate_configs(locals())
