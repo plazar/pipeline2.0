@@ -17,6 +17,7 @@ import shutil
 import types
 import binascii
 import time
+import numpy as np
 
 import psr_utils
 import prepfold
@@ -501,22 +502,58 @@ class PeriodicityCandidateRating(upload.Uploadable):
     def __init__(self, ratval, cand_id=None):
         self.cand_id = cand_id
         self.ratval = ratval # A RatingValue object
-        self.instance_id = self.ratval.get_id()
+        #self.instance_id = self.ratval.get_id()
+        self.version = ratval.version
+        self.name = ratval.name
+        self.value = ratval.value
+        
 
-    def upload(self, dbname, *args, **kwargs)
+    def get_instance_id(self, dbname='default'):
+        """Get the pdm_rating_instance_id for the rating
+            from the rating name and versioni by querying
+             the common DB."""
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+        db.execute("SELECT i.pdm_rating_instance_id FROM pdm_rating_type " + \
+                   "AS r JOIN pdm_rating_instance AS i ON " + \
+                   "r.pdm_rating_type_id = i.pdm_rating_type_id WHERE " + \
+                   "r.name='%s' and i.version=%d" % (self.ratval.name, 
+                                                     self.ratval.version))
+        instance_id = db.cursor.fetchone()[0]
+
+        if type(dbname) == types.StringType:
+            db.close()
+
+        return instance_id
+
+    def upload(self, dbname, *args, **kwargs):
         """An extension to the inherited 'upload' method.
 
             Input:
                 dbname: Name of the database to connect to, or a database
                         connection to use (Defaut: 'default').
         """
+        print self.value, type(self.value)
+        if self.value is None:
+            return
+        if np.isnan(self.value):
+            return
+        if self.value < 1e-300:
+            self.value = 0.0
+
         if self.cand_id is None:
             raise PeriodicityCandidateError("Cannot upload rating if " \
                     "pdm_cand_id is None!")
         if debug.UPLOAD: 
             starttime = time.time()
-        super(PeriodicityCandidateRating, self).upload(dbname=dbname, \
-                    *args, **kwargs)
+
+        self.instance_id = self.get_instance_id(dbname=dbname)
+
+        #super(PeriodicityCandidateRating, self).upload(dbname=dbname, \
+        #            *args, **kwargs)
+        dbname.execute(self.get_upload_sproc_call())
         self.compare_with_db(dbname=dbname)
         
         if debug.UPLOAD:
@@ -551,9 +588,9 @@ class PeriodicityCandidateRating(upload.Uploadable):
         else:
             db = database.Database(dbname)
         db.execute("SELECT r.pdm_cand_id AS cand_id, " \
-                        "r.value AS value " \
+                        "r.value AS value, " \
                         "rt.name AS name, " \
-                        "ri.version AS version, " \
+                        "ri.version AS version " \
                    "FROM pdm_rating AS r " \
                    "LEFT JOIN pdm_rating_instance AS ri " \
                         "ON ri.pdm_rating_instance_id=r.pdm_rating_instance_id " \
@@ -689,7 +726,7 @@ def get_candidates(versionnum, directory, header_id=None):
 
         cand.add_dependent(PeriodicityCandidatePFD(pfdfn))
         cand.add_dependent(PeriodicityCandidatePNG(pngfn))
-        for ratval in ratings2.rating_value.read_file(ratfn)):
+        for ratval in ratings2.rating_value.read_file(ratfn):
             cand.add_dependent(PeriodicityCandidateRating(ratval))
         cands.append(cand)
         
