@@ -505,6 +505,8 @@ def get_candidates(versionnum, directory, header_id=None):
 
         Ouput:
             cands: List of candidates.
+            tempdir: Path of temporary directory that PFDs have been untarred,
+                     returned so that it can be deleted after successful PFD upload.
     """
     # find *.accelcands file    
     candlists = glob.glob(os.path.join(directory, "*.accelcands"))
@@ -576,13 +578,14 @@ def get_candidates(versionnum, directory, header_id=None):
         cands.append(cand)
         
     #shutil.rmtree(tempdir)
-    return cands
+    return cands,tempdir
 
 
 def main():
+    import CornellFTP
     db = database.Database('default', autocommit=False)
     try:
-        cands = get_candidates(options.versionnum, options.directory, \
+        cands,tempdir = get_candidates(options.versionnum, options.directory, \
                             header_id=options.header_id)
         for cand in cands:
             cand.upload(db)
@@ -592,6 +595,13 @@ def main():
         raise
     else:
         db.commit()
+        for cand in cands:
+            # FTP ftpables 
+            cftp = CornellFTP.CornellFTP()
+            cand.upload_FTP(cftp,db)
+            cftp.close()
+        shutil.rmtree(tempdir)
+        
     finally:
         db.close()
 

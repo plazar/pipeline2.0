@@ -4,6 +4,7 @@ import traceback
 import glob
 import sys
 import time
+import shutil
 
 import debug
 import datafile
@@ -109,7 +110,7 @@ def upload_results(job_submit):
         
         print "\tHeader parsed."
 
-        cands = candidates.get_candidates(version_number, dir)
+        cands, tempdir = candidates.get_candidates(version_number, dir)
         print "\tPeriodicity candidates parsed."
         sp_cands = sp_candidates.get_spcandidates(version_number, dir)
         print "\tSingle pulse candidates parsed."
@@ -191,6 +192,7 @@ def upload_results(job_submit):
             cftp = CornellFTP.CornellFTP()
             hdr.upload_FTP(cftp,db)
             cftp.quit()
+            shutil.rmtree(tempdir)
         except:
             # add error handling here to catch FTP fails and do something smart
             db.rollback()
