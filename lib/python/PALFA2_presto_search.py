@@ -711,6 +711,9 @@ def search_job(job):
             job.folding_time += timed_execute(get_folding_command(cand, job))
             cands_folded += 1
     job.num_cands_folded = cands_folded
+    
+    # Rate candidates
+    timed_execute("rate_pfds.py --include-all *.pfd")
     sys.stdout.flush()
 
     # Print some info useful for debugging

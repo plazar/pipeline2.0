@@ -26,6 +26,7 @@ import database
 import pipeline_utils
 import upload
 from formats import accelcands
+import ratings2.rating_value
 
 # get configurations
 import config.basic
@@ -487,6 +488,118 @@ class PeriodicityCandidatePFD(PeriodicityCandidateBinary):
     filetype = "pfd binary"
 
 
+class PeriodicityCandidateRating(upload.Uploadable):
+    """A class to represent a rating of a PALFA periodicity candidate.
+    """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'cand_id': '%d', \
+              'value': '%.12g', \
+              'version': '%d', \
+              'name': '%s'}
+
+    def __init__(self, ratval, cand_id=None):
+        self.cand_id = cand_id
+        self.ratval = ratval # A RatingValue object
+        self.instance_id = self.ratval.get_id()
+
+    def upload(self, dbname, *args, **kwargs)
+        """An extension to the inherited 'upload' method.
+
+            Input:
+                dbname: Name of the database to connect to, or a database
+                        connection to use (Defaut: 'default').
+        """
+        if self.cand_id is None:
+            raise PeriodicityCandidateError("Cannot upload rating if " \
+                    "pdm_cand_id is None!")
+        if debug.UPLOAD: 
+            starttime = time.time()
+        super(PeriodicityCandidateRating, self).upload(dbname=dbname, \
+                    *args, **kwargs)
+        self.compare_with_db(dbname=dbname)
+        
+        if debug.UPLOAD:
+            upload.upload_timing_summary["Ratings"] = \
+                upload.upload_timing_summary.setdefault("Ratings", 0) + \
+                (time.time()-starttime)
+
+    def get_upload_sproc_call(self):
+        """Return the SQL command to upload this candidate rating 
+            to the PALFA common DB.
+        """
+        query = "INSERT INTO pdm_rating " + \
+                "(value, pdm_rating_instance_id, pdm_cand_id, date) " + \
+                "VALUES ('%.12g', %d, %d, GETDATE())" % \
+                    (self.ratval.value, \
+                    self.instance_id, \
+                    self.cand_id)
+        return query
+
+    def compare_with_db(self, dbname='default'):
+        """Grab the rating information from the DB and compare values.
+            Raise a PeriodicityCandidateError if any mismatch is found.
+            
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+            Output:
+                None
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+        db.execute("SELECT r.pdm_cand_id AS cand_id, " \
+                        "r.value AS value " \
+                        "rt.name AS name, " \
+                        "ri.version AS version, " \
+                   "FROM pdm_rating AS r " \
+                   "LEFT JOIN pdm_rating_instance AS ri " \
+                        "ON ri.pdm_rating_instance_id=r.pdm_rating_instance_id " \
+                   "LEFT JOIN pdm_rating_type AS rt " \
+                        "ON ri.pdm_rating_type_id=rt.pdm_rating_type_id " \
+                   "WHERE r.pdm_cand_id=%d AND r.pdm_rating_instance_id=%d " % \
+                        (self.cand_id, self.instance_id))
+        rows = db.cursor.fetchall()
+        if type(dbname) == types.StringType:
+            db.close()
+        if not rows:
+            # No matching entry in common DB
+            raise ValueError("No matching entry in common DB!\n" \
+                                "(pdm_cand_id: %d, " \
+                                "rating name: %s, " \
+                                "rating version: %d, " \
+                                "fetched pdm_rating_instance_id: %d)" % \
+                                (self.cand_id, self.ratval.name, \
+                                self.ratval.version, self.instance_id))
+        elif len(rows) > 1:
+            # Too many matching entries!
+            raise ValueError("Too many matching entries in common DB!\n" \
+                                "(pdm_cand_id: %d, " \
+                                "rating name: %s, " \
+                                "rating version: %d, " \
+                                "fetched pdm_rating_instance_id: %d)" % \
+                                (self.cand_id, self.ratval.name, \
+                                self.ratval.version, self.instance_id))
+        else:
+            desc = [d[0] for d in db.cursor.description]
+            r = dict(zip(desc, rows[0]))
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Candidate rating doesn't match what was " \
+                            "uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise PeriodicityCandidateError(errormsg)
+
+
 class PeriodicityCandidateError(upload.UploadNonFatalError):
     """Error to throw when a candidate-specific problem is encountered.
     """
@@ -560,7 +673,8 @@ def get_candidates(versionnum, directory, header_id=None):
                                     c.candnum)
         pfdfn = os.path.join(tempdir, basefn+".pfd")
         pngfn = os.path.join(directory, basefn+".pfd.png")
-        
+        ratfn = os.path.join(directory, basefn+".pfd.rat")
+
         pfd = prepfold.pfd(pfdfn)
         
         try:
@@ -575,6 +689,8 @@ def get_candidates(versionnum, directory, header_id=None):
 
         cand.add_dependent(PeriodicityCandidatePFD(pfdfn))
         cand.add_dependent(PeriodicityCandidatePNG(pngfn))
+        for ratval in ratings2.rating_value.read_file(ratfn)):
+            cand.add_dependent(PeriodicityCandidateRating(ratval))
         cands.append(cand)
         
     #shutil.rmtree(tempdir)
