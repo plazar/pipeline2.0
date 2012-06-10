@@ -15,9 +15,11 @@ import tarfile
 import tempfile
 
 import numpy as np
+import matplotlib.pyplot as plt
 import psr_utils
 import presto
-import sifting
+import mysifting as sifting # Temporarily until 'sifting.py' 
+                            # in PRESTO is updated
 
 import datafile
 import config.searching
@@ -681,6 +683,17 @@ def search_job(job):
         sifting.write_candlist(all_accel_cands)
         sys.stdout.flush()
         sifting.write_candlist(all_accel_cands, job.basefilenm+".accelcands")
+        # Make sifting summary plots
+        all_accel_cands.plot_goodbad()
+        plt.savefig(job.basefilenm+".accelcands.rejects.png")
+        all_accel_cands.plot_summary()
+        plt.savefig(job.basefilenm+".accelcands.summary.png")
+        
+        # Write out sifting candidate summary
+        all_accel_cands.print_cand_summary(job.basefilenm+".accelcands.summary")
+        # Write out sifting comprehensive report of bad candidates
+        all_accel_cands.write_cand_report(job.basefilenm+".accelcands.report")
+
         # Moving of results to resultsdir now happens in clean_up(...)
         # shutil.copy(job.basefilenm+".accelcands", job.outputdir)
 
