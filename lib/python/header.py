@@ -24,7 +24,7 @@ import pipeline_utils
 # Raise warnings produced by invalid coord strings as exceptions
 warnings.filterwarnings("error", message="Input is not a valid sexigesimal string: .*")
 
-class Header(upload.Uploadable):
+class Header(upload.Uploadable,upload.FTPable):
     """PALFA Header object. 
     """
     # A dictionary which contains variables to compare (as keys) and
@@ -98,8 +98,14 @@ class Header(upload.Uploadable):
         
         for dep in self.dependents:
             dep.header_id = header_id
+            dep.timestamp_mjd = self.timestamp_mjd
             dep.upload(dbname=dbname, *args, **kwargs)
         return header_id
+
+    def upload_FTP(self, cftp, dbname):
+        for dep in self.dependents:
+           if isinstance(dep,upload.FTPable):
+               dep.upload_FTP(cftp,dbname)
 
     def __getattr__(self, key):
         # Allow Header object to return Data object's attributes
