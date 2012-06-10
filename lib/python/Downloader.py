@@ -21,7 +21,6 @@ import config.background
 import config.download
 import config.email
 import config.basic
-
 dlm_cout = OutStream.OutStream("Download Module", \
                         os.path.join(config.basic.log_dir, "downloader.log"), \
                         config.background.screen_output)
@@ -152,6 +151,8 @@ def run():
     check_download_attempts()
     numsuccess = verify_files()
     recover_failed_downloads()
+    check_downloading_requests()
+    delete_downloaded_files()
     if can_request_more():
         make_request()
     return numsuccess
@@ -289,7 +290,7 @@ def create_file_entries(request):
         queries.append("UPDATE requests " \
                        "SET size=%d, " \
                             "updated_at='%s', " \
-                            "status='finished', " \
+                            "status='downloading', " \
                             "details='Request has been filled' " \
                        "WHERE id=%d" % \
                        (total_size, jobtracker.nowstr(), request['id']))
@@ -597,6 +598,62 @@ def status():
                                  fetchone=True)[0]
     print "Number of active downloads: %d" % numdlactive
     print "Number of failed downloads: %d" % numdlfail
+
+
+def check_downloading_requests():
+    requests = jobtracker.query("SELECT * FROM requests "\
+                                "WHERE status='downloading'")
+    if len(requests) > 0:
+        queries = []
+        for request in requests:
+            files_in_request = jobtracker.query("SELECT * FROM files "\
+                                                "WHERE request_id=%d" % \
+                                                request['id'])
+            downloaded_files = 0
+            for f in files_in_request:
+                if f['status'] == 'downloaded': downloaded_files += 1
+            if downloaded_files == len(files_in_request):
+                queries.append("UPDATE requests " \
+                               "SET status='finished', " \
+                               "details='All files downloaded', " \
+                               "updated_at='%s' " \
+                               "WHERE id=%d" % \
+                               (jobtracker.nowstr(), request['id']))
+        jobtracker.query(queries)
+    else:
+        pass
+
+
+
+def delete_downloaded_files():
+    requests_to_delete = jobtracker.query("SELECT * FROM requests " \
+                                          "WHERE status='finished'")
+    if len(requests_to_delete) > 0:
+        web_service = CornellWebservice.Client()
+        queries = []
+        for request_to_delete in requests_to_delete:
+            delete_status = web_service.Deleter(guid=request_to_delete['guid'], \
+                                                username=config.download.api_username, \
+                                                pw=config.download.api_password)
+            if delete_status == "deletion successful":
+                dlm_cout.outs("Deletion (%s) succeeded." % request_to_delete['guid'])
+                queries.append("UPDATE requests " \
+                               "SET status='cleaned_up', " \
+                               "details='Files deleted from FTP server', " \
+                               "updated_at='%s' " \
+                               "WHERE id=%d" % \
+                               (jobtracker.nowstr(), request_to_delete['id']))
+
+            elif delete_status == "invalid user":
+                dlm_cout.outs("Deletion (%s) failed due to invalid user." % \
+                              request_to_delete['guid'])
+            
+            elif delete_status == "deletion failed":
+                dlm_cout.outs("Deletion (%s) failed for unknown reasons." % \
+                              request_to_delete['guid'])
+        jobtracker.query(queries)
+    else: pass
+            
 
 
 class DownloadThread(threading.Thread):
