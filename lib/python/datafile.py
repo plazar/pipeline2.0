@@ -501,19 +501,32 @@ class MockPsrfitsData(PsrfitsData):
         mergecmd = "combine_mocks %s -o %s" % (infiles, outbasenm)
         pipeline_utils.execute(mergecmd, stdout=outbasenm+"_merge.out")
 
-        # According to Julia Deneva the cal signal was set to fire for 6s before
-        # MJD 55723, and for only 5s as of this day. To be conservative we
-        # remove 2s more (the cal occasionally stays on for ~1s longer than
-        # expected.)
-        if obsdata.timestamp_mjd > 55724:
-            # Remove first 7 rows (i.e. 7 seconds) from file
-            numrows = 7
+        # Anti-center commensal data taken after 2011 Nov. 4 has the
+        # cal turned on at the end of the observation for 6-7 seconds.
+        # This needs to be removed instead of the first 7 seconds.
+        # Changes made by Ryan Lynch 2012 June 17.
+        if self.galactic_longitude > 170.0 and self.galactic_longitude < 210.0 \
+           and self.timestamp_mjd > 55868:
+            if self.specinfo.num_subint >= 270:
+                rowdelcmd = "fitsdelrow %[SUBINT] 270 %i" % \
+                            (outfile,self.specinfo.num_subint)
+            elif self.specinfo.num_subint >= 180 and self.specinfo.num_subint < 190:
+                rowdelcmd = "fitsdelrow %[SUBINT] 180 %i" % \
+                            (outfile,self.specinfo.num_subint)
         else:
-            # Remove first 8 rows (i.e. 8 seconds) from file
-            numrows = 8
-        rowdelcmd = "fitsdelrow %s[SUBINT] 1 %d" % (outfile, numrows)
-        pipeline_utils.execute(rowdelcmd)
-        
+            # Otherwise, remove first 7 (or 8) rows from file as usual
+	    # According to Julia Deneva the cal signal was set to fire for 6s before
+	    # MJD 55723, and for only 5s as of this day. To be conservative we
+	    # remove 2s more (the cal occasionally stays on for ~1s longer than
+	    # expected.)
+	    if obsdata.timestamp_mjd > 55724:
+		# Remove first 7 rows (i.e. 7 seconds) from file
+		numrows = 7
+	    else:
+		# Remove first 8 rows (i.e. 8 seconds) from file
+		numrows = 8
+	    rowdelcmd = "fitsdelrow %s[SUBINT] 1 %d" % (outfile, numrows)
+
         # Rename file to remove the '_0001' that was added
         os.rename(outfile, outbasenm+'.fits')
 
