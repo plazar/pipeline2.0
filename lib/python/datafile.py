@@ -519,13 +519,15 @@ class MockPsrfitsData(PsrfitsData):
 	    # MJD 55723, and for only 5s as of this day. To be conservative we
 	    # remove 2s more (the cal occasionally stays on for ~1s longer than
 	    # expected.)
-	    if obsdata.timestamp_mjd > 55724:
-		# Remove first 7 rows (i.e. 7 seconds) from file
-		numrows = 7
-	    else:
-		# Remove first 8 rows (i.e. 8 seconds) from file
-		numrows = 8
-	    rowdelcmd = "fitsdelrow %s[SUBINT] 1 %d" % (outfile, numrows)
+            if obsdata.timestamp_mjd > 55724:
+                # Remove first 7 rows (i.e. 7 seconds) from file
+                numrows = 7
+            else:
+                # Remove first 8 rows (i.e. 8 seconds) from file
+                numrows = 8
+            rowdelcmd = "fitsdelrow %s[SUBINT] 1 %d" % (outfile, numrows)
+
+        pipeline_utils.execute(rowdelcmd)
 
         # Rename file to remove the '_0001' that was added
         os.rename(outfile, outbasenm+'.fits')
