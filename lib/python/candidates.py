@@ -569,7 +569,7 @@ class PeriodicityCandidateRating(upload.Uploadable):
         query = "INSERT INTO pdm_rating " + \
                 "(value, pdm_rating_instance_id, pdm_cand_id, date) "
 
-        if self.value is None or np.isnan(self.value):
+        if self.value is None or np.isnan(self.value) or np.isinf(self.value):
             query += "VALUES (NULL, %d, %d, GETDATE())" % \
                      (self.instance_id, \
                       self.cand_id)
