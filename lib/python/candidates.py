@@ -535,12 +535,11 @@ class PeriodicityCandidateRating(upload.Uploadable):
                 dbname: Name of the database to connect to, or a database
                         connection to use (Defaut: 'default').
         """
-        print self.value, type(self.value)
-        if self.value is None:
-            return
-        if np.isnan(self.value):
-            return
-        if self.value < 1e-300:
+        #if self.value is None:
+        #    print self.value, type(self.value), self.name
+        #if np.isnan(self.value) or np.isinf(self.value):
+        #    print self.value, type(self.value), self.name
+        if np.abs(self.value) < 1e-307:
             self.value = 0.0
 
         if self.cand_id is None:
@@ -565,12 +564,21 @@ class PeriodicityCandidateRating(upload.Uploadable):
         """Return the SQL command to upload this candidate rating 
             to the PALFA common DB.
         """
+
+
         query = "INSERT INTO pdm_rating " + \
-                "(value, pdm_rating_instance_id, pdm_cand_id, date) " + \
-                "VALUES ('%.12g', %d, %d, GETDATE())" % \
+                "(value, pdm_rating_instance_id, pdm_cand_id, date) "
+
+        if self.value is None or np.isnan(self.value):
+            query += "VALUES (NULL, %d, %d, GETDATE())" % \
+                     (self.instance_id, \
+                      self.cand_id)
+        else:
+            query += "VALUES ('%.12g', %d, %d, GETDATE())" % \
                     (self.ratval.value, \
                     self.instance_id, \
                     self.cand_id)
+
         return query
 
     def compare_with_db(self, dbname='default'):
