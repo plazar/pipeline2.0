@@ -1,4 +1,4 @@
-#/usr/bin/env python
+#!/usr/bin/env python
 
 """
 A candidate uploader for the PALFA survey.
@@ -18,6 +18,7 @@ import types
 import binascii
 import time
 import numpy as np
+import scipy.special
 
 import psr_utils
 import prepfold
@@ -56,11 +57,16 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
               'institution': '%s', \
               'pipeline': '%s', \
               'versionnum': '%s', \
-              'sigma': '%.12g'}
+              'sigma': '%.12g', \
+              'prepfold_sigma': '%.12g', \
+              'rescaled_prepfold_sigma': '%.12g', \
+              'sifting_period': '%.12g', \
+              'sifting_dm': '%.12g'}
 
     def __init__(self, cand_num, pfd , snr, coherent_power, \
                         incoherent_power, num_hits, num_harmonics, \
-                        versionnum, sigma, header_id=None):
+                        versionnum, sigma, sifting_period, sifting_dm, \
+                        header_id=None):
         self.header_id = header_id # Header ID from database
         self.cand_num = cand_num # Unique identifier of candidate within beam's 
                                  # list of candidates; Candidate's position in
@@ -81,6 +87,23 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
         self.versionnum = versionnum # Version number; a combination of PRESTO's githash
                                      # and pipeline's githash
         self.sigma = sigma # PRESTO's sigma value
+
+        red_chi2 = pfd.bestprof.chi_sqr #prepfold reduced chi-squared
+        dof = pfd.proflen - 1 # degrees of freedom
+        #prepfold sigma
+        self.prepfold_sigma = \
+                scipy.special.ndtri(scipy.special.chdtr(dof,dof*red_chi2)) 
+        off_red_chi2 = pfd.estimate_offsignal_redchi2()
+        chi2_scale = 1.0/off_red_chi2
+        new_red_chi2 = chi2_scale * red_chi2
+        # prepfold sigma rescaled to deal with chi-squared suppression
+        # a problem when strong rfi is present
+        self.rescaled_prepfold_sigma = \
+                scipy.special.ndtri(scipy.special.chdtr(dof,dof*new_red_chi2))
+        self.sifting_period = sifting_period # the period returned by accelsearch
+                                             # (not optimized by prepfold)
+        self.sifting_dm = sifting_dm # the DM returned by accelsearch
+                                     # (not optimized by prepfold)
 
         # Store a few configurations so the upload can be checked
         self.pipeline = config.basic.pipeline
@@ -154,7 +177,11 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
             "@pipeline='%s', " % config.basic.pipeline + \
             "@version_number='%s', " % self.versionnum + \
             "@proc_date='%s', " % datetime.date.today().strftime("%Y-%m-%d") + \
-            "@presto_sigma=%.12g" % self.sigma
+            "@presto_sigma=%.12g" % self.sigma + \
+            "@prepfold_sigma=%.12g" % self.prepfold_sigma + \
+            "@rescaled_prepfold_sigma=%.12g" % self.rescaled_prepfold_sigma + \
+            "@sifting_period=%.12g" % self.sifting_period + \
+            "@sifting_dm=%.12g" %self.sifting_dm
         return sprocstr
 
     def compare_with_db(self, dbname='default'):
@@ -188,7 +215,11 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
                         "v.institution, " \
                         "v.pipeline, " \
                         "v.version_number AS versionnum, " \
-                        "c.presto_sigma AS sigma " \
+                        "c.presto_sigma AS sigma, " \
+                        "c.prepfold_sigma as prepfold_sigma, " \
+                        "c.rescaled_prepfold_sigma as rescaled_prepfold_sigma, " \
+                        "c.sifting_period as sifting_period, " \
+                        "c.sifting_dm as sifting_dm " \
                   "FROM pdm_candidates AS c " \
                   "LEFT JOIN versions AS v ON v.version_id=c.version_id " \
                   "WHERE c.cand_num=%d AND v.version_number='%s' AND " \
@@ -726,7 +757,7 @@ def get_candidates(versionnum, directory, header_id=None):
             cand = PeriodicityCandidate(ii+1, pfd, c.snr, \
                                     c.cpow, c.ipow, len(c.dmhits), \
                                     c.numharm, versionnum, c.sigma, \
-                                    header_id=header_id)
+                                    c.period, c.dm, header_id=header_id)
         except Exception:
             raise PeriodicityCandidateError("PeriodicityCandidate could not be " \
                                             "created (%s)!" % pfdfn)
