@@ -508,12 +508,16 @@ class MockPsrfitsData(PsrfitsData):
         # Changes made by Ryan Lynch 2012 June 17.
         if self.galactic_longitude > 170.0 and self.galactic_longitude < 210.0 \
            and self.timestamp_mjd > 55868:
-            if self.specinfo.num_subint >= 270:
-                rowdelcmd = "fitsdelrow %[SUBINT] 270 %i" % \
-                            (outfile,self.specinfo.num_subint)
-            elif self.specinfo.num_subint >= 180 and self.specinfo.num_subint < 190:
-                rowdelcmd = "fitsdelrow %[SUBINT] 180 %i" % \
-                            (outfile,self.specinfo.num_subint)
+            #if self.specinfo.num_subint >= 270:
+            #    rowdelcmd = "fitsdelrow %[SUBINT] 270 %i" % \
+            #                (outfile,self.specinfo.num_subint)
+            #elif self.specinfo.num_subint >= 180 and self.specinfo.num_subint < 190:
+            #    rowdelcmd = "fitsdelrow %[SUBINT] 180 %i" % \
+            #                (outfile,self.specinfo.num_subint)
+            obslength = obsdata.specinfo.num_subint[0] 
+            rowdelcmd = "fitsdelrow %s[SUBINT] %d %d" % \
+                        (outfile,obslength-8,8)  
+ 
         else:
             # Otherwise, remove first 7 (or 8) rows from file as usual
 	    # According to Julia Deneva the cal signal was set to fire for 6s before
