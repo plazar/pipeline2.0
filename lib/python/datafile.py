@@ -307,6 +307,7 @@ class PsrfitsData(Data):
                             self.specinfo.bits_per_sample/8.0 * \
                             self.num_channels_per_record
         self.num_samples_per_record = self.specinfo.spectra_per_subint
+        self.header_version = self.specinfo.header_version
 
 
 class WappPsrfitsData(PsrfitsData):
@@ -505,21 +506,14 @@ class MockPsrfitsData(PsrfitsData):
         # cal turned on at the end of the observation for 6-7 seconds.
         # This needs to be removed instead of the first 7 seconds.
         # Changes made by Ryan Lynch 2012 June 17.
-        if obsdata.orig_galactic_longitude > 170.0 and \
-           obsdata.orig_galactic_longitude < 210.0 and \
-           obsdata.timestamp_mjd > 55868:
-            #if np.all(obsdata.specinfo.num_subint >= 270):
-            #    rowdelcmd = "fitsdelrow %s[SUBINT] 270 %i" % \
-            #                (outfile,obsdata.specinfo.num_subint[0])
-            #elif np.all(obsdata.specinfo.num_subint >= 180) and \
-            #     np.all(obsdata.specinfo.num_subint < 190):
-            #    rowdelcmd = "fitsdelrow %s[SUBINT] 180 %i" % \
-            #                (outfile,obsdata.specinfo.num_subint[0])
-            #else:
-            #    rowdelcmd = None
-            obslength = obsdata.specinfo.num_subint[0] 
-            rowdelcmd = "fitsdelrow %s[SUBINT] %d %d" % \
-                        (outfile,obslength-8,8)  
+        if self.galactic_longitude > 170.0 and self.galactic_longitude < 210.0 \
+           and self.timestamp_mjd > 55868:
+            if self.specinfo.num_subint >= 270:
+                rowdelcmd = "fitsdelrow %[SUBINT] 270 %i" % \
+                            (outfile,self.specinfo.num_subint)
+            elif self.specinfo.num_subint >= 180 and self.specinfo.num_subint < 190:
+                rowdelcmd = "fitsdelrow %[SUBINT] 180 %i" % \
+                            (outfile,self.specinfo.num_subint)
         else:
             # Otherwise, remove first 7 (or 8) rows from file as usual
 	    # According to Julia Deneva the cal signal was set to fire for 6s before
@@ -534,8 +528,7 @@ class MockPsrfitsData(PsrfitsData):
                 numrows = 8
             rowdelcmd = "fitsdelrow %s[SUBINT] 1 %d" % (outfile, numrows)
 
-        if rowdelcmd:
-            pipeline_utils.execute(rowdelcmd)
+        pipeline_utils.execute(rowdelcmd)
 
         # Rename file to remove the '_0001' that was added
         os.rename(outfile, outbasenm+'.fits')
