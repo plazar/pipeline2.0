@@ -92,7 +92,6 @@ class SpectraInfo:
             self.orig_num_chan = primary['OBSNCHAN']
             self.orig_df = primary['OBSBW']
             self.beam_FWHM = primary['BMIN']
-            self.header_version = primary['HDRVER']
 
             # CHAN_DM card is not in earlier versions of PSRFITS
             if primary.has_key('CHAN_DM'):

@@ -60,8 +60,7 @@ class Header(upload.Uploadable,upload.FTPable):
               'galactic_latitude': '%.8f', \
               'ra_deg': '%.8f', \
               'dec_deg': '%.8f', \
-              'obstype': '%s', \
-              'header_version': '%.3f'}
+              'obstype': '%s'}
     
     def __init__(self, datafns, *args, **kwargs):
         if isinstance(datafns, datafile.Data):
@@ -151,8 +150,7 @@ class Header(upload.Uploadable,upload.FTPable):
             "@galactic_latitude=%.8f, " % self.galactic_latitude + \
             "@ra_deg=%.8f, " % self.ra_deg + \
             "@dec_deg=%.8f, " % self.dec_deg + \
-            "@obsType='%s'" % self.obstype + \
-            "@header_version='%.3f'" % self.header_version
+            "@obsType='%s'" % self.obstype
         return sprocstr
 
     def compare_with_db(self, dbname='default'):
@@ -204,7 +202,6 @@ class Header(upload.Uploadable,upload.FTPable):
                           "h.ra_deg, " \
                           "h.dec_deg, " \
                           "h.obsType  AS obstype " \
-                          "h.header_version as header_version " \
                    "FROM headers AS h " \
                    "LEFT JOIN observations AS obs ON obs.obs_id=h.obs_id " \
                    "WHERE obs.obs_name='%s' AND h.beam_id=%d " % \
