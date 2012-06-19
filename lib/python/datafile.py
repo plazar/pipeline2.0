@@ -506,8 +506,9 @@ class MockPsrfitsData(PsrfitsData):
         # cal turned on at the end of the observation for 6-7 seconds.
         # This needs to be removed instead of the first 7 seconds.
         # Changes made by Ryan Lynch 2012 June 17.
-        if self.galactic_longitude > 170.0 and self.galactic_longitude < 210.0 \
-           and self.timestamp_mjd > 55868:
+        if obsdata.orig_galactic_longitude > 170.0 and \
+           obsdata.orig_galactic_longitude < 210.0 and \
+           obsdata.timestamp_mjd > 55868:
             #if self.specinfo.num_subint >= 270:
             #    rowdelcmd = "fitsdelrow %[SUBINT] 270 %i" % \
             #                (outfile,self.specinfo.num_subint)
