@@ -113,6 +113,8 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
         self.topo_period = 1.0/self.topo_freq
         self.bary_period = 1.0/self.bary_freq
 
+        self.timestamp_mjd = pfd.tepoch # needed for PFD upload
+
         # List of dependents (ie other uploadables that require 
         # the pdm_cand_id from this candidate)
         self.dependents = []
@@ -379,8 +381,7 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
         self.fullpath = filename 
         self.filename = os.path.split(filename)[-1]
         self.ftp_base = config.upload.pfd_ftp_dir
-        mjd = int(self.timestamp_mjd)
-        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
+        self.ftp_path = None
 
     def get_upload_sproc_call(self):
         """Return the EXEC spPFDBLAH string to upload
@@ -458,6 +459,9 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
             raise PeriodicityCandidateError("Cannot upload binary with " \
                     "pdm_cand_id == None!")
 
+        mjd = int(self.timestamp_mjd)
+        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
+
         if debug.UPLOAD: 
             starttime = time.time()
         super(PeriodicityCandidateBinary, self).upload(dbname=dbname, \
@@ -481,9 +485,9 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
         else:
             db = database.Database(dbname)
 
-        if self.ftp_path is None:
-            raise PeriodicityCandidateError("Cannot FTP upload binary with " \
-                    "ftp_path == None!")
+        if self.ftp_path == None:
+            mjd = int(self.timestamp_mjd)
+            self.ftp_path = os.path.join(self.ftp_base,str(mjd))
 
         if debug.UPLOAD: 
             starttime = time.time()
@@ -721,22 +725,27 @@ def get_candidates(versionnum, directory, header_id=None):
 
     if foldedcands:
 
-        tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
-        if len(tarfns) != 1:
+        pfd_tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
+        if len(pfd_tarfns) != 1:
             raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
-                                             "files found in %s" % (len(tarfns), \
+                                             "files found in %s" % (len(pfd_tarfns), \
                                                 directory))
-        
-        tar = tarfile.open(tarfns[0])
-        try:
-            tar.extractall(path=tempdir)
-        except IOError:
-            if os.path.isdir(tempdir):
-                shutil.rmtree(tempdir)
-            raise PeriodicityCandidateError("Error while extracting pfd files " \
-                                            "from tarball (%s)!" % tarfns[0])
-        finally:
-            tar.close()
+        bestprof_tarfns = glob.glob(os.path.join(directory, "*_bestprof.tgz"))
+        if len(bestprof_tarfns) != 1:
+            raise PeriodicityCandidateError("Wrong number (%d) of *_bestprof.tgz " \
+                                             "files found in %s" % (len(bestprof_tarfns), \
+                                                directory))
+        for tarfn in [ pfd_tarfns[0], bestprof_tarfns[0] ]: 
+            tar = tarfile.open(tarfn)
+            try:
+                tar.extractall(path=tempdir)
+            except IOError:
+                if os.path.isdir(tempdir):
+                    shutil.rmtree(tempdir)
+                raise PeriodicityCandidateError("Error while extracting pfd files " \
+                                                "from tarball (%s)!" % tarfn)
+            finally:
+                tar.close()
 
     # Loop over candidates that were folded
     cands = []
