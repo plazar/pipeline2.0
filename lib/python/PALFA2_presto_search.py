@@ -713,7 +713,8 @@ def search_job(job):
     job.num_cands_folded = cands_folded
     
     # Rate candidates
-    timed_execute("rate_pfds.py --include-all *.pfd")
+    timed_execute("rate_pfds.py --include-all -x pulse_width *.pfd",\
+                   stderr=os.path.join(job.outputdir,'ratings.ER'))
     sys.stdout.flush()
 
     # Print some info useful for debugging
@@ -754,7 +755,7 @@ def search_job(job):
 
 def clean_up(job):
     """Clean up.
-        Tar results, copy them to the results director.
+        Tar results, copy them to the results directory.
     """
     # Dump search paramters to file
     paramfn = open("search_params.txt", 'w')
