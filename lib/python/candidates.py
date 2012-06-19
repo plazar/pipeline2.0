@@ -730,12 +730,20 @@ def get_candidates(versionnum, directory, header_id=None):
             raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
                                              "files found in %s" % (len(pfd_tarfns), \
                                                 directory))
+
         bestprof_tarfns = glob.glob(os.path.join(directory, "*_bestprof.tgz"))
         if len(bestprof_tarfns) != 1:
             raise PeriodicityCandidateError("Wrong number (%d) of *_bestprof.tgz " \
                                              "files found in %s" % (len(bestprof_tarfns), \
                                                 directory))
-        for tarfn in [ pfd_tarfns[0], bestprof_tarfns[0] ]: 
+
+        rating_tarfns = glob.glob(os.path.join(directory, "*_pfd_rat.tgz"))
+        if len(rating_tarfns) != 1:
+            raise PeriodicityCandidateError("Wrong number (%d) of *_pfd_rat.tgz " \
+                                             "files found in %s" % (len(rating_tarfns), \
+                                                directory))
+
+        for tarfn in [ pfd_tarfns[0], bestprof_tarfns[0], rating_tarfns[0] ]: 
             tar = tarfile.open(tarfn)
             try:
                 tar.extractall(path=tempdir)
@@ -754,7 +762,7 @@ def get_candidates(versionnum, directory, header_id=None):
                                     c.candnum)
         pfdfn = os.path.join(tempdir, basefn+".pfd")
         pngfn = os.path.join(directory, basefn+".pfd.png")
-        ratfn = os.path.join(directory, basefn+".pfd.rat")
+        ratfn = os.path.join(tempdir, basefn+".pfd.rat")
 
         pfd = prepfold.pfd(pfdfn)
         

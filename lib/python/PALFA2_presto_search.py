@@ -772,7 +772,8 @@ def clean_up(job):
                     "_singlepulse.tgz",
                     "_inf.tgz",
                     "_pfd.tgz",
-                    "_bestprof.tgz"]
+                    "_bestprof.tgz",
+                    "_pfd_rat.tgz"]
     tar_globs = ["*_ACCEL_%d"%config.searching.lo_accel_zmax,
                  "*_ACCEL_%d"%config.searching.hi_accel_zmax,
                  "*_ACCEL_%d.cand"%config.searching.lo_accel_zmax,
@@ -780,7 +781,8 @@ def clean_up(job):
                  "*.singlepulse",
                  "*_DM[0-9]*.inf",
                  "*.pfd",
-                 "*.pfd.bestprof"]
+                 "*.pfd.bestprof",
+                 "*.pfd.rat"]
     print "Tarring up results"
     for (tar_suffix, tar_glob) in zip(tar_suffixes, tar_globs):
         print "Opening tarball %s" % (job.basefilenm+tar_suffix)
