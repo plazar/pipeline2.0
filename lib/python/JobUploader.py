@@ -40,7 +40,7 @@ def run():
         # Get the job's most recent submit
         submit = jobtracker.query("SELECT * FROM job_submits " \
                                   "WHERE job_id=%d " \
-                                    "AND status='processed' " \
+                                    "AND status in ('processed', 'ftp_failed') " \
                                   "ORDER BY id DESC" % job['id'], fetchone=True)
         print "Upload %d of %d" % (ii+1, len(processed_jobs))
         upload_results(submit)
@@ -129,12 +129,13 @@ def upload_results(job_submit):
                 upload.upload_timing_summary.setdefault('Parsing', 0) + \
                 (time.time()-parsetime)
 
-        # Perform the upload
-        header_id = hdr.upload(db)
-        for d in diags:
-            d.upload(db)
-        print "\tEverything uploaded and checked successfully. header_id=%d" % \
-                    header_id
+        if job_submit['status'] == 'processed':
+            # Perform the upload
+            header_id = hdr.upload(db)
+            for d in diags:
+                d.upload(db)
+            print "\tEverything uploaded and checked successfully. header_id=%d" % \
+                        header_id
 
 
     except (upload.UploadNonFatalError):
@@ -192,11 +193,26 @@ def upload_results(job_submit):
             cftp = CornellFTP.CornellFTP()
             hdr.upload_FTP(cftp,db)
             cftp.quit()
-            shutil.rmtree(tempdir)
+        except (database.DatabaseConnectionError, CornellFTP.CornellFTPTimeout,\
+                   upload.UploadDeadlockError, database.DatabaseDeadlockError), e:
+            # Connection error during FTP upload. Will try again later, 
+            # without main DB tranaction (i.e. submit status=ftp_failed,
+            # and job status=processed).
+            sys.stderr.write(str(e))
+            sys.stderr.write("\tFTP upload failed. Will reattempt later.\n")
+            query = "UPDATE job_submits " \
+                    "SET status='ftp_failed', " \
+                         "details='FTP upload failed due to following error: %s' " \
+                         "updated_at='%s' " \
+                    "WHERE id=%d" % \
+                    (str(e),job_submit['id'])
         except:
-            # add error handling here to catch FTP fails and do something smart
+            sys.stderr.write("Unexpected error during FTP upload!\n")
+            sys.stderr.write("\tRolling back DB transaction and re-raising.\n")
+           
+            # Rolling back changes. 
             db.rollback()
-            raise
+                        
         else:
 	    # Update database statuses
 	    queries = []
@@ -227,6 +243,10 @@ def upload_results(job_submit):
 		for k in sorted(upload.upload_timing_summary.keys()):
 		    print "    %s: %.2f s" % (k, upload.upload_timing_summary[k])
 	    print "" # Just a blank line
+        finally:
+            # remove temporary dir for PFDs
+            shutil.rmtree(tempdir)
+       
 
 def get_fitsfiles(job_submit):
     """Find the fits files associated with this job.

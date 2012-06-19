@@ -119,6 +119,7 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
 
     def add_dependent(self, dep):
         self.dependents.append(dep)
+        dep.timestamp_mjd = self.timestamp_mjd
 
     def upload(self, dbname, *args, **kwargs):
         """An extension to the inherited 'upload' method.
@@ -145,7 +146,6 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
                 (time.time()-starttime)
         for dep in self.dependents:
             dep.cand_id = cand_id
-            dep.timestamp_mjd = self.timestamp_mjd
             dep.upload(dbname=dbname, *args, **kwargs)
         return cand_id
 
@@ -379,6 +379,8 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
         self.fullpath = filename 
         self.filename = os.path.split(filename)[-1]
         self.ftp_base = config.upload.pfd_ftp_dir
+        mjd = int(self.timestamp_mjd)
+        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
 
     def get_upload_sproc_call(self):
         """Return the EXEC spPFDBLAH string to upload
@@ -456,9 +458,6 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
             raise PeriodicityCandidateError("Cannot upload binary with " \
                     "pdm_cand_id == None!")
 
-        mjd = int(self.timestamp_mjd)
-        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
-
         if debug.UPLOAD: 
             starttime = time.time()
         super(PeriodicityCandidateBinary, self).upload(dbname=dbname, \
@@ -482,9 +481,6 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
         else:
             db = database.Database(dbname)
 
-        if self.cand_id is None:
-            raise PeriodicityCandidateError("Cannot FTP upload binary with " \
-                    "pdm_cand_id == None!")
         if self.ftp_path is None:
             raise PeriodicityCandidateError("Cannot FTP upload binary with " \
                     "ftp_path == None!")
