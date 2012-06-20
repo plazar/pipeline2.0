@@ -110,9 +110,11 @@ def upload_results(job_submit):
         
         print "\tHeader parsed."
 
-        cands, tempdir = candidates.get_candidates(version_number, dir)
+        cands, tempdir = candidates.get_candidates(version_number, dir, \
+                                                   timestamp_mjd=data.timestamp_mjd)
         print "\tPeriodicity candidates parsed."
-        sp_cands = sp_candidates.get_spcandidates(version_number, dir)
+        sp_cands = sp_candidates.get_spcandidates(version_number, dir, \
+                                                  timestamp_mjd=data.timestamp_mjd)
         print "\tSingle pulse candidates parsed."
 
         for c in (cands + sp_cands):

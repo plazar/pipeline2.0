@@ -119,7 +119,6 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
 
     def add_dependent(self, dep):
         self.dependents.append(dep)
-        dep.timestamp_mjd = self.timestamp_mjd
 
     def upload(self, dbname, *args, **kwargs):
         """An extension to the inherited 'upload' method.
@@ -374,12 +373,14 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
               'filetype': '%s', \
               'filename': '%s'}
     
-    def __init__(self, filename, cand_id=None):
+    def __init__(self, filename, cand_id=None, timestamp_mjd=None):
         self.cand_id = cand_id
         self.fullpath = filename 
         self.filename = os.path.split(filename)[-1]
         self.ftp_base = config.upload.pfd_ftp_dir
-        self.ftp_path = None
+
+        mjd = int(timestamp_mjd)
+        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
 
     def get_upload_sproc_call(self):
         """Return the EXEC spPFDBLAH string to upload
@@ -457,9 +458,6 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
             raise PeriodicityCandidateError("Cannot upload binary with " \
                     "pdm_cand_id == None!")
 
-        mjd = int(self.timestamp_mjd)
-        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
-
         if debug.UPLOAD: 
             starttime = time.time()
         super(PeriodicityCandidateBinary, self).upload(dbname=dbname, \
@@ -482,10 +480,6 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
             db = dbname
         else:
             db = database.Database(dbname)
-
-        if self.ftp_path == None:
-            mjd = int(self.timestamp_mjd)
-            self.ftp_path = os.path.join(self.ftp_base,str(mjd))
 
         if debug.UPLOAD: 
             starttime = time.time()
@@ -680,7 +674,7 @@ class PeriodicityCandidateError(upload.UploadNonFatalError):
     pass
 
 
-def get_candidates(versionnum, directory, header_id=None):
+def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None):
     """Upload candidates to common DB.
 
         Inputs:
@@ -774,7 +768,7 @@ def get_candidates(versionnum, directory, header_id=None):
                                             "created (%s)!" % pfdfn)
 
 
-        cand.add_dependent(PeriodicityCandidatePFD(pfdfn))
+        cand.add_dependent(PeriodicityCandidatePFD(pfdfn, timestamp_mjd=timestamp_mjd))
         cand.add_dependent(PeriodicityCandidatePNG(pngfn))
         for ratval in ratings2.rating_value.read_file(ratfn):
             cand.add_dependent(PeriodicityCandidateRating(ratval))
