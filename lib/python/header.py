@@ -76,6 +76,7 @@ class Header(upload.Uploadable,upload.FTPable):
 
     def add_dependent(self, dep):
         self.dependents.append(dep)
+        dep.timestamp_mjd = self.timestamp_mjd
     
     def upload(self, dbname, *args, **kwargs):
         """An extension to the inherited 'upload' method.

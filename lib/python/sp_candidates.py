@@ -162,12 +162,9 @@ class SinglePulseTarball(upload.FTPable,upload.Uploadable):
         else:
             db = database.Database(dbname)
 
-        if self.header_id is None:
-            raise SinglePulseCandidateError("Cannot FTP upload SP tarball with " \
-                    "header_id == None!")
         if self.ftp_path is None:
-            raise SinglePulseCandidateError("Cannot FTP upload SP tarball with " \
-                    "ftp_path == None!")
+            mjd = int(self.timestamp_mjd)
+            self.ftp_path = os.path.join(self.ftp_base,str(mjd))
 
         if debug.UPLOAD: 
                 starttime = time.time()

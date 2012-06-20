@@ -212,6 +212,7 @@ def upload_results(job_submit):
            
             # Rolling back changes. 
             db.rollback()
+            raise
                         
         else:
 	    # Update database statuses

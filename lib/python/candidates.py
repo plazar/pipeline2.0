@@ -113,8 +113,6 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
         self.topo_period = 1.0/self.topo_freq
         self.bary_period = 1.0/self.bary_freq
 
-        self.timestamp_mjd = pfd.tepoch # needed for PFD upload
-
         # List of dependents (ie other uploadables that require 
         # the pdm_cand_id from this candidate)
         self.dependents = []
