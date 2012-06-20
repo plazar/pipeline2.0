@@ -307,7 +307,7 @@ class PsrfitsData(Data):
                             self.specinfo.bits_per_sample/8.0 * \
                             self.num_channels_per_record
         self.num_samples_per_record = self.specinfo.spectra_per_subint
-        self.header_version = self.specinfo.header_version
+        self.header_version = float(self.specinfo.header_version)
 
 
 class WappPsrfitsData(PsrfitsData):

@@ -176,10 +176,10 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
             "@pipeline='%s', " % config.basic.pipeline + \
             "@version_number='%s', " % self.versionnum + \
             "@proc_date='%s', " % datetime.date.today().strftime("%Y-%m-%d") + \
-            "@presto_sigma=%.12g" % self.sigma + \
-            "@prepfold_sigma=%.12g" % self.prepfold_sigma + \
-            "@rescaled_prepfold_sigma=%.12g" % self.rescaled_prepfold_sigma + \
-            "@sifting_period=%.12g" % self.sifting_period + \
+            "@presto_sigma=%.12g, " % self.sigma + \
+            "@prepfold_sigma=%.12g, " % self.prepfold_sigma + \
+            "@rescaled_prepfold_sigma=%.12g, " % self.rescaled_prepfold_sigma + \
+            "@sifting_period=%.12g, " % self.sifting_period + \
             "@sifting_dm=%.12g" %self.sifting_dm
         return sprocstr
 
@@ -558,12 +558,12 @@ class PeriodicityCandidateRating(upload.Uploadable):
                 dbname: Name of the database to connect to, or a database
                         connection to use (Defaut: 'default').
         """
-        #if self.value is None:
-        #    print self.value, type(self.value), self.name
-        #if np.isnan(self.value) or np.isinf(self.value):
-        #    print self.value, type(self.value), self.name
-        if np.abs(self.value) < 1e-307:
+
+        if not self.value is None and np.abs(self.value) < 1e-307:
             self.value = 0.0
+
+        if not self.value is None and np.isinf(self.value):
+            self.value = 9999.0
 
         if self.cand_id is None:
             raise PeriodicityCandidateError("Cannot upload rating if " \
@@ -592,7 +592,7 @@ class PeriodicityCandidateRating(upload.Uploadable):
         query = "INSERT INTO pdm_rating " + \
                 "(value, pdm_rating_instance_id, pdm_cand_id, date) "
 
-        if self.value is None or np.isnan(self.value) or np.isinf(self.value):
+        if self.value is None or np.isnan(self.value):
             query += "VALUES (NULL, %d, %d, GETDATE())" % \
                      (self.instance_id, \
                       self.cand_id)
@@ -655,11 +655,17 @@ class PeriodicityCandidateRating(upload.Uploadable):
             r = dict(zip(desc, rows[0]))
             errormsgs = []
             for var, fmt in self.to_cmp.iteritems():
-                local = (fmt % getattr(self, var)).lower()
-                fromdb = (fmt % r[var]).lower()
-                if local != fromdb:
-                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
-                                        (var, local, fromdb))
+                if r[var] is None:
+                    if not ( getattr(self,var) is None or \
+                             np.isnan(getattr(self, var)) ):
+                        errormsgs.append("Values for '%s' don't match (local: %s, DB: NULL)" % \
+                                            (var, str(getattr(self,var))))
+                else: 
+                    local = (fmt % getattr(self, var)).lower()
+                    fromdb = (fmt % r[var]).lower()
+                    if local != fromdb:
+                        errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                            (var, local, fromdb))
             if errormsgs:
                 errormsg = "Candidate rating doesn't match what was " \
                             "uploaded to the DB:"
