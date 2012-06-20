@@ -16,8 +16,8 @@ base_tmp_dir = "/dev/shm/"
 
 # Should not need to change the names of the zaplists...
 zaplistdir = os.path.join(config.basic.pipelinedir, "lib", "zaplists")
-default_wapp_zaplist = os.path.join(zaplistdir, "PALFA_commondb_Mock.zaplist")
-default_mock_zaplist = os.path.join(zaplistdir, "PALFA_commondb_wapp.zaplist")
+default_wapp_zaplist = os.path.join(zaplistdir, "PALFA_commondb_wapp.zaplist")
+default_mock_zaplist = os.path.join(zaplistdir, "PALFA_commondb_Mock.zaplist")
 
 # The following don't currently get used. They are placeholders.
 num_cores = 1 # The number of cores to use/request for each job
