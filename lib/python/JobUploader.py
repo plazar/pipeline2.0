@@ -40,7 +40,7 @@ def run():
         # Get the job's most recent submit
         submit = jobtracker.query("SELECT * FROM job_submits " \
                                   "WHERE job_id=%d " \
-                                    "AND status in ('processed', 'ftp_failed') " \
+                                    "AND status='processed' " \
                                   "ORDER BY id DESC" % job['id'], fetchone=True)
         print "Upload %d of %d" % (ii+1, len(processed_jobs))
         upload_results(submit)
@@ -131,13 +131,12 @@ def upload_results(job_submit):
                 upload.upload_timing_summary.setdefault('Parsing', 0) + \
                 (time.time()-parsetime)
 
-        if job_submit['status'] == 'processed':
-            # Perform the upload
-            header_id = hdr.upload(db)
-            for d in diags:
-                d.upload(db)
-            print "\tEverything uploaded and checked successfully. header_id=%d" % \
-                        header_id
+        # Perform the upload
+        header_id = hdr.upload(db)
+        for d in diags:
+            d.upload(db)
+        print "\tDB upload completed and checked successfully. header_id=%d" % \
+                    header_id
 
 
     except (upload.UploadNonFatalError):
@@ -191,30 +190,42 @@ def upload_results(job_submit):
         db.commit()
 
         #FTP any FTPables
-        try:
-            cftp = CornellFTP.CornellFTP()
-            hdr.upload_FTP(cftp,db)
-            cftp.quit()
-        except (database.DatabaseConnectionError, CornellFTP.CornellFTPTimeout,\
-                   upload.UploadDeadlockError, database.DatabaseDeadlockError), e:
-            # Connection error during FTP upload. Will try again later, 
-            # without main DB tranaction (i.e. submit status=ftp_failed,
-            # and job status=processed).
-            sys.stderr.write(str(e))
-            sys.stderr.write("\tFTP upload failed. Will reattempt later.\n")
-            query = "UPDATE job_submits " \
-                    "SET status='ftp_failed', " \
-                         "details='FTP upload failed due to following error: %s' " \
-                         "updated_at='%s' " \
-                    "WHERE id=%d" % \
-                    (str(e),job_submit['id'])
-        except:
-            sys.stderr.write("Unexpected error during FTP upload!\n")
-            sys.stderr.write("\tRolling back DB transaction and re-raising.\n")
+        attempts = 0
+        while attempts < 5:
+            try:
+                cftp = CornellFTP.CornellFTP()
+                hdr.upload_FTP(cftp,db)
+                cftp.quit()
+
+            except CornellFTP.CornellFTPTimeout:
+                # Connection error during FTP upload. Reconnect and try again.
+                print "FTP connection lost. Reconnecting..."
+                attempts += 1
+                cftp.quit()
+            except:
+                # Unexpected error
+                sys.stderr.write("Unexpected error during FTP upload!\n")
+                sys.stderr.write("\tRolling back DB transaction and re-raising.\n")
+        
+                # Rolling back changes (just last uncommited FTP). 
+                db.rollback()
+                raise 
+            else:
+                print "\tFTP upload completed successfully. header_id=%d" % \
+                        header_id
+                break
+
+        # remove temporary dir for PFDs
+        shutil.rmtree(tempdir)
+
+        if attempts >= 5:
+            errmsg = "FTP upload failed after %d connection failures!\n" % attempts
+            sys.stderr.write(errmsg)
+            sys.stderr.write("\tRolling back DB transaction and raising error.\n")
            
-            # Rolling back changes. 
+            # Rolling back changes (just last uncommited FTP). 
             db.rollback()
-            raise
+            raise pipeline_utils.PipelineError(errmsg)
                         
         else:
 	    # Update database statuses
@@ -246,9 +257,6 @@ def upload_results(job_submit):
 		for k in sorted(upload.upload_timing_summary.keys()):
 		    print "    %s: %.2f s" % (k, upload.upload_timing_summary[k])
 	    print "" # Just a blank line
-        finally:
-            # remove temporary dir for PFDs
-            shutil.rmtree(tempdir)
        
 
 def get_fitsfiles(job_submit):

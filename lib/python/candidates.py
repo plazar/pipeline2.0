@@ -378,6 +378,7 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
         self.fullpath = filename 
         self.filename = os.path.split(filename)[-1]
         self.ftp_base = config.upload.pfd_ftp_dir
+        self.uploaded = False
 
         mjd = int(timestamp_mjd)
         self.ftp_path = os.path.join(self.ftp_base,str(mjd))
@@ -483,22 +484,23 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
 
         if debug.UPLOAD: 
             starttime = time.time()
-        try:
-            ftp_fullpath = os.path.join(self.ftp_path, self.filename) 
-            if not cftp.dir_exists(self.ftp_path):
-                cftp.mkd(self.ftp_path)
 
-            cftp.upload(self.fullpath, ftp_fullpath)
-        except Exception, e:
-            raise PeriodicityCandidateError("Error while uploading file %s via FTP:\n%s " %\
-                                            (self.filename, str(e))) 
-        else:
-            db.execute("EXEC spPDMCandBinUploadConf " + \
-                   "@pdm_plot_type='%s', " % self.filetype + \
-                   "@filename='%s', " % self.filename + \
-                   "@file_location='%s', " % self.ftp_path + \
-                   "@uploaded=1") 
-            db.commit() 
+        if not self.uploaded:
+
+	    ftp_fullpath = os.path.join(self.ftp_path, self.filename) 
+	    if not cftp.dir_exists(self.ftp_path):
+		cftp.mkd(self.ftp_path)
+
+	    cftp.upload(self.fullpath, ftp_fullpath)
+
+	    db.execute("EXEC spPDMCandBinUploadConf " + \
+		   "@pdm_plot_type='%s', " % self.filetype + \
+		   "@filename='%s', " % self.filename + \
+		   "@file_location='%s', " % self.ftp_path + \
+		   "@uploaded=1") 
+	    db.commit() 
+
+	    self.uploaded=True
 
         if debug.UPLOAD:
             upload.upload_timing_summary[self.filetype + ' (ftp)'] = \
@@ -598,7 +600,7 @@ class PeriodicityCandidateRating(upload.Uploadable):
                       self.cand_id)
         else:
             query += "VALUES ('%.12g', %d, %d, GETDATE())" % \
-                    (self.ratval.value, \
+                    (self.value, \
                     self.instance_id, \
                     self.cand_id)
 

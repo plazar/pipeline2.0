@@ -38,7 +38,14 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             self.quit()
 
     def list_files(self, ftp_path):
-        return self.nlst(ftp_path)
+        try:
+            flist = self.nlst(ftp_path)
+        except Exception, e:
+            cout.outs("CornellFTP - FTP list_files failed: %s" % \
+                        (str(e)))
+            raise get_ftp_exception("Could not list files in (%s) " 
+                                    "on FTP server: %s" % (ftp_path, str(e)))
+        return flist
 
     def get_files(self, ftp_path):
         files = self.list_files(ftp_path)

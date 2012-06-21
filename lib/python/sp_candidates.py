@@ -44,6 +44,7 @@ class SinglePulseTarball(upload.FTPable,upload.Uploadable):
         self.pipeline = config.basic.pipeline
         self.institution = config.basic.institution
         self.ftp_base = config.upload.sp_ftp_dir
+        self.uploaded = False
 
         mjd = int(timestamp_mjd)
         self.ftp_path = os.path.join(self.ftp_base,str(mjd))
@@ -164,22 +165,23 @@ class SinglePulseTarball(upload.FTPable,upload.Uploadable):
 
         if debug.UPLOAD: 
                 starttime = time.time()
-        try:
-            ftp_fullpath = os.path.join(self.ftp_path, self.filename)
-            if not cftp.dir_exists(self.ftp_path):
-                cftp.mkd(self.ftp_path)
 
-            cftp.upload(self.fullpath, ftp_fullpath)
-        except Exception, e:
-            raise SinglePulseCandidateError("Error while uploading file %s via FTP:\n%s " %\
-                                             (self.filename, str(e)))
-        else:
-            db.execute("spSPCandBinUploadConf " + \
-                   "@sp_file_type='%s', " % self.filetype + \
-                   "@filename='%s', " % self.filename + \
-                   "@file_location='%s', " % self.ftp_path + \
-                   "@uploaded=1" )
-            db.commit()
+        if not self.uploaded:
+
+	    ftp_fullpath = os.path.join(self.ftp_path, self.filename)
+	    if not cftp.dir_exists(self.ftp_path):
+		cftp.mkd(self.ftp_path)
+
+	    cftp.upload(self.fullpath, ftp_fullpath)
+
+	    db.execute("spSPCandBinUploadConf " + \
+		   "@sp_file_type='%s', " % self.filetype + \
+		   "@filename='%s', " % self.filename + \
+		   "@file_location='%s', " % self.ftp_path + \
+		   "@uploaded=1" )
+	    db.commit()
+
+            self.uploaded = True
 
         if debug.UPLOAD:
             upload.upload_timing_summary['sp info (ftp)'] = \
