@@ -206,11 +206,11 @@ def get_folding_command(cand, obs):
     elif p < 0.5:
         Mp, Mdm, N = 1, 1, 100
         npart = 30
-        otheropts = "-pstep 1 -pdstep 2 -dmstep 1"
+        otheropts = "-pstep 1 -pdstep 2 -dmstep 1 -nodmsearch"
     else:
         Mp, Mdm, N = 1, 1, 200
         npart = 30
-        otheropts = "-nopdsearch -pstep 1 -pdstep 2 -dmstep 1"
+        otheropts = "-nopdsearch -pstep 1 -pdstep 2 -dmstep 1 -nodmsearch"
 
     # If prepfold is instructed to use more subbands than there are rows in the PSRFITS file
     # it doesn't use any data when folding since the amount of data for each part is
@@ -729,7 +729,8 @@ def search_job(job):
     job.num_cands_folded = cands_folded
     
     # Rate candidates
-    timed_execute("rate_pfds.py --include-all *.pfd")
+    timed_execute("rate_pfds.py --include-all -x pulse_width *.pfd",\
+                   stderr=os.path.join(job.outputdir,'ratings.ER'))
     sys.stdout.flush()
 
     # Print some info useful for debugging
@@ -770,7 +771,7 @@ def search_job(job):
 
 def clean_up(job):
     """Clean up.
-        Tar results, copy them to the results director.
+        Tar results, copy them to the results directory.
     """
     # Dump search paramters to file
     paramfn = open("search_params.txt", 'w')
@@ -787,7 +788,8 @@ def clean_up(job):
                     "_singlepulse.tgz",
                     "_inf.tgz",
                     "_pfd.tgz",
-                    "_bestprof.tgz"]
+                    "_bestprof.tgz",
+                    "_pfd_rat.tgz"]
     tar_globs = ["*_ACCEL_%d"%config.searching.lo_accel_zmax,
                  "*_ACCEL_%d"%config.searching.hi_accel_zmax,
                  "*_ACCEL_%d.cand"%config.searching.lo_accel_zmax,
@@ -795,7 +797,8 @@ def clean_up(job):
                  "*.singlepulse",
                  "*_DM[0-9]*.inf",
                  "*.pfd",
-                 "*.pfd.bestprof"]
+                 "*.pfd.bestprof",
+                 "*.pfd.rat"]
     print "Tarring up results"
     for (tar_suffix, tar_glob) in zip(tar_suffixes, tar_globs):
         print "Opening tarball %s" % (job.basefilenm+tar_suffix)

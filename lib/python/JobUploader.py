@@ -110,9 +110,11 @@ def upload_results(job_submit):
         
         print "\tHeader parsed."
 
-        cands, tempdir = candidates.get_candidates(version_number, dir)
+        cands, tempdir = candidates.get_candidates(version_number, dir, \
+                                                   timestamp_mjd=data.timestamp_mjd)
         print "\tPeriodicity candidates parsed."
-        sp_cands = sp_candidates.get_spcandidates(version_number, dir)
+        sp_cands = sp_candidates.get_spcandidates(version_number, dir, \
+                                                  timestamp_mjd=data.timestamp_mjd)
         print "\tSingle pulse candidates parsed."
 
         for c in (cands + sp_cands):
@@ -133,7 +135,7 @@ def upload_results(job_submit):
         header_id = hdr.upload(db)
         for d in diags:
             d.upload(db)
-        print "\tEverything uploaded and checked successfully. header_id=%d" % \
+        print "\tDB upload completed and checked successfully. header_id=%d" % \
                     header_id
 
 
@@ -188,15 +190,43 @@ def upload_results(job_submit):
         db.commit()
 
         #FTP any FTPables
-        try:
-            cftp = CornellFTP.CornellFTP()
-            hdr.upload_FTP(cftp,db)
-            cftp.quit()
-            shutil.rmtree(tempdir)
-        except:
-            # add error handling here to catch FTP fails and do something smart
+        attempts = 0
+        while attempts < 5:
+            try:
+                cftp = CornellFTP.CornellFTP()
+                hdr.upload_FTP(cftp,db)
+                cftp.quit()
+
+            except CornellFTP.CornellFTPTimeout:
+                # Connection error during FTP upload. Reconnect and try again.
+                print "FTP connection lost. Reconnecting..."
+                attempts += 1
+                cftp.quit()
+            except:
+                # Unexpected error
+                sys.stderr.write("Unexpected error during FTP upload!\n")
+                sys.stderr.write("\tRolling back DB transaction and re-raising.\n")
+        
+                # Rolling back changes (just last uncommited FTP). 
+                db.rollback()
+                raise 
+            else:
+                print "\tFTP upload completed successfully. header_id=%d" % \
+                        header_id
+                break
+
+        # remove temporary dir for PFDs
+        shutil.rmtree(tempdir)
+
+        if attempts >= 5:
+            errmsg = "FTP upload failed after %d connection failures!\n" % attempts
+            sys.stderr.write(errmsg)
+            sys.stderr.write("\tRolling back DB transaction and raising error.\n")
+           
+            # Rolling back changes (just last uncommited FTP). 
             db.rollback()
-            raise
+            raise pipeline_utils.PipelineError(errmsg)
+                        
         else:
 	    # Update database statuses
 	    queries = []
@@ -227,6 +257,7 @@ def upload_results(job_submit):
 		for k in sorted(upload.upload_timing_summary.keys()):
 		    print "    %s: %.2f s" % (k, upload.upload_timing_summary[k])
 	    print "" # Just a blank line
+       
 
 def get_fitsfiles(job_submit):
     """Find the fits files associated with this job.
