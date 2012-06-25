@@ -19,6 +19,7 @@ import binascii
 import time
 import numpy as np
 import scipy.special
+from StringIO import StringIO
 
 import psr_utils
 import prepfold
@@ -29,6 +30,7 @@ import pipeline_utils
 import upload
 from formats import accelcands
 import ratings2.rating_value
+import ratings2.utils
 
 # get configurations
 import config.basic
@@ -524,34 +526,17 @@ class PeriodicityCandidateRating(upload.Uploadable):
               'version': '%d', \
               'name': '%s'}
 
-    def __init__(self, ratval, cand_id=None):
+    def __init__(self, ratval, inst_cache=None, cand_id=None):
         self.cand_id = cand_id
         self.ratval = ratval # A RatingValue object
-        #self.instance_id = self.ratval.get_id()
         self.version = ratval.version
         self.name = ratval.name
         self.value = ratval.value
-        
 
-    def get_instance_id(self, dbname='default'):
-        """Get the pdm_rating_instance_id for the rating
-            from the rating name and versioni by querying
-             the common DB."""
-        if isinstance(dbname, database.Database):
-            db = dbname
-        else:
-            db = database.Database(dbname)
-        db.execute("SELECT i.pdm_rating_instance_id FROM pdm_rating_type " + \
-                   "AS r JOIN pdm_rating_instance AS i ON " + \
-                   "r.pdm_rating_type_id = i.pdm_rating_type_id WHERE " + \
-                   "r.name='%s' and i.version=%d" % (self.ratval.name, 
-                                                     self.ratval.version))
-        instance_id = db.cursor.fetchone()[0]
-
-        if type(dbname) == types.StringType:
-            db.close()
-
-        return instance_id
+        if inst_cache is None:
+            inst_cache = ratings2.utils.RatingInstanceIDCache(dbname='default')
+        self.instance_id = inst_cache.get_id(ratval.name, ratval.version, \
+                                             ratval.description)
 
     def upload(self, dbname, *args, **kwargs):
         """An extension to the inherited 'upload' method.
@@ -570,10 +555,9 @@ class PeriodicityCandidateRating(upload.Uploadable):
         if self.cand_id is None:
             raise PeriodicityCandidateError("Cannot upload rating if " \
                     "pdm_cand_id is None!")
+
         if debug.UPLOAD: 
             starttime = time.time()
-
-        self.instance_id = self.get_instance_id(dbname=dbname)
 
         #super(PeriodicityCandidateRating, self).upload(dbname=dbname, \
         #            *args, **kwargs)
@@ -682,7 +666,7 @@ class PeriodicityCandidateError(upload.UploadNonFatalError):
     pass
 
 
-def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None):
+def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, inst_cache=None):
     """Upload candidates to common DB.
 
         Inputs:
@@ -691,6 +675,8 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None):
             directory: The directory containing results from the pipeline.
             header_id: header_id number for this beam, as returned by
                         spHeaderLoader/header.upload_header (default=None)
+            timestamp_mjd: mjd timstamp for this observation (default=None).
+            inst_cache: ratings2 RatingInstanceIDCache instance.
 
         Ouput:
             cands: List of candidates.
@@ -766,6 +752,8 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None):
 
         pfd = prepfold.pfd(pfdfn)
         
+        orig_out = sys.stdout
+        sys.stdout = StringIO()
         try:
             cand = PeriodicityCandidate(ii+1, pfd, c.snr, \
                                     c.cpow, c.ipow, len(c.dmhits), \
@@ -774,12 +762,13 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None):
         except Exception:
             raise PeriodicityCandidateError("PeriodicityCandidate could not be " \
                                             "created (%s)!" % pfdfn)
-
+        sys.stdout = orig_out
 
         cand.add_dependent(PeriodicityCandidatePFD(pfdfn, timestamp_mjd=timestamp_mjd))
         cand.add_dependent(PeriodicityCandidatePNG(pngfn))
+
         for ratval in ratings2.rating_value.read_file(ratfn):
-            cand.add_dependent(PeriodicityCandidateRating(ratval))
+            cand.add_dependent(PeriodicityCandidateRating(ratval,inst_cache=inst_cache))
         cands.append(cand)
         
     #shutil.rmtree(tempdir)

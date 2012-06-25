@@ -19,6 +19,7 @@ import pipeline_utils
 import CornellFTP
 import config.upload
 import config.basic
+import ratings2.utils
 
 # Suppress warnings produced by uploaders
 # (typically because data, weights, scales, offsets are missing
@@ -110,8 +111,10 @@ def upload_results(job_submit):
         
         print "\tHeader parsed."
 
+        rat_inst_id_cache = ratings2.utils.RatingInstanceIDCache(dbname='common2')
         cands, tempdir = candidates.get_candidates(version_number, dir, \
-                                                   timestamp_mjd=data.timestamp_mjd)
+                                                   timestamp_mjd=data.timestamp_mjd, \
+                                                   inst_cache=rat_inst_id_cache)
         print "\tPeriodicity candidates parsed."
         sp_cands = sp_candidates.get_spcandidates(version_number, dir, \
                                                   timestamp_mjd=data.timestamp_mjd)
