@@ -732,7 +732,7 @@ def search_job(job):
     job.num_cands_folded = cands_folded
     
     # Rate candidates
-    timed_execute("rate_pfds.py --ignore-warnings --include-all -x pulse_width *.pfd")
+    timed_execute("rate_pfds.py --redirect-warnings --include-all -x pulse_width *.pfd")
     sys.stdout.flush()
 
     # Print some info useful for debugging
