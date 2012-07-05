@@ -15,9 +15,12 @@ import tarfile
 import tempfile
 
 import numpy as np
-import matplotlib.pyplot as plt
 import psr_utils
 import presto
+
+import matplotlib
+matplotlib.use('agg') #Use AGG (png) backend to plot
+import matplotlib.pyplot as plt
 import mysifting as sifting # Temporarily until 'sifting.py' 
                             # in PRESTO is updated
 
@@ -686,10 +689,10 @@ def search_job(job):
         # Make sifting summary plots
         all_accel_cands.plot_goodbad()
         plt.title("%s Rejected Cands" % job.basefilenm)
-        plt.savefig(job.basefilenm+".accelcands.rejects.png")
+        plt.savefig(job.basefilenm+".accelcands.rejects") #AGG backend appends .png
         all_accel_cands.plot_summary()
         plt.title("%s Periodicity Summary" % job.basefilenm)
-        plt.savefig(job.basefilenm+".accelcands.summary.png")
+        plt.savefig(job.basefilenm+".accelcands.summary") #AGG backend appends .png
         
         # Write out sifting candidate summary
         all_accel_cands.print_cand_summary(job.basefilenm+".accelcands.summary")
