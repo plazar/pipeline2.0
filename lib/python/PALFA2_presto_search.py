@@ -689,10 +689,10 @@ def search_job(job):
         # Make sifting summary plots
         all_accel_cands.plot_goodbad()
         plt.title("%s Rejected Cands" % job.basefilenm)
-        plt.savefig(job.basefilenm+".accelcands.rejects") #AGG backend appends .png
+        plt.savefig(job.basefilenm+".accelcands.rejects.png")
         all_accel_cands.plot_summary()
         plt.title("%s Periodicity Summary" % job.basefilenm)
-        plt.savefig(job.basefilenm+".accelcands.summary") #AGG backend appends .png
+        plt.savefig(job.basefilenm+".accelcands.summary.png")
         
         # Write out sifting candidate summary
         all_accel_cands.print_cand_summary(job.basefilenm+".accelcands.summary")
