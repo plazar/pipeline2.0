@@ -5,6 +5,10 @@ use_subbands          = True
 # To fold from raw data (ie not from subbands or dedispersed FITS files)
 # set the following to True.
 fold_rawdata          = True
+# To do single-pulse (sp) or accel search both with and without zerodm set 
+# the appropriate option to True (if False, only without)
+use_zerodm_sp         = False
+use_zerodm_accel      = False
 
 # Tunable parameters for searching and folding
 # (you probably don't need to tune any of them)

@@ -539,6 +539,15 @@ def search_job(job):
                         job.tempdir, job.basefilenm, job.tempdir, subbasenm)
                 job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
             
+                if config.searching.use_zerodm_sp or config.searching.use_zerodm_accel:
+		    cmd = "prepsubband -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
+			    "-nsub %d -numout %d -zerodm -o %s/%s_zerodm %s/subbands/%s.sub[0-9]*" % \
+			    (ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
+			    ddplan.dmsperpass, ddplan.dd_downsamp, ddplan.numsub,
+			    psr_utils.choose_N(job.orig_N/ddplan.downsamp),
+			    job.tempdir, job.basefilenm, job.tempdir, subbasenm)
+		    job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
+
             else:  # Not using subbands
                 cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
                         "-numout %d -nsub %d -o %s/%s %s"%\
@@ -552,7 +561,9 @@ def search_job(job):
             for dmstr in ddplan.dmlist[passnum]:
                 dmstrs.append(dmstr)
                 basenm = os.path.join(job.tempdir, job.basefilenm+"_DM"+dmstr)
+                basenm_zerodm = os.path.join(job.tempdir, job.basefilenm+"_zerodm_DM"+dmstr)
                 datnm = basenm+".dat"
+                datnm_zerodm = basenm_zerodm+".dat"
                 fftnm = basenm+".fft"
                 infnm = basenm+".inf"
 
@@ -564,6 +575,15 @@ def search_job(job):
                 try:
                     shutil.move(basenm+".singlepulse", job.workdir)
                 except: pass
+
+                if config.searching.use_zerodm_sp:
+		    cmd = "single_pulse_search.py -p -m %f -t %f %s"%\
+			  (config.searching.singlepulse_maxwidth, \
+			   config.searching.singlepulse_threshold, datnm_zerodm)
+		    job.singlepulse_time += timed_execute(cmd)
+		    try:
+			shutil.move(basenm_zerodm+".singlepulse", job.workdir)
+		    except: pass
 
                 # FFT, zap, and de-redden
                 cmd = "realfft %s"%datnm
@@ -636,6 +656,7 @@ def search_job(job):
 
     # Make the single-pulse plots
     basedmb = job.basefilenm+"_DM"
+    basedmb_zerodm = job.basefilenm+"_zerodm_DM"
     basedme = ".singlepulse "
     # The following will make plots for DM ranges:
     #    0-110, 100-310, 300-1000+
@@ -648,6 +669,18 @@ def search_job(job):
                basedmb+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme]
     dmrangestrs = ["0-110", "100-310", "300-1000+"]
     psname = job.basefilenm+"_singlepulse.ps"
+    psname_zerodm = job.basefilenm+"_zerodm_singlepulse.ps"
+
+    if config.searching.use_zerodm_sp:
+	dmglobs.extend([basedmb_zerodm+"[0-9].[0-9][0-9]"+basedme +
+		   basedmb_zerodm+"[0-9][0-9].[0-9][0-9]"+basedme +
+		   basedmb_zerodm+"10[0-9].[0-9][0-9]"+basedme,
+		   basedmb_zerodm+"[12][0-9][0-9].[0-9][0-9]"+basedme +
+		   basedmb_zerodm+"30[0-9].[0-9][0-9]"+basedme,
+		   basedmb_zerodm+"[3-9][0-9][0-9].[0-9][0-9]"+basedme +
+		   basedmb_zerodm+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme])
+	dmrangestrs.extend(["0-110_zerodm", "100-310_zerodm", "300-1000+_zerodm"])
+
     for dmglob, dmrangestr in zip(dmglobs, dmrangestrs):
         dmfiles = []
         for dmg in dmglob.split():
@@ -657,7 +690,11 @@ def search_job(job):
             cmd = 'single_pulse_search.py -t %f -g "%s"' % \
                 (config.searching.singlepulse_plot_SNR, dmglob)
             job.singlepulse_time += timed_execute(cmd)
-            os.rename(psname,
+            if dmrangestr.endswith("zerodm"):
+                os.rename(psname_zerodm,
+                        job.basefilenm+"_DMs%s_singlepulse.ps" % dmrangestr)
+            else:
+                os.rename(psname,
                         job.basefilenm+"_DMs%s_singlepulse.ps" % dmrangestr)
 
     # Sift through the candidates to choose the best to fold
