@@ -501,44 +501,46 @@ class MockPsrfitsData(PsrfitsData):
         # Merge mock subbands
         mergecmd = "combine_mocks %s -o %s" % (infiles, outbasenm)
         pipeline_utils.execute(mergecmd, stdout=outbasenm+"_merge.out")
-
-        # Anti-center commensal data taken after 2011 Nov. 4 has the
-        # cal turned on at the end of the observation for 6-7 seconds.
-        # This needs to be removed instead of the first 7 seconds.
-        # Changes made by Ryan Lynch 2012 June 17.
-        if obsdata.orig_galactic_longitude > 170.0 and \
-           obsdata.orig_galactic_longitude < 210.0 and \
-           obsdata.timestamp_mjd > 55868:
-            #if self.specinfo.num_subint >= 270:
-            #    rowdelcmd = "fitsdelrow %[SUBINT] 270 %i" % \
-            #                (outfile,self.specinfo.num_subint)
-            #elif self.specinfo.num_subint >= 180 and self.specinfo.num_subint < 190:
-            #    rowdelcmd = "fitsdelrow %[SUBINT] 180 %i" % \
-            #                (outfile,self.specinfo.num_subint)
-            obslength = obsdata.specinfo.num_subint[0] 
-            rowdelcmd = "fitsdelrow %s[SUBINT] %d %d" % \
-                        (outfile,obslength-8,8)  
- 
-        else:
-            # Otherwise, remove first 7 (or 8) rows from file as usual
-	    # According to Julia Deneva the cal signal was set to fire for 6s before
-	    # MJD 55723, and for only 5s as of this day. To be conservative we
-	    # remove 2s more (the cal occasionally stays on for ~1s longer than
-	    # expected.)
-            if obsdata.timestamp_mjd > 55724:
-                # Remove first 7 rows (i.e. 7 seconds) from file
-                numrows = 7
-            else:
-                # Remove first 8 rows (i.e. 8 seconds) from file
-                numrows = 8
-            rowdelcmd = "fitsdelrow %s[SUBINT] 1 %d" % (outfile, numrows)
-
-        pipeline_utils.execute(rowdelcmd)
-
+        
         # Rename file to remove the '_0001' that was added
-        os.rename(outfile, outbasenm+'.fits')
+        mergedfn = outbasenm+'.fits'
+        os.rename(outfile, mergedfn)
+        
+        merged = autogen_dataobj([mergedfn])
+        if not isinstance(merged, MergedMockPsrfitsData):
+            raise ValueError("Preprocessing of Mock data has not produced " \
+                                "a recognized merged file!")
+        subints_with_cal = merged.get_subints_with_cal()
+        num_subints = merged.num_samples/merged.num_samples_per_record
+        if len(subints_with_cal):
+            rowdelcmds = []
+            startrow = subints_with_cal[0]
+            numrows = 1
+            # Add infinity to the list of subints with cal to 
+            # make sure we remove the last cal-block.
+            for isub in subints_with_cal[1:]+[np.inf]:
+                if isub == startrow+numrows:
+                    numrows+=1
+                else:
+                    if startrow+1 < 0.1*num_subints:
+                        print "Cal-affected region is within 10%% of start of obs " \
+                                "remove all rows before cal. (cal start: %d; " \
+                                "total num rows: %d)" % (startrow, num_subints)
+                        numrows += startrow
+                        startrow = 0
+                    elif startrow+numrows > 0.9*num_subints:
+                        print "Cal-affected region is within 10%% of end of obs " \
+                                "remove all rows after cal. (cal start: %d; " \
+                                "total num rows: %d)" % (startrow, num_subints)
+                        numrows = num_subints - startrow
+                    rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
+                                    (mergedfn, startrow+1, numrows))
+                    startrow = isub
+                    numrows = 1
+            for rowdelcmd in rowdelcmds:
+                pipeline_utils.execute(rowdelcmd)
 
-        return [outbasenm+'.fits']
+        return [mergedfn]
 
 
 class MergedMockPsrfitsData(PsrfitsData):
@@ -609,6 +611,60 @@ class MergedMockPsrfitsData(PsrfitsData):
         else:
             complete = False
         return complete
+
+    def get_subints_with_cal(self, nsigma=10, margin_of_error=1):
+        """Return a list of subint numbers with the cal turned on.
+ 
+            Input:
+                nsigma: The number of sigma above the median a
+                    subint needs to be in order to be flagged as
+                    having the cal on. (Default: 10)
+
+                    NOTE: The median absolute deviation is used in
+                        place of the standard deviation here.
+                margin_of_error: For each subint with the cal on 
+                    also flag 'margin_of_error' subints on either
+                    side. (Default: 1)
+ 
+            Output:
+                subints_with_cal: A sorted list of subints with the
+                    cal on.
+        """
+        fn = self.fns[0]
+        if not fn.endswith(".fits"):
+            raise ValueError("Filename doesn't end with '.fits'!")
+        basenm = fn[:-5] # Chop off '.fits'
+        # Make dat file
+        prepdatacmd = "prepdata -noclip -nobary -dm 0 -o %s_pre_DM0.00 %s" % (basenm, fn)
+        pipeline_utils.execute(prepdatacmd, stdout=basenm+"_pre_prepdata.out")
+        datfn = basenm+"_pre_DM0.00.dat"
+        samp_per_rec = self.num_samples_per_record
+        dat = np.memmap(datfn, mode='r', dtype='float32')
+        dat = dat[:dat.size/samp_per_rec*samp_per_rec]
+        dat.shape = (dat.size/samp_per_rec, samp_per_rec)
+        meds = np.median(dat, axis=1)
+        med_of_meds = np.median(meds)
+        mad_of_meds = np.median(np.abs(meds-med_of_meds))
+        print "Median of medians:", med_of_meds
+        print "MAD of medians:", mad_of_meds
+        for ii, (med, nsig) in enumerate(zip(meds, (meds-med_of_meds)/mad_of_meds)):
+            print "%d: %g (%g)" % (ii, med, nsig)
+        has_cal = (meds-med_of_meds)/mad_of_meds > nsigma
+ 
+        subints_with_cal = set()
+        print "Subints with cal: %s" % sorted(list(subints_with_cal))
+        for isub in np.flatnonzero(has_cal):
+            subints_with_cal.add(isub)
+            for x in range(1,margin_of_error+1):
+                subints_with_cal.add(isub-x)
+                subints_with_cal.add(isub+x)
+ 
+        print "Conservative list of subints to remove: %s" % sorted(list(subints_with_cal))
+
+        # Remove dat file created
+        os.remove(datfn)
+        
+        return sorted(list(subints_with_cal))
 
 
 class DataFileError(pipeline_utils.PipelineError):
