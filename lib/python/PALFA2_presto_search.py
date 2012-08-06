@@ -17,6 +17,7 @@ import tempfile
 import numpy as np
 import psr_utils
 import presto
+import prepfold
 
 import matplotlib
 matplotlib.use('agg') #Use AGG (png) backend to plot
@@ -771,6 +772,25 @@ def search_job(job):
     # Rate candidates
     timed_execute("rate_pfds.py --redirect-warnings --include-all -x pulse_width *.pfd")
     sys.stdout.flush()
+
+    # Calculate some candidate attributes from pfds
+    attrib_file = open('candidate_attributes.txt','w')
+    for pfdfn in glob.glob("*.pfd"):
+        attribs = {}
+        pfd = prepfold.pfd(pfdfn)
+        red_chi2 = pfd.bestprof.chi_sqr
+        dof = pfd.proflen - 1
+        attribs['prepfold_sigma'] = \
+                scipy.special.ndtri(scipy.special.chdtr(dof,dof*red_chi2))
+	off_red_chi2 = pfd.estimate_offsignal_redchi2()
+	new_red_chi2 = red_chi2 / off_red_chi2
+        # prepfold sigma rescaled to deal with chi-squared suppression
+        # a problem when strong rfi is present
+        attribs['rescaled_prepfold_sigma'] = \
+                scipy.special.ndtri(scipy.special.chdtr(dof,dof*new_red_chi2))
+        for key in attribs:
+            attrib_file.write("%s\t%s\t%.3f" % (pfdfn, key, attribs[key]))
+    attrib_file.close()
 
     # Print some info useful for debugging
     print "Contents of workdir (%s) after folding: " % job.workdir
