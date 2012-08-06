@@ -512,13 +512,17 @@ class MockPsrfitsData(PsrfitsData):
                                 "a recognized merged file!")
         subints_with_cal = merged.get_subints_with_cal()
         num_subints = merged.num_samples/merged.num_samples_per_record
+        subints_with_cal = [isub for isub in subints_with_cal \
+                                if isub >=0 and isub < num_subints]
         if len(subints_with_cal):
             rowdelcmds = []
             startrow = subints_with_cal[0]
             numrows = 1
+            numdelrows = 0 # Number of rows deleted so far
             # Add infinity to the list of subints with cal to 
             # make sure we remove the last cal-block.
             for isub in subints_with_cal[1:]+[np.inf]:
+                isub -= numdelrows # Adjust based on the number of missing rows
                 if isub == startrow+numrows:
                     numrows+=1
                 else:
@@ -533,12 +537,22 @@ class MockPsrfitsData(PsrfitsData):
                                 "remove all rows after cal. (cal start: %d; " \
                                 "total num rows: %d)" % (startrow, num_subints)
                         numrows = num_subints - startrow
+                    numdelrows += numrows # Keep track of number of rows deleted
+                    print "Will delete %d rows starting at %d" % (numrows, startrow+1)
                     rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
                                     (mergedfn, startrow+1, numrows))
-                    startrow = isub
+                    startrow = isub-numrows # NOTE: only delete numrows because
+                                            # numdelrows has already been deleted
+                                            # from isub
+                    num_subints -= numrows # Adjust number of subints in the file
+                    print "resetting startrow to", startrow
                     numrows = 1
             for rowdelcmd in rowdelcmds:
                 pipeline_utils.execute(rowdelcmd)
+
+        # Make dat file
+        prepdatacmd = "prepdata -noclip -nobary -dm 0 -o %s_post_DM0.00 %s" % (outbasenm, mergedfn)
+        pipeline_utils.execute(prepdatacmd, stdout=outbasenm+"_post_prepdata.out")
 
         return [mergedfn]
 
@@ -612,13 +626,13 @@ class MergedMockPsrfitsData(PsrfitsData):
             complete = False
         return complete
 
-    def get_subints_with_cal(self, nsigma=10, margin_of_error=1):
+    def get_subints_with_cal(self, nsigma=15, margin_of_error=1):
         """Return a list of subint numbers with the cal turned on.
  
             Input:
                 nsigma: The number of sigma above the median a
                     subint needs to be in order to be flagged as
-                    having the cal on. (Default: 10)
+                    having the cal on. (Default: 15)
 
                     NOTE: The median absolute deviation is used in
                         place of the standard deviation here.
