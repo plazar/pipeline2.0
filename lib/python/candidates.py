@@ -526,17 +526,18 @@ class PeriodicityCandidateRating(upload.Uploadable):
               'version': '%d', \
               'name': '%s'}
 
-    def __init__(self, ratval, inst_cache=None, cand_id=None):
+    def __init__(self, ratvals, inst_cache=None, cand_id=None):
         self.cand_id = cand_id
-        self.ratval = ratval # A RatingValue object
-        self.version = ratval.version
-        self.name = ratval.name
-        self.value = ratval.value
+        self.ratvals = ratvals # A list of RatingValue objects
+        #self.version = ratval.version
+        #self.name = ratval.name
+        #self.value = ratval.value
 
         if inst_cache is None:
             inst_cache = ratings2.utils.RatingInstanceIDCache(dbname='default')
-        self.instance_id = inst_cache.get_id(ratval.name, ratval.version, \
-                                             ratval.description)
+        self.inst_cache = inst_cache
+        #self.instance_id = inst_cache.get_id(ratval.name, ratval.version, \
+        #                                     ratval.description)
 
     def upload(self, dbname, *args, **kwargs):
         """An extension to the inherited 'upload' method.
@@ -545,12 +546,6 @@ class PeriodicityCandidateRating(upload.Uploadable):
                 dbname: Name of the database to connect to, or a database
                         connection to use (Defaut: 'default').
         """
-
-        if not self.value is None and np.abs(self.value) < 1e-307:
-            self.value = 0.0
-
-        if not self.value is None and np.isinf(self.value):
-            self.value = 9999.0
 
         if self.cand_id is None:
             raise PeriodicityCandidateError("Cannot upload rating if " \
@@ -578,16 +573,28 @@ class PeriodicityCandidateRating(upload.Uploadable):
         query = "INSERT INTO pdm_rating " + \
                 "(value, pdm_rating_instance_id, pdm_cand_id, date) "
 
-        if self.value is None or np.isnan(self.value):
-            query += "VALUES (NULL, %d, %d, GETDATE())" % \
-                     (self.instance_id, \
-                      self.cand_id)
-        else:
-            query += "VALUES ('%.12g', %d, %d, GETDATE())" % \
-                    (self.value, \
-                    self.instance_id, \
-                    self.cand_id)
+        for ratval in self.ratvals:
 
+            if not ratval.value is None and np.abs(ratval.value) < 1e-307:
+               ratval.value = 0.0
+
+            if not ratval.value is None and np.isinf(ratval.value):
+               ratval.value = 9999.0
+
+            value = ratval.value
+            instance_id = self.inst_cache.get_id(ratval.name, ratval.version, \
+                                            ratval.description)
+            if value is None or np.isnan(value):
+                query += "SELECT NULL, %d, %d, GETDATE() UNION ALL " % \
+                         (instance_id, \
+                          self.cand_id)
+            else:
+                query += "SELECT '%.12g', %d, %d, GETDATE() UNION ALL " % \
+                        (value, \
+                         instance_id, \
+                         self.cand_id)
+
+        query = query.rstrip('UNION ALL') # remove trailing 'UNION ALL' from query
         return query
 
     def compare_with_db(self, dbname='default'):
@@ -604,7 +611,8 @@ class PeriodicityCandidateRating(upload.Uploadable):
             db = dbname
         else:
             db = database.Database(dbname)
-        db.execute("SELECT r.pdm_cand_id AS cand_id, " \
+
+        cmp_select = "SELECT r.pdm_cand_id AS cand_id, " \
                         "r.value AS value, " \
                         "rt.name AS name, " \
                         "ri.version AS version " \
@@ -613,45 +621,49 @@ class PeriodicityCandidateRating(upload.Uploadable):
                         "ON ri.pdm_rating_instance_id=r.pdm_rating_instance_id " \
                    "LEFT JOIN pdm_rating_type AS rt " \
                         "ON ri.pdm_rating_type_id=rt.pdm_rating_type_id " \
-                   "WHERE r.pdm_cand_id=%d AND r.pdm_rating_instance_id=%d " % \
-                        (self.cand_id, self.instance_id))
+                   "WHERE r.pdm_cand_id=%d AND r.pdm_rating_instance_id=%d "
+        query = ""
+
+        for ratval in self.ratvals:
+            instance_id = self.inst_cache.get_id(ratval.name, ratval.version, \
+                                            ratval.description)
+            query += cmp_select % (self.cand_id, instance_id) + "UNION ALL "
+
+
+        query = query.rstrip('UNION ALL') # remove trailing 'UNION ALL' from query
+        db.execute(query)
         rows = db.cursor.fetchall()
         if type(dbname) == types.StringType:
             db.close()
         if not rows:
             # No matching entry in common DB
-            raise ValueError("No matching entry in common DB!\n" \
-                                "(pdm_cand_id: %d, " \
-                                "rating name: %s, " \
-                                "rating version: %d, " \
-                                "fetched pdm_rating_instance_id: %d)" % \
-                                (self.cand_id, self.ratval.name, \
-                                self.ratval.version, self.instance_id))
-        elif len(rows) > 1:
+            raise ValueError("No matching entries for ratings in common DB!\n" \
+                                "(pdm_cand_id: %d)" % \
+                                (self.cand_id))
+        elif len(rows) != len(self.ratvals):
             # Too many matching entries!
-            raise ValueError("Too many matching entries in common DB!\n" \
-                                "(pdm_cand_id: %d, " \
-                                "rating name: %s, " \
-                                "rating version: %d, " \
-                                "fetched pdm_rating_instance_id: %d)" % \
-                                (self.cand_id, self.ratval.name, \
-                                self.ratval.version, self.instance_id))
+            raise ValueError("Wrong number of matching entries in common DB! " \
+                                "%d != %d\n" \
+                                "(pdm_cand_id: %d)" % \
+                                (len(rows),len(self.ratvals),self.cand_id))
         else:
             desc = [d[0] for d in db.cursor.description]
-            r = dict(zip(desc, rows[0]))
-            errormsgs = []
-            for var, fmt in self.to_cmp.iteritems():
-                if r[var] is None:
-                    if not ( getattr(self,var) is None or \
-                             np.isnan(getattr(self, var)) ):
-                        errormsgs.append("Values for '%s' don't match (local: %s, DB: NULL)" % \
-                                            (var, str(getattr(self,var))))
-                else: 
-                    local = (fmt % getattr(self, var)).lower()
-                    fromdb = (fmt % r[var]).lower()
-                    if local != fromdb:
-                        errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
-                                            (var, local, fromdb))
+            for i,ratval in enumerate(self.ratvals):
+                r = dict(zip(desc, rows[i]))
+                ratval.cand_id = self.cand_id
+                errormsgs = []
+                for var, fmt in self.to_cmp.iteritems():
+		    if r[var] is None:
+			if not ( getattr(ratval,var) is None or \
+				 np.isnan(getattr(ratval, var)) ):
+			    errormsgs.append("Values for '%s' don't match (local: %s, DB: NULL)" % \
+						(var, str(getattr(ratval,var))))
+		    else: 
+			local = (fmt % getattr(ratval, var)).lower()
+			fromdb = (fmt % r[var]).lower()
+			if local != fromdb:
+			    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+						(var, local, fromdb))
             if errormsgs:
                 errormsg = "Candidate rating doesn't match what was " \
                             "uploaded to the DB:"
@@ -767,8 +779,9 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, in
         cand.add_dependent(PeriodicityCandidatePFD(pfdfn, timestamp_mjd=timestamp_mjd))
         cand.add_dependent(PeriodicityCandidatePNG(pngfn))
 
-        for ratval in ratings2.rating_value.read_file(ratfn):
-            cand.add_dependent(PeriodicityCandidateRating(ratval,inst_cache=inst_cache))
+        #for ratval in ratings2.rating_value.read_file(ratfn):
+        ratvals = ratings2.rating_value.read_file(ratfn)
+        cand.add_dependent(PeriodicityCandidateRating(ratvals,inst_cache=inst_cache))
         cands.append(cand)
         
     #shutil.rmtree(tempdir)
