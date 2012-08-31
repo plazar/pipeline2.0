@@ -15,6 +15,7 @@ import tarfile
 import tempfile
 
 import numpy as np
+import scipy
 import psr_utils
 import presto
 import prepfold
@@ -44,7 +45,6 @@ sifting.long_period     = config.searching.sifting_long_period
 sifting.harm_pow_cutoff = config.searching.sifting_harm_pow_cutoff
 
 debug = 0
-
 
 def get_baryv(ra, dec, mjd, T, obs="AO"):
    """
@@ -789,7 +789,7 @@ def search_job(job):
         attribs['rescaled_prepfold_sigma'] = \
                 scipy.special.ndtri(scipy.special.chdtr(dof,dof*new_red_chi2))
         for key in attribs:
-            attrib_file.write("%s\t%s\t%.3f" % (pfdfn, key, attribs[key]))
+            attrib_file.write("%s\t%s\t%.3f\n" % (pfdfn, key, attribs[key]))
     attrib_file.close()
 
     # Print some info useful for debugging
@@ -873,7 +873,7 @@ def clean_up(job):
     # Copy all the important stuff to the output directory
     resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", "*.png", \
                     "*.zaplist", "search_params.txt", "*.accelcands*", \
-                    "*_merge.out"]
+                    "*_merge.out", "candidate_attributes.txt"]
     
     # Print some info useful for debugging
     print "Contents of workdir (%s) before copy: " % job.workdir
