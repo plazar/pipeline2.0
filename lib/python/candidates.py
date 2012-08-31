@@ -68,7 +68,7 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
     def __init__(self, cand_num, pfd , snr, coherent_power, \
                         incoherent_power, num_hits, num_harmonics, \
                         versionnum, sigma, sifting_period, sifting_dm, \
-                        header_id=None):
+                        cand_attribs, header_id=None):
         self.header_id = header_id # Header ID from database
         self.cand_num = cand_num # Unique identifier of candidate within beam's 
                                  # list of candidates; Candidate's position in
@@ -90,22 +90,32 @@ class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
                                      # and pipeline's githash
         self.sigma = sigma # PRESTO's sigma value
 
-        red_chi2 = pfd.bestprof.chi_sqr #prepfold reduced chi-squared
-        dof = pfd.proflen - 1 # degrees of freedom
-        #prepfold sigma
-        self.prepfold_sigma = \
-                scipy.special.ndtri(scipy.special.chdtr(dof,dof*red_chi2)) 
-        off_red_chi2 = pfd.estimate_offsignal_redchi2()
-        chi2_scale = 1.0/off_red_chi2
-        new_red_chi2 = chi2_scale * red_chi2
-        # prepfold sigma rescaled to deal with chi-squared suppression
-        # a problem when strong rfi is present
-        self.rescaled_prepfold_sigma = \
-                scipy.special.ndtri(scipy.special.chdtr(dof,dof*new_red_chi2))
+        #red_chi2 = pfd.bestprof.chi_sqr #prepfold reduced chi-squared
+        #dof = pfd.proflen - 1 # degrees of freedom
+        ##prepfold sigma
+        #self.prepfold_sigma = \
+        #        scipy.special.ndtri(scipy.special.chdtr(dof,dof*red_chi2)) 
+        #off_red_chi2 = pfd.estimate_offsignal_redchi2()
+        #chi2_scale = 1.0/off_red_chi2
+        #new_red_chi2 = chi2_scale * red_chi2
+        ## prepfold sigma rescaled to deal with chi-squared suppression
+        ## a problem when strong rfi is present
+        #self.rescaled_prepfold_sigma = \
+        #        scipy.special.ndtri(scipy.special.chdtr(dof,dof*new_red_chi2))
+
+        self.prepfold_sigma = float(cand_attribs['prepfold_sigma'])
+        self.rescaled_prepfold_sigma = float(cand_attribs['rescaled_prepfold_sigma'])
+
+        if np.isinf(self.prepfold_sigma):
+            self.prepfold_sigma = 9999.0
+        if np.isinf(self.rescaled_prepfold_sigma):
+            self.rescaled_prepfold_sigma = 9999.0
+
         self.sifting_period = sifting_period # the period returned by accelsearch
                                              # (not optimized by prepfold)
         self.sifting_dm = sifting_dm # the DM returned by accelsearch
                                      # (not optimized by prepfold)
+
 
         # Store a few configurations so the upload can be checked
         self.pipeline = config.basic.pipeline
@@ -717,6 +727,9 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, in
     foldedcands = foldedcands[:params['max_cands_to_fold']]
     foldedcands.sort(reverse=True) # Sort by descending sigma
 
+    # Open attribute file
+    attrib_fn = os.path.join(directory, 'candidate_attributes.txt')
+    attribs = np.loadtxt(attrib_fn,dtype='S')
         
     # Create temporary directory
     tempdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_pfds_")
@@ -763,23 +776,19 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, in
         ratfn = os.path.join(tempdir, basefn+".pfd.rat")
 
         pfd = prepfold.pfd(pfdfn)
+        cand_attribs = dict(attribs[attribs[:,0] == basefn+".pfd"][:,1:])
         
-        orig_out = sys.stdout
-        sys.stdout = StringIO()
         try:
             cand = PeriodicityCandidate(ii+1, pfd, c.snr, \
                                     c.cpow, c.ipow, len(c.dmhits), \
                                     c.numharm, versionnum, c.sigma, \
-                                    c.period, c.dm, header_id=header_id)
+                                    c.period, c.dm, cand_attribs, header_id=header_id)
         except Exception:
             raise PeriodicityCandidateError("PeriodicityCandidate could not be " \
                                             "created (%s)!" % pfdfn)
-        sys.stdout = orig_out
-
         cand.add_dependent(PeriodicityCandidatePFD(pfdfn, timestamp_mjd=timestamp_mjd))
         cand.add_dependent(PeriodicityCandidatePNG(pngfn))
 
-        #for ratval in ratings2.rating_value.read_file(ratfn):
         ratvals = ratings2.rating_value.read_file(ratfn)
         cand.add_dependent(PeriodicityCandidateRating(ratvals,inst_cache=inst_cache))
         cands.append(cand)
