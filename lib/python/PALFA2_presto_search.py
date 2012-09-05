@@ -781,13 +781,13 @@ def search_job(job):
         red_chi2 = pfd.bestprof.chi_sqr
         dof = pfd.proflen - 1
         attribs['prepfold_sigma'] = \
-                scipy.special.ndtri(scipy.special.chdtr(dof,dof*red_chi2))
+                -scipy.stats.norm.ppf(scipy.stats.chi2.sf(red_chi2*dof, dof))
 	off_red_chi2 = pfd.estimate_offsignal_redchi2()
 	new_red_chi2 = red_chi2 / off_red_chi2
         # prepfold sigma rescaled to deal with chi-squared suppression
         # a problem when strong rfi is present
         attribs['rescaled_prepfold_sigma'] = \
-                scipy.special.ndtri(scipy.special.chdtr(dof,dof*new_red_chi2))
+                -scipy.stats.norm.ppf(scipy.stats.chi2.sf(new_red_chi2*dof, dof))
         for key in attribs:
             attrib_file.write("%s\t%s\t%.3f\n" % (pfdfn, key, attribs[key]))
     attrib_file.close()
