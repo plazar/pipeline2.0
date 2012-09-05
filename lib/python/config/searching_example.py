@@ -39,6 +39,18 @@ low_T_to_search         = 20.0 # sec
 # else:
 #     numsub  = 0      # Defaults to number of channels
 
+# Configuration of DD plans
+ddplans = {}
+ddplans['pdev'] = []
+ddplans['wapp'] = []
+ddplans['nuppi'] = []
+
+ddplans['pdev'].append([   0.0,  0.1,    76,     28,     96,        1 ])
+ddplans['pdev'].append([ 212.8,  0.3,    64,     12,     96,        2 ])
+
+ddplans['nuppi'].append([   0.0,  0.1,   100,      1,     96,        1 ])
+ddplans['nuppi'].append([  10.0,  0.1,   100,      1,     96,        2 ])
+
 # Sifting specific parameters (don't touch without good reason!)
 sifting_sigma_threshold = to_prepfold_sigma-1.0  
                                  # incoherent power threshold (sigma)
