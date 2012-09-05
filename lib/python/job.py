@@ -22,6 +22,7 @@ import config.processing
 import config.jobpooler
 import config.email
 import config.basic
+import config.searching
 
 jobpool_cout = OutStream.OutStream("JobPool", \
                     os.path.join(config.basic.log_dir, "jobpooler.log"), \
@@ -29,17 +30,17 @@ jobpool_cout = OutStream.OutStream("JobPool", \
 
 def status(log=True):
     """
-    Displays number of jobs processed, uploaded, waiting, waiting retry, failed.
+    Displays number of jobs finished, uploaded, waiting, waiting retry, failed.
 
     Input(s):
         Optional:
             log : Default to True, will write to a configured log file,
                     else will only output the information to stdout
     Output(s):
-        Displays number of jobs processed, uploaded, waiting, waiting retry, failed.
+        Displays number of jobs finished, uploaded, waiting, waiting retry, failed.
     """
     running_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='submitted'")
-    processed_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='processed'")
+    finished_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='finished'")
     uploaded_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='uploaded'")
     new_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='new'")
     failed_jobs = jobtracker.query("SELECT * FROM jobs WHERE status='failed'")
@@ -48,7 +49,7 @@ def status(log=True):
 
     status_str= "\n\n================= Job Pool Status ==============\n"
     status_str+="Num. of jobs            running: %d\n" % len(running_jobs)
-    status_str+="Num. of jobs          processed: %d\n" % len(processed_jobs)
+    status_str+="Num. of jobs           finished: %d\n" % len(finished_jobs)
     status_str+="Num. of jobs           uploaded: %d\n" % len(uploaded_jobs)
     status_str+="Num. of jobs            waiting: %d\n" % len(new_jobs)
     status_str+="Num. of jobs      waiting retry: %d\n" % len(retrying_jobs)
@@ -64,7 +65,7 @@ def create_jobs_for_new_files():
         jobs that belong to the same observation and create
         entries in the jobs table.
     """
-    # Get files that aren't already associated with a job
+    # Get files that were not associated with a job yet
     rows = jobtracker.query("SELECT filename FROM files " \
                             "LEFT JOIN job_files " \
                                 "ON job_files.file_id=files.id " \
@@ -73,7 +74,7 @@ def create_jobs_for_new_files():
     newfns = [str(row['filename']) for row in rows]
 
     # Group together files that belong together
-    groups = datafile.group_files(newfns)
+    groups = datafile.simple_group_files(newfns)
 
     # Keep only groups that are not missing any files
     complete_groups = [grp for grp in groups if datafile.is_complete(grp)]
@@ -81,6 +82,10 @@ def create_jobs_for_new_files():
     if complete_groups:
         jobpool_cout.outs("Inserting %d new entries into jobs table" % \
                             len(complete_groups))
+
+    # Label the first task
+    task_name = 'rfifind'
+
     for complete in complete_groups:
         # Insert new job and link it to data files
         queries = []
@@ -88,10 +93,11 @@ def create_jobs_for_new_files():
                             "created_at, " \
                             "details, " \
                             "status, " \
+                            "task, " \
                             "updated_at) " \
                        "VALUES ('%s', '%s', '%s', '%s')" % \
                         (jobtracker.nowstr(), 'Newly created job', \
-                            'new', jobtracker.nowstr()))
+                            'new', task_name, jobtracker.nowstr()))
         queries.append("INSERT INTO job_files (" \
                             "file_id, " \
                             "created_at, " \
@@ -103,6 +109,174 @@ def create_jobs_for_new_files():
                        (jobtracker.nowstr(), jobtracker.nowstr(), \
                         "', '".join(complete)))
         jobtracker.query(queries)
+
+def create_parallel_search_jobs():
+    """Check job-tracker DB for processed jobs. Submit 
+	successive jobs and create
+        entries in the jobs table.
+    """
+    # Look for job with rfifind done
+    rows = jobtracker.query("SELECT * from jobs " \
+				"WHERE status='processed' " \
+				"AND task='rfifind'")
+   
+    queries = []
+    for row in rows:
+
+        # retrieve file_ids
+        rows2 = jobtracker.query("SELECT * from job_files " \
+				"WHERE job_id=%d'"row['job_id'])
+
+        files_ids = [str(row2['file_id']) for row2 in rows2]
+
+	# Submit all parallel jobs (1 job per DDplan)
+        for istep in range(len(config.searching.ddplans['nuppi'])): 
+            task_name = "DDplan %d"%istep # TODO
+            queries.append("INSERT INTO jobs (" \
+                            "created_at, " \
+                            "details, " \
+                            "status, " \
+                            "task, " \
+                            "updated_at) " \
+                       "VALUES ('%s', '%s', '%s', '%s')" % \
+                        (jobtracker.nowstr(), 'Newly created job', \
+                            'new', task_name, jobtracker.nowstr()))
+
+            for file_id in file_ids:
+                queries.append("INSERT INTO job_files (" \
+                                "file_id, " \
+                                "created_at, " \
+                                "job_id, " \
+                                "updated_at) " \
+                           "%d, '%s', (SELECT LAST_INSERT_ROWID()), '%s' " %\
+                           (file_id, jobtracker.nowstr(), jobtracker.nowstr(), \
+                            "', '".join(complete)))
+
+	# Mark the previous task as 'done'
+	queries.append("UPDATE jobs " \
+			   "SET status='done', " \
+			   "updated_at='%s', " \
+			   "details='Processed without errors' " \
+			   "WHERE id=%d" % \
+                           (jobtracker.nowstr(), row['job_id']))
+    jobtracker.query(queries)
+			    
+    
+def create_sifting_jobs():
+    """Check job-tracker DB for processed jobs. Submit 
+	successive jobs and create
+        entries in the jobs table.
+    """
+
+    # First make sur that all plans are done
+    rows = jobtracker.query("SELECT * from jobs " \
+				"WHERE status='processed' " \
+				"AND 'DD' like task")
+    # TODO: how to find out that the parallel task are done ?				
+
+    rows = jobtracker.query("SELECT jobs.task, job_files.file_id  FROM jobs " \
+                            "LEFT JOIN job_files " \
+                            "ON job_files.job_id=jobs.id " \
+                            "WHERE jobs.status='processed' and 'DDplan ' LIKE jobs.task")
+
+
+def check_parallel_jobs(task, rows):
+    # This should go into a new function
+    # Now sort the details - Check that all parallel jobs are done
+    # TODO: Should find something more clever !!
+    a = {}
+    for row in rows:
+        if a.has_key(row['file_id']):
+	    a[row['file_id']].append(row['task'])
+	else:
+	    a[row['file_id']] = []   
+	    a[row['file_id']].append(row['task'])
+
+    keys = a.keys()	    
+    keys.sort()
+    
+    # Expected list of plans
+    plans = ["DDplan %d"%i for i in range(config.searching.ddplans['nuppi'])]
+
+    finished_files = []
+    for key in keys:
+        # Len of the list should be equal to Number of plans
+	finished_plans = [dbplan for dbplan in dbplans if dbplan in plans]
+	if len(finished_plans) == len(config.searching.ddplans['nuppi']):
+	    finished_files.append(key)
+	    
+
+    # TODO : Should return the good arrays
+    return finished_files
+        
+
+def create_parallel_folding_jobs():
+    """Check job-tracker DB for processed jobs. Submit 
+	successive jobs and create
+        entries in the jobs table.
+    """
+    # Look for job with rfifind done
+    rows = jobtracker.query("SELECT * from jobs " \
+				"WHERE status='processed' " \
+				"AND task='sifting'")
+   
+    queries = []
+    for row in rows:
+
+        # retrieve file_ids
+        rows2 = jobtracker.query("SELECT * from job_files " \
+				"WHERE job_id=%d'"row['job_id'])
+
+        files_ids = [str(row2['file_id']) for row2 in rows2]
+
+	# Submit all parallel jobs ()
+        for istep in range(config.searching.ddplans['nuppi']): 
+            task_name = "folding %d"%istep # TODO
+            queries.append("INSERT INTO jobs (" \
+                            "created_at, " \
+                            "details, " \
+                            "status, " \
+                            "task, " \
+                            "updated_at) " \
+                       "VALUES ('%s', '%s', '%s', '%s')" % \
+                        (jobtracker.nowstr(), 'Newly created job', \
+                            'new', task_name, jobtracker.nowstr()))
+
+            for file_id in file_ids:
+                queries.append("INSERT INTO job_files (" \
+                                "file_id, " \
+                                "created_at, " \
+                                "job_id, " \
+                                "updated_at) " \
+                           "%d, '%s', (SELECT LAST_INSERT_ROWID()), '%s' " %\
+                           (file_id, jobtracker.nowstr(), jobtracker.nowstr(), \
+                            "', '".join(complete)))
+
+	# Mark the previous task as 'done'
+	queries.append("UPDATE jobs " \
+			   "SET status='done', " \
+			   "updated_at='%s', " \
+			   "details='Processed without errors' " \
+			   "WHERE id=%d" % \
+                           (jobtracker.nowstr(), row['job_id']))
+    jobtracker.query(queries)
+
+
+def create_jobs():
+    """
+    """
+    # Create initial jobs for newly downloaded or added files
+    create_jobs_for_new_files()
+
+    # Create parallel jobs after rfifind
+    create_parallel_search_jobs()
+
+    # Create single sifting job after all accelsearch
+    create_sifting_jobs()
+
+    # Create parallel folding jobs after sifting 
+    create_parallel_folding_jobs()
+
 
 def rotate():
     """For each job;
@@ -117,7 +291,7 @@ def rotate():
         If the job has terminated without errors then the processing is
         assumed to be completed successfuly and upload of the results is called upon the job
     """
-    create_jobs_for_new_files()
+    create_jobs()
     update_jobs_status_from_queue()
     recover_failed_jobs()
     submit_jobs()
@@ -284,12 +458,31 @@ def submit(job_row):
         None
     """
     fns = pipeline_utils.get_fns_for_jobid(job_row['id']) 
+
+    # Specify requested resources for job submission
+    if job_row['task']=='rfifind':
+        res = [4*60*60, 1024, 24]
+	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
+    elif job_row['task']=='search':
+        res = [4*60*60, 1024, 24]
+	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
+    elif job_row['task']=='sifting': # Sifting should be quick
+        res = [30*60, 256, 5]
+	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
+    elif job_row['task']=='folding':
+        res = [4*60*60, 1024, 24]
+	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
+    elif job_row['task']=='tidyup':
+        res = [30*60, 256, 5]
+	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
+    
+    res = []
     
     try:
         outdir = get_output_dir(fns)
         # Attempt to submit the job
         queue_id = config.jobpooler.queue_manager.submit\
-                            (fns, outdir, job_row['id'])
+                            (fns, outdir, job_row['id'], resources=res, script=script)
     except (queue_managers.QueueManagerJobFatalError,\
               datafile.DataFileError):
         # Error caught during job submission.
