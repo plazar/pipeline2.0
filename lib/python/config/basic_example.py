@@ -5,6 +5,7 @@ import os.path
 institution = 'McGill'
 pipeline = "PRESTO"
 survey = "PALFA2.0"
+use_HPSS = False
 
 # This is the root directory of the source for the pipeline as pulled
 # from github
