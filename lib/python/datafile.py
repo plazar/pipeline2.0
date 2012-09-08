@@ -94,6 +94,7 @@ def is_complete(fns):
             complete: Boolean value. True if list of file names
                 is a group that is complete.
     """
+    """
     if not fns:
         return False
     datatypes = [get_datafile_type([fn]) for fn in fns]
@@ -101,6 +102,11 @@ def is_complete(fns):
         if datatypes[0] != t:
             return False
     return datatypes[0].is_complete(fns)
+    """
+    if len(fns)==8:
+        return True
+    else:
+        return False
 
 
 def group_files(fns):
@@ -119,6 +125,41 @@ def group_files(fns):
         for jj in range(len(fns)-1, ii, -1):
             other = fns[jj]
             if are_grouped(fn, other):
+                group.append(fns.pop(jj))
+        groups.append(group)
+    return groups
+
+def match_observation(fn1, fn2):
+    sfn1 = os.path.split(fn1)[-1]
+    sfn2 = os.path.split(fn2)[-1]
+
+    try:
+        s1 = '_'.join(sfn1.split('_')[0:4])
+        s2 = '_'.join(sfn2.split('_')[0:4])
+    except:
+        return False
+    if s1==s2:
+        return True
+    else:
+        return False
+
+
+def simple_group_files(fns):
+    """Given a list of file names form groups of files
+        that belong to the same observation (only based on file names).
+
+        Intput:
+            fns: A list of file names.
+
+        Output:
+            groups: A list of groups (each group is a list of filenames).
+    """
+    groups = []
+    for ii, fn in enumerate(fns):
+        group = [fn]
+        for jj in range(len(fns)-1, ii, -1):
+            other = fns[jj]
+            if match_observation(fn, other):
                 group.append(fns.pop(jj))
         groups.append(group)
     return groups
