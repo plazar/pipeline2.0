@@ -11,7 +11,6 @@ import debug
 import mailer
 import OutStream
 import datafile
-import database
 import jobtracker
 import pipeline_utils
 import config.background
@@ -143,7 +142,6 @@ def run():
     numsuccess = verify_files()
     recover_failed_downloads()
     check_downloading_requests()
-    #delete_downloaded_files()
     acknowledge_downloaded_files()
     if can_request_more():
         make_request()
@@ -574,37 +572,6 @@ def check_downloading_requests():
     else:
         pass
 
-
-
-def delete_downloaded_files():
-    requests_to_delete = jobtracker.query("SELECT * FROM requests " \
-                                          "WHERE status='finished'")
-    if len(requests_to_delete) > 0:
-        web_service = CornellWebservice.Client()
-        queries = []
-        for request_to_delete in requests_to_delete:
-            delete_status = web_service.Deleter(guid=request_to_delete['guid'], \
-                                                username=config.download.api_username, \
-                                                pw=config.download.api_password)
-            if delete_status == "deletion successful":
-                dlm_cout.outs("Deletion (%s) succeeded." % request_to_delete['guid'])
-                queries.append("UPDATE requests " \
-                               "SET status='cleaned_up', " \
-                               "details='Files deleted from FTP server', " \
-                               "updated_at='%s' " \
-                               "WHERE id=%d" % \
-                               (jobtracker.nowstr(), request_to_delete['id']))
-
-            elif delete_status == "invalid user":
-                dlm_cout.outs("Deletion (%s) failed due to invalid user." % \
-                              request_to_delete['guid'])
-            
-            elif delete_status == "deletion failed":
-                dlm_cout.outs("Deletion (%s) failed for unknown reasons." % \
-                              request_to_delete['guid'])
-        jobtracker.query(queries)
-    else: pass
-            
 
 
 class DownloadThread(threading.Thread):
