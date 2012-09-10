@@ -321,13 +321,28 @@ def create_file_entries(request):
         dlm_cout.outs("Request (GUID: %s) has failed.\n" \
                         "\tThere are no files to be downloaded." % \
                         request['guid'])
-        # redefine 'queries' because there are no files to update
-        queries = ["UPDATE requests " \
-                   "SET updated_at='%s', " \
-                        "status='failed', " \
-                        "details='No files to download' " \
-                   "WHERE id=%d" % \
-                   (jobtracker.nowstr(), request['id'])]
+
+        # delete restore since there may be skipped files
+        delete_status = web_service.Deleter(guid=request['guid'], \
+                                            username=config.download.api_username, \
+                                            pw=config.download.api_password)
+        if delete_status == "deletion successful":
+            dlm_cout.outs("Deletion (%s) succeeded." % request['guid'])
+	elif delete_status == "invalid user":
+	    dlm_cout.outs("Deletion (%s) failed due to invalid user." % \
+			  request['guid'])
+	elif delete_status == "deletion failed":
+	    dlm_cout.outs("Deletion (%s) failed for unknown reasons." % \
+			  request['guid'])
+
+	# redefine 'queries' because there are no files to update
+	queries = ["UPDATE requests " \
+		   "SET updated_at='%s', " \
+			"status='failed', " \
+			"details='No files to download.' " \
+		   "WHERE id=%d" % \
+		   (jobtracker.nowstr(), request['id'])]
+
     jobtracker.query(queries)
 
 

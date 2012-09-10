@@ -15,8 +15,10 @@ import tarfile
 import tempfile
 
 import numpy as np
+import scipy
 import psr_utils
 import presto
+import prepfold
 
 import matplotlib
 matplotlib.use('agg') #Use AGG (png) backend to plot
@@ -43,7 +45,6 @@ sifting.long_period     = config.searching.sifting_long_period
 sifting.harm_pow_cutoff = config.searching.sifting_harm_pow_cutoff
 
 debug = 0
-
 
 def get_baryv(ra, dec, mjd, T, obs="AO"):
    """
@@ -772,6 +773,25 @@ def search_job(job):
     timed_execute("rate_pfds.py --redirect-warnings --include-all -x pulse_width *.pfd")
     sys.stdout.flush()
 
+    # Calculate some candidate attributes from pfds
+    attrib_file = open('candidate_attributes.txt','w')
+    for pfdfn in glob.glob("*.pfd"):
+        attribs = {}
+        pfd = prepfold.pfd(pfdfn)
+        red_chi2 = pfd.bestprof.chi_sqr
+        dof = pfd.proflen - 1
+        attribs['prepfold_sigma'] = \
+                -scipy.stats.norm.ppf(scipy.stats.chi2.sf(red_chi2*dof, dof))
+	off_red_chi2 = pfd.estimate_offsignal_redchi2()
+	new_red_chi2 = red_chi2 / off_red_chi2
+        # prepfold sigma rescaled to deal with chi-squared suppression
+        # a problem when strong rfi is present
+        attribs['rescaled_prepfold_sigma'] = \
+                -scipy.stats.norm.ppf(scipy.stats.chi2.sf(new_red_chi2*dof, dof))
+        for key in attribs:
+            attrib_file.write("%s\t%s\t%.3f\n" % (pfdfn, key, attribs[key]))
+    attrib_file.close()
+
     # Print some info useful for debugging
     print "Contents of workdir (%s) after folding: " % job.workdir
     for fn in os.listdir(job.workdir):
@@ -853,7 +873,7 @@ def clean_up(job):
     # Copy all the important stuff to the output directory
     resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", "*.png", \
                     "*.zaplist", "search_params.txt", "*.accelcands*", \
-                    "*_merge.out"]
+                    "*_merge.out", "candidate_attributes.txt"]
     
     # Print some info useful for debugging
     print "Contents of workdir (%s) before copy: " % job.workdir
