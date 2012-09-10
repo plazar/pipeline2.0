@@ -31,7 +31,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         self.max_jobs_per_node = max_jobs_per_node
         self.queue_name = queue_name
 
-    def submit(self, datafiles, outdir, job_id, resources=[]\
+    def submit(self, datafiles, outdir, job_id, resources=[],\
                 script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
