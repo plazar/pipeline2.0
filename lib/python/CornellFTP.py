@@ -38,7 +38,14 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             self.quit()
 
     def list_files(self, ftp_path):
-        return self.nlst(ftp_path)
+        try:
+            flist = self.nlst(ftp_path)
+        except Exception, e:
+            cout.outs("CornellFTP - FTP list_files failed: %s" % \
+                        (str(e)))
+            raise get_ftp_exception("Could not list files in (%s) " 
+                                    "on FTP server: %s" % (ftp_path, str(e)))
+        return flist
 
     def get_files(self, ftp_path):
         files = self.list_files(ftp_path)
@@ -72,6 +79,27 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             raise get_ftp_exception(response)
         return modtime
 
+    def dir_exists(self,ftp_dir):
+        """Check to see if directory exists on FTP server.
+            Note: Checks for existence of all dirs in a path.
+
+            Input: 
+                ftp_dir: path of directory on FTP server.
+
+            Output:
+                exists: boolean of whether exists or not.
+        """
+        dir_list = ftp_dir.split("/")
+        test_dir = ""
+        for i in range(len(dir_list) - 1):
+          test_dir += dir_list[i] + "/"
+          filelist = self.list_files(test_dir) 
+          exists = dir_list[i+1] in filelist
+          if not exists:
+              return False
+        return True
+            
+
     def download(self, ftp_path, local_path=config.download.datadir):
 
         localfn = os.path.join(local_path, os.path.basename(ftp_path))
@@ -85,7 +113,7 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             lftp_cmd = '"get %s -o %s"' % (ftp_path, localfn)
             cmd = "lftp -c 'set xfer:clobber 1; open -e %s -u %s,%s " %\
                      (lftp_cmd, username, password)\
-                     + "-p 31001 arecibo.tc.cornell.edu'"
+                     + "-p 31001 arecibo.tc.cornell.edu' > /dev/null"
 
             cout.outs("CornellFTP - Starting Download of: %s" % \
                         os.path.split(ftp_path)[-1])

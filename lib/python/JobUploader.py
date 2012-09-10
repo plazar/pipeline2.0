@@ -4,6 +4,7 @@ import traceback
 import glob
 import sys
 import time
+import shutil
 
 import debug
 import datafile
@@ -18,6 +19,7 @@ import pipeline_utils
 import CornellFTP
 import config.upload
 import config.basic
+import ratings2.utils
 
 # Suppress warnings produced by uploaders
 # (typically because data, weights, scales, offsets are missing
@@ -93,8 +95,8 @@ def upload_results(job_submit):
         db = database.Database('default', autocommit=False)
         # Prepare for upload
         dir = job_submit['output_dir']
-        if not os.path.exists(dir):
-            errormsg = 'ERROR: Results directory, %s, does not exist for job_id=%d' %\
+        if not os.path.exists(dir) or not os.listdir(dir):
+            errormsg = 'ERROR: Results directory, %s, does not exist or is empty for job_id=%d' %\
                        (dir, job_submit['job_id'])
             raise upload.UploadNonFatalError(errormsg)
 
@@ -109,9 +111,13 @@ def upload_results(job_submit):
         
         print "\tHeader parsed."
 
-        cands = candidates.get_candidates(version_number, dir)
+        rat_inst_id_cache = ratings2.utils.RatingInstanceIDCache(dbname='common2')
+        cands, tempdir = candidates.get_candidates(version_number, dir, \
+                                                   timestamp_mjd=data.timestamp_mjd, \
+                                                   inst_cache=rat_inst_id_cache)
         print "\tPeriodicity candidates parsed."
-        sp_cands = sp_candidates.get_spcandidates(version_number, dir)
+        sp_cands = sp_candidates.get_spcandidates(version_number, dir, \
+                                                  timestamp_mjd=data.timestamp_mjd)
         print "\tSingle pulse candidates parsed."
 
         for c in (cands + sp_cands):
@@ -132,8 +138,10 @@ def upload_results(job_submit):
         header_id = hdr.upload(db)
         for d in diags:
             d.upload(db)
-        print "\tEverything uploaded and checked successfully. header_id=%d" % \
+        print "\tDB upload completed and checked successfully. header_id=%d" % \
                     header_id
+
+
     except (upload.UploadNonFatalError):
         # Parsing error caught. Job attempt has failed!
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
@@ -184,35 +192,75 @@ def upload_results(job_submit):
         # No errors encountered. Commit changes to the DB.
         db.commit()
 
-        # Update database statuses
-        queries = []
-        queries.append("UPDATE job_submits " \
-                       "SET status='uploaded', " \
-                            "details='Upload successful (header_id=%d)', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % 
-                       (header_id, jobtracker.nowstr(), job_submit['id']))
-        queries.append("UPDATE jobs " \
-                       "SET status='uploaded', " \
-                            "details='Upload successful (header_id=%d)', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % \
-                       (header_id, jobtracker.nowstr(), job_submit['job_id']))
-        jobtracker.query(queries)
+        #FTP any FTPables
+        attempts = 0
+        while attempts < 5:
+            try:
+                cftp = CornellFTP.CornellFTP()
+                hdr.upload_FTP(cftp,db)
+                cftp.quit()
 
-        print "Results successfully uploaded"
+            except CornellFTP.CornellFTPTimeout:
+                # Connection error during FTP upload. Reconnect and try again.
+                print "FTP connection lost. Reconnecting..."
+                attempts += 1
+                cftp.quit()
+            except:
+                # Unexpected error
+                sys.stderr.write("Unexpected error during FTP upload!\n")
+                sys.stderr.write("\tRolling back DB transaction and re-raising.\n")
+        
+                # Rolling back changes (just last uncommited FTP). 
+                db.rollback()
+                raise 
+            else:
+                print "\tFTP upload completed successfully. header_id=%d" % \
+                        header_id
+                break
 
-        if config.basic.delete_rawdata:
-            pipeline_utils.clean_up(job_submit['job_id'])
+        # remove temporary dir for PFDs
+        shutil.rmtree(tempdir)
 
-        if debug.UPLOAD: 
-            upload.upload_timing_summary['End-to-end'] = \
-                upload.upload_timing_summary.setdefault('End-to-end', 0) + \
-                (time.time()-starttime)
-            print "Upload timing summary:"
-            for k in sorted(upload.upload_timing_summary.keys()):
-                print "    %s: %.2f s" % (k, upload.upload_timing_summary[k])
-        print "" # Just a blank line
+        if attempts >= 5:
+            errmsg = "FTP upload failed after %d connection failures!\n" % attempts
+            sys.stderr.write(errmsg)
+            sys.stderr.write("\tRolling back DB transaction and raising error.\n")
+           
+            # Rolling back changes (just last uncommited FTP). 
+            db.rollback()
+            raise pipeline_utils.PipelineError(errmsg)
+                        
+        else:
+	    # Update database statuses
+	    queries = []
+	    queries.append("UPDATE job_submits " \
+			   "SET status='uploaded', " \
+				"details='Upload successful (header_id=%d)', " \
+				"updated_at='%s' " \
+			   "WHERE id=%d" % 
+			   (header_id, jobtracker.nowstr(), job_submit['id']))
+	    queries.append("UPDATE jobs " \
+			   "SET status='uploaded', " \
+				"details='Upload successful (header_id=%d)', " \
+				"updated_at='%s' " \
+			   "WHERE id=%d" % \
+			   (header_id, jobtracker.nowstr(), job_submit['job_id']))
+	    jobtracker.query(queries)
+
+	    print "Results successfully uploaded"
+
+	    if config.basic.delete_rawdata:
+		pipeline_utils.clean_up(job_submit['job_id'])
+
+	    if debug.UPLOAD: 
+		upload.upload_timing_summary['End-to-end'] = \
+		    upload.upload_timing_summary.setdefault('End-to-end', 0) + \
+		    (time.time()-starttime)
+		print "Upload timing summary:"
+		for k in sorted(upload.upload_timing_summary.keys()):
+		    print "    %s: %.2f s" % (k, upload.upload_timing_summary[k])
+	    print "" # Just a blank line
+       
 
 def get_fitsfiles(job_submit):
     """Find the fits files associated with this job.

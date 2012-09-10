@@ -17,7 +17,12 @@ import tempfile
 import numpy as np
 import psr_utils
 import presto
-import sifting
+
+import matplotlib
+matplotlib.use('agg') #Use AGG (png) backend to plot
+import matplotlib.pyplot as plt
+import mysifting as sifting # Temporarily until 'sifting.py' 
+                            # in PRESTO is updated
 
 import datafile
 import config.searching
@@ -204,11 +209,11 @@ def get_folding_command(cand, obs):
     elif p < 0.5:
         Mp, Mdm, N = 1, 1, 100
         npart = 30
-        otheropts = "-pstep 1 -pdstep 2 -dmstep 1"
+        otheropts = "-pstep 1 -pdstep 2 -dmstep 1 -nodmsearch"
     else:
         Mp, Mdm, N = 1, 1, 200
         npart = 30
-        otheropts = "-nopdsearch -pstep 1 -pdstep 2 -dmstep 1"
+        otheropts = "-nopdsearch -pstep 1 -pdstep 2 -dmstep 1 -nodmsearch"
 
     # If prepfold is instructed to use more subbands than there are rows in the PSRFITS file
     # it doesn't use any data when folding since the amount of data for each part is
@@ -462,6 +467,21 @@ def set_up_job(filenms, workdir, resultsdir):
     # Create a directory to hold all the subbands
     job.tempdir = tempfile.mkdtemp(suffix="_tmp", prefix=job.basefilenm, \
                         dir=config.processing.base_tmp_dir)
+    
+    #####
+    # Print some info useful for debugging
+    print "Initial contents of workdir (%s): " % workdir
+    for fn in os.listdir(workdir):
+        print "    %s" % fn
+    print "Initial contents of resultsdir (%s): " % resultsdir
+    for fn in os.listdir(resultsdir):
+        print "    %s" % fn
+    print "Initial contents of job.tempdir (%s): " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    sys.stdout.flush()
+    #####
+
     return job
 
 
@@ -519,12 +539,21 @@ def search_job(job):
                         job.tempdir, job.basefilenm, job.tempdir, subbasenm)
                 job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
             
+                if config.searching.use_zerodm_sp or config.searching.use_zerodm_accel:
+		    cmd = "prepsubband -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
+			    "-nsub %d -numout %d -zerodm -o %s/%s_zerodm %s/subbands/%s.sub[0-9]*" % \
+			    (ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
+			    ddplan.dmsperpass, ddplan.dd_downsamp, ddplan.numsub,
+			    psr_utils.choose_N(job.orig_N/ddplan.downsamp),
+			    job.tempdir, job.basefilenm, job.tempdir, subbasenm)
+		    job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
+
             else:  # Not using subbands
                 cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
-                        "-numout %d -o %s/%s %s"%\
+                        "-numout %d -nsub %d -o %s/%s %s"%\
                         (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
                         ddplan.dmsperpass, ddplan.dd_downsamp*ddplan.sub_downsamp, 
-                        psr_utils.choose_N(job.orig_N/ddplan.downsamp),
+                        psr_utils.choose_N(job.orig_N/ddplan.downsamp), ddplan.numsub, 
                         job.tempdir, job.basefilenm, job.filenmstr)
                 job.dedispersing_time += timed_execute(cmd)
             
@@ -532,7 +561,9 @@ def search_job(job):
             for dmstr in ddplan.dmlist[passnum]:
                 dmstrs.append(dmstr)
                 basenm = os.path.join(job.tempdir, job.basefilenm+"_DM"+dmstr)
+                basenm_zerodm = os.path.join(job.tempdir, job.basefilenm+"_zerodm_DM"+dmstr)
                 datnm = basenm+".dat"
+                datnm_zerodm = basenm_zerodm+".dat"
                 fftnm = basenm+".fft"
                 infnm = basenm+".inf"
 
@@ -544,6 +575,15 @@ def search_job(job):
                 try:
                     shutil.move(basenm+".singlepulse", job.workdir)
                 except: pass
+
+                if config.searching.use_zerodm_sp:
+		    cmd = "single_pulse_search.py -p -m %f -t %f %s"%\
+			  (config.searching.singlepulse_maxwidth, \
+			   config.searching.singlepulse_threshold, datnm_zerodm)
+		    job.singlepulse_time += timed_execute(cmd)
+		    try:
+			shutil.move(basenm_zerodm+".singlepulse", job.workdir)
+		    except: pass
 
                 # FFT, zap, and de-redden
                 cmd = "realfft %s"%datnm
@@ -616,6 +656,7 @@ def search_job(job):
 
     # Make the single-pulse plots
     basedmb = job.basefilenm+"_DM"
+    basedmb_zerodm = job.basefilenm+"_zerodm_DM"
     basedme = ".singlepulse "
     # The following will make plots for DM ranges:
     #    0-110, 100-310, 300-1000+
@@ -628,6 +669,18 @@ def search_job(job):
                basedmb+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme]
     dmrangestrs = ["0-110", "100-310", "300-1000+"]
     psname = job.basefilenm+"_singlepulse.ps"
+    psname_zerodm = job.basefilenm+"_zerodm_singlepulse.ps"
+
+    if config.searching.use_zerodm_sp:
+	dmglobs.extend([basedmb_zerodm+"[0-9].[0-9][0-9]"+basedme +
+		   basedmb_zerodm+"[0-9][0-9].[0-9][0-9]"+basedme +
+		   basedmb_zerodm+"10[0-9].[0-9][0-9]"+basedme,
+		   basedmb_zerodm+"[12][0-9][0-9].[0-9][0-9]"+basedme +
+		   basedmb_zerodm+"30[0-9].[0-9][0-9]"+basedme,
+		   basedmb_zerodm+"[3-9][0-9][0-9].[0-9][0-9]"+basedme +
+		   basedmb_zerodm+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme])
+	dmrangestrs.extend(["0-110_zerodm", "100-310_zerodm", "300-1000+_zerodm"])
+
     for dmglob, dmrangestr in zip(dmglobs, dmrangestrs):
         dmfiles = []
         for dmg in dmglob.split():
@@ -637,7 +690,11 @@ def search_job(job):
             cmd = 'single_pulse_search.py -t %f -g "%s"' % \
                 (config.searching.singlepulse_plot_SNR, dmglob)
             job.singlepulse_time += timed_execute(cmd)
-            os.rename(psname,
+            if dmrangestr.endswith("zerodm"):
+                os.rename(psname_zerodm,
+                        job.basefilenm+"_DMs%s_singlepulse.ps" % dmrangestr)
+            else:
+                os.rename(psname,
                         job.basefilenm+"_DMs%s_singlepulse.ps" % dmrangestr)
 
     # Sift through the candidates to choose the best to fold
@@ -662,22 +719,72 @@ def search_job(job):
         all_accel_cands = sifting.remove_harmonics(all_accel_cands)
         # Note:  the candidates will be sorted in _sigma_ order, not _SNR_!
         all_accel_cands.sort(sifting.cmp_sigma)
+        print "Sending candlist to stdout before writing to file"
+        sifting.write_candlist(all_accel_cands)
+        sys.stdout.flush()
         sifting.write_candlist(all_accel_cands, job.basefilenm+".accelcands")
+        # Make sifting summary plots
+        all_accel_cands.plot_goodbad()
+        plt.title("%s Rejected Cands" % job.basefilenm)
+        plt.savefig(job.basefilenm+".accelcands.rejects.png")
+        all_accel_cands.plot_summary()
+        plt.title("%s Periodicity Summary" % job.basefilenm)
+        plt.savefig(job.basefilenm+".accelcands.summary.png")
+        
+        # Write out sifting candidate summary
+        all_accel_cands.print_cand_summary(job.basefilenm+".accelcands.summary")
+        # Write out sifting comprehensive report of bad candidates
+        all_accel_cands.write_cand_report(job.basefilenm+".accelcands.report")
+        timed_execute("gzip --best %s" % job.basefilenm+".accelcands.report")
+
         # Moving of results to resultsdir now happens in clean_up(...)
         # shutil.copy(job.basefilenm+".accelcands", job.outputdir)
 
     job.sifting_time = time.time() - job.sifting_time
 
+    #####
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) before folding: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) before folding: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    print "Contents of job.tempdir (%s) before folding: " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    sys.stdout.flush()
+    #####
+
     # Fold the best candidates
     cands_folded = 0
     for cand in all_accel_cands:
+        print "At cand %s" % str(cand)
         if cands_folded == config.searching.max_cands_to_fold:
             break
         if cand.sigma >= config.searching.to_prepfold_sigma:
+            print "...folding"
             job.folding_time += timed_execute(get_folding_command(cand, job))
             cands_folded += 1
     job.num_cands_folded = cands_folded
+    
+    # Rate candidates
+    timed_execute("rate_pfds.py --redirect-warnings --include-all -x pulse_width *.pfd")
+    sys.stdout.flush()
 
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) after folding: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) after folding: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    print "Contents of job.tempdir (%s) after folding: " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    sys.stdout.flush()
+    #####
+    
     # Now step through the .ps files and convert them to .png and gzip them
 
     psfiles = glob.glob("*.ps")
@@ -687,10 +794,23 @@ def search_job(job):
                             (psfile+"[0]", psfile[:-3]+".png"))
         timed_execute("gzip "+psfile)
     
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) after conversion: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) after conversion: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    print "Contents of job.tempdir (%s) after conversion: " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    sys.stdout.flush()
+    #####
+
 
 def clean_up(job):
     """Clean up.
-        Tar results, copy them to the results director.
+        Tar results, copy them to the results directory.
     """
     # Dump search paramters to file
     paramfn = open("search_params.txt", 'w')
@@ -707,7 +827,8 @@ def clean_up(job):
                     "_singlepulse.tgz",
                     "_inf.tgz",
                     "_pfd.tgz",
-                    "_bestprof.tgz"]
+                    "_bestprof.tgz",
+                    "_pfd_rat.tgz"]
     tar_globs = ["*_ACCEL_%d"%config.searching.lo_accel_zmax,
                  "*_ACCEL_%d"%config.searching.hi_accel_zmax,
                  "*_ACCEL_%d.cand"%config.searching.lo_accel_zmax,
@@ -715,18 +836,38 @@ def clean_up(job):
                  "*.singlepulse",
                  "*_DM[0-9]*.inf",
                  "*.pfd",
-                 "*.pfd.bestprof"]
+                 "*.pfd.bestprof",
+                 "*.pfd.rat"]
+    print "Tarring up results"
     for (tar_suffix, tar_glob) in zip(tar_suffixes, tar_globs):
+        print "Opening tarball %s" % (job.basefilenm+tar_suffix)
+        print "Using glob %s" % tar_glob
         tf = tarfile.open(job.basefilenm+tar_suffix, "w:gz")
         for infile in glob.glob(tar_glob):
+            print "    Adding file %s" % infile
             tf.add(infile)
             os.remove(infile)
         tf.close()
+    sys.stdout.flush()
     
     # Copy all the important stuff to the output directory
     resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", "*.png", \
-                    "*.zaplist", "search_params.txt", "*.accelcands", \
+                    "*.zaplist", "search_params.txt", "*.accelcands*", \
                     "*_merge.out"]
+    
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) before copy: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) before copy: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    print "Contents of job.tempdir (%s) before copy: " % job.tempdir
+    for fn in os.listdir(job.tempdir):
+        print "    %s" % fn
+    sys.stdout.flush()
+    #####
+    
     for resultglob in resultglobs:
             for file in glob.glob(resultglob):
                 shutil.move(file, job.outputdir)
@@ -735,7 +876,21 @@ def clean_up(job):
     try:
         shutil.rmtree(job.tempdir)
     except: pass
-   
+  
+    #####
+    # Print some info useful for debugging
+    print "Contents of workdir (%s) after copy: " % job.workdir
+    for fn in os.listdir(job.workdir):
+        print "    %s" % fn
+    print "Contents of resultsdir (%s) after copy: " % job.outputdir
+    for fn in os.listdir(job.outputdir):
+        print "    %s" % fn
+    #print "Contents of job.tempdir (%s) after copy: " % job.tempdir
+    #for fn in os.listdir(job.tempdir):
+    #    print "    %s" % fn
+    sys.stdout.flush()
+    #####
+
 
 class PrestoError(Exception):
     """Error to throw when a PRESTO program returns with 

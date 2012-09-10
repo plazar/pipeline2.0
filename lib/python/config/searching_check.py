@@ -4,6 +4,8 @@ import config_types
 searching = config_types.ConfigList('searching')
 searching.add_config('use_subbands', config_types.BoolConfig())
 searching.add_config('fold_rawdata', config_types.BoolConfig())
+searching.add_config('use_zerodm_sp', config_types.BoolConfig())
+searching.add_config('use_zerodm_accel', config_types.BoolConfig())
 searching.add_config('datatype_flag', config_types.StrConfig())
 searching.add_config('rfifind_chunk_time', config_types.FloatConfig())
 searching.add_config('singlepulse_threshold', config_types.FloatConfig())

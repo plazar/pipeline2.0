@@ -56,7 +56,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             errormsg = "No nodes to accept job submission!\n"
             raise queue_managers.QueueManagerNonFatalError(errormsg)
         errorlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.ER")
-        if debug.QMANAGER:
+        if debug.PROCESSING:
             stdoutlog = os.path.join(config.basic.qsublog_dir, "'$PBS_JOBID'.OU")
         else:
             stdoutlog = os.devnull

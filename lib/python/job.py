@@ -8,8 +8,10 @@ import os
 import re
 import os.path
 import datetime
+import time
 import sys
 import traceback
+import string
 
 import datafile
 import jobtracker
@@ -316,6 +318,9 @@ def update_jobs_status_from_queue():
                 # Errors during processing...
                 errormsg = config.jobpooler.queue_manager.get_errors(submit['queue_id'])
 
+                if errormsg.count("\n") > 100:
+                    errormsg = string.join(errormsg.split("\n")[:50],"\n")
+
                 jobpool_cout.outs("Processing of Job #%d (Submit ID: %d; Queue ID: %s) " \
                                     "had errors." % \
                                 (submit['job_id'], submit['id'], submit['queue_id']))
@@ -397,7 +402,7 @@ def recover_failed_jobs():
         else:
             # We've run out of attempts for this job
             if config.email.send_on_terminal_failures or \
-                    config.email.send_on_failure:
+                    config.email.send_on_failures:
                 # Send error email
                 msg  = "Error! Job submit status: %s\n" % \
                             str(submits[0]['status'])
@@ -444,6 +449,8 @@ def submit_jobs():
     for job in jobs:
         if config.jobpooler.queue_manager.can_submit():
             submit(job)
+            if config.jobpooler.submit_sleep:
+                time.sleep(config.jobpooler.submit_sleep)
         else:
             break
 
@@ -479,10 +486,62 @@ def submit(job_row):
     res = []
     
     try:
+        presubmission_check(fns)
         outdir = get_output_dir(fns)
         # Attempt to submit the job
         queue_id = config.jobpooler.queue_manager.submit\
                             (fns, outdir, job_row['id'], resources=res, script=script)
+    except (FailedPreCheckError):
+        # Error caught during presubmission check.
+        exceptionmsgs = traceback.format_exception(*sys.exc_info())
+        errormsg = "Job ID: %d " % job_row['id']
+        errormsg += "failed presubmission check!\n\n"
+        errormsg += "".join(exceptionmsgs)
+
+        jobpool_cout.outs("Job ID: %d failed presubmission check!\n\t%s\n" % \
+                          (job_row['id'], exceptionmsgs[-1])) 
+        
+        if config.email.send_on_terminal_failures:
+            # Send error email
+            msg  = "Presubmission check failed!\n"
+            msg += "Job ID: %d\n\n" % \
+                    (job_row['id'])
+            msg += errormsg
+            msg += "\n*** Job has been terminally failed. ***\n"
+            msg += "*** Job will NOT be re-submitted! ***\n"
+            if config.basic.delete_rawdata:
+                jobpool_cout.outs("Job #%d will NOT be retried. " \
+                                    "Data files will be deleted." % job_row['id'])
+                msg += "*** Raw data files will be deleted. ***\n"
+            else:
+                jobpool_cout.outs("Job #%d will NOT be retried. " % job_row['id'])
+            notification = mailer.ErrorMailer(msg, \
+                            subject="Job failed presubmission check - Terminal")
+            notification.send()
+
+        if config.basic.delete_rawdata:
+            pipeline_utils.clean_up(job_row['id'])
+
+        queries = []
+        arglist = []
+        queries.append("INSERT INTO job_submits (" \
+                            "job_id, " \
+                            "status, " \
+                            "created_at, " \
+                            "updated_at, " \
+                            "details) " \
+                      "VALUES (?, ?, ?, ?, ?)" )
+        arglist.append( ( job_row['id'], 'precheck_failed', \
+                        jobtracker.nowstr(), jobtracker.nowstr(), \
+                        errormsg) )
+        queries.append("UPDATE jobs " \
+                       "SET status='terminal_failure', " \
+                            "details='Failed presubmission check', " \
+                            "updated_at=? " \
+                       "WHERE id=?" )
+        arglist.append( (jobtracker.nowstr(), job_row['id']) )
+        jobtracker.execute(queries, arglist)
+>>>>>>> V-2
     except (queue_managers.QueueManagerJobFatalError,\
               datafile.DataFileError):
         # Error caught during job submission.
@@ -561,13 +620,6 @@ def get_output_dir(fns):
                 the job's datafiles. 'proc_date' is the current date
                 in yymmddThhmmss format.
     """
-    # Check that files exist
-    missingfiles = [fn for fn in fns if not os.path.exists(fn)]
-    if missingfiles:
-        errormsg = "The following files cannot be found:\n"
-        for missing in missingfiles:
-            errormsg += "\t%s\n" % missing
-        raise pipeline_utils.PipelineError(errormsg)
 
     # Get info from datafile headers
     data = datafile.autogen_dataobj([fns[0]])
@@ -580,9 +632,62 @@ def get_output_dir(fns):
     mjd = int(data.timestamp_mjd)
     beam_num = data.beam_id
     obs_name = data.obs_name
-    proc_date=datetime.datetime.now().strftime('%y%m%dT%H%M%S')
-    outdir = os.path.join(config.processing.base_results_directory, \
+    proc_date = datetime.datetime.now().strftime('%y%m%dT%H%M%S')
+    baseoutdir = os.path.join(config.processing.base_results_directory, \
                                     str(mjd), str(obs_name), \
                                     str(beam_num), proc_date)
+    outdir = baseoutdir
+    
+    # Make sure our output directory doesn't already exist
+    counter = 0
+    while os.path.exists(outdir):
+        counter += 1
+        outdir = "%s_%d" % (baseoutdir, counter)
+    
+    # Make the directory immediately so the pipeline knows it's taken
+    os.makedirs(outdir)
+
+    # Send an email if our first choice for outdir wasn't available
+    if counter:
+        errormsg = "The first-choice output directory '%s' " \
+                    "already existed. Had to settle for '%s' " \
+                    "after %d tries. \n\n " \
+                    "Data files:\n " \
+                    "\t%s" % (baseoutdir, outdir, counter, "\n\t".join(fns))
+        notification = mailer.ErrorMailer(errormsg, \
+                        subject="Job outdir existance warning")
+        notification.send()
     return outdir
 
+def presubmission_check(fns):
+    """Check to see if datafiles meet the critera for submission.
+    """
+    # Check that files exist
+    missingfiles = [fn for fn in fns if not os.path.exists(fn)]
+    if missingfiles:
+        errormsg = "The following files cannot be found:\n"
+        for missing in missingfiles:
+            errormsg += "\t%s\n" % missing
+        raise pipeline_utils.PipelineError(errormsg) # if files missing want to crash
+    try:
+        #for WAPP, check if coords are in table
+        data = datafile.autogen_dataobj([fns[0]])
+        if not isinstance(data, datafile.PsrfitsData):
+            errormsg  = "Data must be of PSRFITS format.\n"
+            errormsg += "\tData type: %s\n" % type(data)
+            raise FailedPreCheckError(errormsg)
+    except (datafile.DataFileError, ValueError), e:
+        raise FailedPreCheckError(e)
+    #check if observation is too short
+    limit = float(config.jobpooler.obstime_limit)
+    obs_time = data.observation_time
+    if obs_time < limit:
+        errormsg = 'Observation is too short (%.2f s < %.2f s)' % (obs_time, limit) 
+        raise FailedPreCheckError(errormsg)
+    #check if datafile has been successfully processed in the past
+
+class FailedPreCheckError(pipeline_utils.PipelineError):
+    """Error to raise when datafile has failed the presubmssion check.
+        Job should be terminally failed and Cornell (eventually) notified.
+    """
+    pass

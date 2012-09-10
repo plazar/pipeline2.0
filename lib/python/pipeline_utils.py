@@ -13,6 +13,7 @@ import traceback
 import optparse
 import time
 import datetime
+import string
 
 import debug
 
@@ -32,6 +33,8 @@ class PipelineError(Exception):
             msg += "\n\n========== Original Traceback ==========\n"
             msg += "".join(traceback.format_exception(*self.orig_exc_info))
             msg += "\n(See PipelineError traceback above)\n"
+        if msg.count("\n") > 100:
+            msg = string.join(msg.split("\n")[:50],"\n")
         return msg
 
 
@@ -194,15 +197,19 @@ def can_add_file_generic(fn, verbose=False):
         return False
     return True
 
-def execute(cmd, stdout=None, stderr=sys.stderr): 
+def execute(cmd, stdout=subprocess.PIPE, stderr=sys.stderr, dir=None): 
     """Execute the command 'cmd' after logging the command
-        to STDOUT.  Return the wall-clock amount of time
-        the command took to execute.
+        to STDOUT. Execute the command in the directory 'dir',
+        which defaults to the current directory is not provided.
 
         Output standard output to 'stdout' and standard
         error to 'stderr'. Both are strings containing filenames.
         If values are None, the out/err streams are not recorded.
-        By default stdout is None and stderr is sent to sys.stderr.
+        By default stdout is subprocess.PIPE and stderr is sent 
+        to sys.stderr.
+
+        Returns (stdoutdata, stderrdata). These will both be None, 
+        unless subprocess.PIPE is provided.
     """
     # Log command to stdout
     if debug.SYSCALLS:
@@ -219,7 +226,10 @@ def execute(cmd, stdout=None, stderr=sys.stderr):
         stderrfile = True
     
     # Run (and time) the command. Check for errors.
-    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=stderr)
+    pipe = subprocess.Popen(cmd, shell=True, cwd=dir, \
+                            stdout=stdout, stderr=stderr)
+    (stdoutdata, stderrdata) = pipe.communicate()
+    retcode = pipe.returncode 
     if retcode < 0:
         raise PipelineError("Execution of command (%s) terminated by signal (%s)!" % \
                                 (cmd, -retcode))
@@ -236,7 +246,7 @@ def execute(cmd, stdout=None, stderr=sys.stderr):
     if stderrfile:
         stderr.close()
 
-
+    return (stdoutdata, stderrdata)
 def get_modtime(file, local=False):
     """Get modification time of a file.
 

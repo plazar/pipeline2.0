@@ -7,6 +7,9 @@ import config.basic
 max_jobs_running = 50 # maximum number of running jobs
 max_jobs_queued = 1  # Can be kept small so that you don't hog the queue (>=1)
 max_attempts = 2 # Maximum number of times a job is attempted due to errors
+submit_sleep = 0 #time for jobpooler to sleep after submitting a job in seconds (prevents overloading queue manager)
+obstime_limit = 60 # lower limit in seconds of observation time for jobs to be submitted
+
 # Arguments to pbs.PBSManager are (node name, node property, max # cores to use)
 queue_manager = queue_managers.pbs.PBSManager(
                     "%s_batchjob" % config.basic.survey, # Job name in PBS

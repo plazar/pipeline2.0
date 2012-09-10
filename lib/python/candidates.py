@@ -17,6 +17,9 @@ import shutil
 import types
 import binascii
 import time
+import numpy as np
+import scipy.special
+from StringIO import StringIO
 
 import psr_utils
 import prepfold
@@ -26,12 +29,15 @@ import database
 import pipeline_utils
 import upload
 from formats import accelcands
+import ratings2.rating_value
+import ratings2.utils
 
 # get configurations
 import config.basic
+import config.upload
 import config.searching
 
-class PeriodicityCandidate(upload.Uploadable):
+class PeriodicityCandidate(upload.Uploadable,upload.FTPable):
     """A class to represent a PALFA periodicity candidate.
     """
     # A dictionary which contains variables to compare (as keys) and
@@ -53,11 +59,16 @@ class PeriodicityCandidate(upload.Uploadable):
               'institution': '%s', \
               'pipeline': '%s', \
               'versionnum': '%s', \
-              'sigma': '%.12g'}
+              'sigma': '%.12g', \
+              'prepfold_sigma': '%.12g', \
+              'rescaled_prepfold_sigma': '%.12g', \
+              'sifting_period': '%.12g', \
+              'sifting_dm': '%.12g'}
 
     def __init__(self, cand_num, pfd , snr, coherent_power, \
                         incoherent_power, num_hits, num_harmonics, \
-                        versionnum, sigma, header_id=None):
+                        versionnum, sigma, sifting_period, sifting_dm, \
+                        header_id=None):
         self.header_id = header_id # Header ID from database
         self.cand_num = cand_num # Unique identifier of candidate within beam's 
                                  # list of candidates; Candidate's position in
@@ -78,6 +89,23 @@ class PeriodicityCandidate(upload.Uploadable):
         self.versionnum = versionnum # Version number; a combination of PRESTO's githash
                                      # and pipeline's githash
         self.sigma = sigma # PRESTO's sigma value
+
+        red_chi2 = pfd.bestprof.chi_sqr #prepfold reduced chi-squared
+        dof = pfd.proflen - 1 # degrees of freedom
+        #prepfold sigma
+        self.prepfold_sigma = \
+                scipy.special.ndtri(scipy.special.chdtr(dof,dof*red_chi2)) 
+        off_red_chi2 = pfd.estimate_offsignal_redchi2()
+        chi2_scale = 1.0/off_red_chi2
+        new_red_chi2 = chi2_scale * red_chi2
+        # prepfold sigma rescaled to deal with chi-squared suppression
+        # a problem when strong rfi is present
+        self.rescaled_prepfold_sigma = \
+                scipy.special.ndtri(scipy.special.chdtr(dof,dof*new_red_chi2))
+        self.sifting_period = sifting_period # the period returned by accelsearch
+                                             # (not optimized by prepfold)
+        self.sifting_dm = sifting_dm # the DM returned by accelsearch
+                                     # (not optimized by prepfold)
 
         # Store a few configurations so the upload can be checked
         self.pipeline = config.basic.pipeline
@@ -122,6 +150,11 @@ class PeriodicityCandidate(upload.Uploadable):
             dep.upload(dbname=dbname, *args, **kwargs)
         return cand_id
 
+    def upload_FTP(self, cftp, dbname):
+        for dep in self.dependents:
+           if isinstance(dep,upload.FTPable):
+               dep.upload_FTP(cftp,dbname=dbname)
+
     def get_upload_sproc_call(self):
         """Return the EXEC spPDMCandUploaderFindsVersion string to upload
             this candidate to the PALFA common DB.
@@ -145,7 +178,11 @@ class PeriodicityCandidate(upload.Uploadable):
             "@pipeline='%s', " % config.basic.pipeline + \
             "@version_number='%s', " % self.versionnum + \
             "@proc_date='%s', " % datetime.date.today().strftime("%Y-%m-%d") + \
-            "@presto_sigma=%.12g" % self.sigma
+            "@presto_sigma=%.12g, " % self.sigma + \
+            "@prepfold_sigma=%.12g, " % self.prepfold_sigma + \
+            "@rescaled_prepfold_sigma=%.12g, " % self.rescaled_prepfold_sigma + \
+            "@sifting_period=%.12g, " % self.sifting_period + \
+            "@sifting_dm=%.12g" %self.sifting_dm
         return sprocstr
 
     def compare_with_db(self, dbname='default'):
@@ -179,7 +216,11 @@ class PeriodicityCandidate(upload.Uploadable):
                         "v.institution, " \
                         "v.pipeline, " \
                         "v.version_number AS versionnum, " \
-                        "c.presto_sigma AS sigma " \
+                        "c.presto_sigma AS sigma, " \
+                        "c.prepfold_sigma as prepfold_sigma, " \
+                        "c.rescaled_prepfold_sigma as rescaled_prepfold_sigma, " \
+                        "c.sifting_period as sifting_period, " \
+                        "c.sifting_dm as sifting_dm " \
                   "FROM pdm_candidates AS c " \
                   "LEFT JOIN versions AS v ON v.version_id=c.version_id " \
                   "WHERE c.cand_num=%d AND v.version_number='%s' AND " \
@@ -323,11 +364,300 @@ class PeriodicityCandidatePNG(PeriodicityCandidatePlot):
     """
     plot_type = "prepfold plot"
 
+class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
+    """A class to represent a periodicity candidate binary that
+       needs to be FTPed to Cornell.
+    """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    # NEED TO UPDATE FOR BINARIES!
+    to_cmp = {'cand_id': '%d', \
+              'filetype': '%s', \
+              'filename': '%s'}
+    
+    def __init__(self, filename, cand_id=None, timestamp_mjd=None):
+        self.cand_id = cand_id
+        self.fullpath = filename 
+        self.filename = os.path.split(filename)[-1]
+        self.ftp_base = config.upload.pfd_ftp_dir
+        self.uploaded = False
 
-class PeriodicityCandidatePFD(PeriodicityCandidatePlot):
+        mjd = int(timestamp_mjd)
+        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
+
+    def get_upload_sproc_call(self):
+        """Return the EXEC spPFDBLAH string to upload
+            this binary's info to the PALFA common DB.
+        """
+        sprocstr = "EXEC spPDMCandBinFSLoader " + \
+            "@pdm_cand_id=%d, " % self.cand_id + \
+            "@pdm_plot_type='%s', " % self.filetype + \
+            "@filename='%s', " % self.filename + \
+            "@file_location='%s', " % self.ftp_path + \
+            "@uploaded=0 "
+
+        return sprocstr
+
+    def compare_with_db(self,dbname='default'):
+        """Grab corresponding file info from DB and compare values.
+            Raise a PeriodicityCandidateError if any mismatch is found.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+            Output:
+                None
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+        db.execute("SELECT bin.pdm_cand_id AS cand_id, " \
+                        "pltype.pdm_plot_type AS filetype, " \
+                        "bin.filename, " \
+                        "bin.file_location AS ftp_path " \
+                   "FROM PDM_Candidate_Binaries_Filesystem AS bin " \
+                   "LEFT JOIN pdm_plot_types AS pltype " \
+                        "ON bin.pdm_plot_type_id=pltype.pdm_plot_type_id " \
+                   "WHERE bin.pdm_cand_id=%d AND pltype.pdm_plot_type='%s' " % \
+                        (self.cand_id, self.filetype))
+        rows = db.cursor.fetchall()
+        if type(dbname) == types.StringType:
+            db.close()
+        if not rows:
+            # No matching entry in common DB
+            raise ValueError("No matching entry in common DB!\n" \
+                                "(pdm_cand_id: %d, filetype: %s)" % \
+                                (self.cand_id, self.filetype))
+        elif len(rows) > 1:
+            # Too many matching entries!
+            raise ValueError("Too many matching entries in common DB!\n" \
+                                "(pdm_cand_id: %d, filetype: %s)" % \
+                                (self.cand_id, self.filetype))
+        else:
+            desc = [d[0] for d in db.cursor.description]
+            r = dict(zip(desc, rows[0]))
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                local = (fmt % getattr(self, var)).lower()
+                fromdb = (fmt % r[var]).lower()
+                if local != fromdb:
+                    errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                        (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Candidate binary info doesn't match what was uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise PeriodicityCandidateError(errormsg)
+
+    def upload(self, dbname, *args, **kwargs):
+        """An extension to the inherited 'upload' method.
+
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+        """
+        if self.cand_id is None:
+            raise PeriodicityCandidateError("Cannot upload binary with " \
+                    "pdm_cand_id == None!")
+
+        if debug.UPLOAD: 
+            starttime = time.time()
+        super(PeriodicityCandidateBinary, self).upload(dbname=dbname, \
+                         *args, **kwargs)
+        self.compare_with_db(dbname=dbname)
+        
+        if debug.UPLOAD:
+            upload.upload_timing_summary[self.filetype + ' (db)'] = \
+                upload.upload_timing_summary.setdefault(self.filetype + ' (db)', 0) + \
+                (time.time()-starttime)
+
+    def upload_FTP(self, cftp, dbname='default'): 
+        """An extension to the inherited 'upload_FTP' method.
+            This method FTP's the file to Cornell.
+
+            Input:
+                cftp: A CornellFTP connection.
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+
+        if debug.UPLOAD: 
+            starttime = time.time()
+
+        if not self.uploaded:
+
+	    ftp_fullpath = os.path.join(self.ftp_path, self.filename) 
+	    if not cftp.dir_exists(self.ftp_path):
+		cftp.mkd(self.ftp_path)
+
+	    cftp.upload(self.fullpath, ftp_fullpath)
+
+	    db.execute("EXEC spPDMCandBinUploadConf " + \
+		   "@pdm_plot_type='%s', " % self.filetype + \
+		   "@filename='%s', " % self.filename + \
+		   "@file_location='%s', " % self.ftp_path + \
+		   "@uploaded=1") 
+	    db.commit() 
+
+	    self.uploaded=True
+
+        if debug.UPLOAD:
+            upload.upload_timing_summary[self.filetype + ' (ftp)'] = \
+                upload.upload_timing_summary.setdefault(self.filetype + ' (ftp)', 0) + \
+                (time.time()-starttime)
+        
+
+class PeriodicityCandidatePFD(PeriodicityCandidateBinary):
     """A class to represent periodicity candidate PFD files.
     """
-    plot_type = "pfd binary"
+    filetype = "pfd binary"
+
+
+class PeriodicityCandidateRating(upload.Uploadable):
+    """A class to represent a rating of a PALFA periodicity candidate.
+    """
+    # A dictionary which contains variables to compare (as keys) and
+    # how to compare them (as values)
+    to_cmp = {'cand_id': '%d', \
+              'value': '%.12g', \
+              'version': '%d', \
+              'name': '%s'}
+
+    def __init__(self, ratval, inst_cache=None, cand_id=None):
+        self.cand_id = cand_id
+        self.ratval = ratval # A RatingValue object
+        self.version = ratval.version
+        self.name = ratval.name
+        self.value = ratval.value
+
+        if inst_cache is None:
+            inst_cache = ratings2.utils.RatingInstanceIDCache(dbname='default')
+        self.instance_id = inst_cache.get_id(ratval.name, ratval.version, \
+                                             ratval.description)
+
+    def upload(self, dbname, *args, **kwargs):
+        """An extension to the inherited 'upload' method.
+
+            Input:
+                dbname: Name of the database to connect to, or a database
+                        connection to use (Defaut: 'default').
+        """
+
+        if not self.value is None and np.abs(self.value) < 1e-307:
+            self.value = 0.0
+
+        if not self.value is None and np.isinf(self.value):
+            self.value = 9999.0
+
+        if self.cand_id is None:
+            raise PeriodicityCandidateError("Cannot upload rating if " \
+                    "pdm_cand_id is None!")
+
+        if debug.UPLOAD: 
+            starttime = time.time()
+
+        #super(PeriodicityCandidateRating, self).upload(dbname=dbname, \
+        #            *args, **kwargs)
+        dbname.execute(self.get_upload_sproc_call())
+        self.compare_with_db(dbname=dbname)
+        
+        if debug.UPLOAD:
+            upload.upload_timing_summary["Ratings"] = \
+                upload.upload_timing_summary.setdefault("Ratings", 0) + \
+                (time.time()-starttime)
+
+    def get_upload_sproc_call(self):
+        """Return the SQL command to upload this candidate rating 
+            to the PALFA common DB.
+        """
+
+
+        query = "INSERT INTO pdm_rating " + \
+                "(value, pdm_rating_instance_id, pdm_cand_id, date) "
+
+        if self.value is None or np.isnan(self.value):
+            query += "VALUES (NULL, %d, %d, GETDATE())" % \
+                     (self.instance_id, \
+                      self.cand_id)
+        else:
+            query += "VALUES ('%.12g', %d, %d, GETDATE())" % \
+                    (self.value, \
+                    self.instance_id, \
+                    self.cand_id)
+
+        return query
+
+    def compare_with_db(self, dbname='default'):
+        """Grab the rating information from the DB and compare values.
+            Raise a PeriodicityCandidateError if any mismatch is found.
+            
+            Input:
+                dbname: Name of database to connect to, or a database
+                        connection to use (Defaut: 'default').
+            Output:
+                None
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
+        else:
+            db = database.Database(dbname)
+        db.execute("SELECT r.pdm_cand_id AS cand_id, " \
+                        "r.value AS value, " \
+                        "rt.name AS name, " \
+                        "ri.version AS version " \
+                   "FROM pdm_rating AS r " \
+                   "LEFT JOIN pdm_rating_instance AS ri " \
+                        "ON ri.pdm_rating_instance_id=r.pdm_rating_instance_id " \
+                   "LEFT JOIN pdm_rating_type AS rt " \
+                        "ON ri.pdm_rating_type_id=rt.pdm_rating_type_id " \
+                   "WHERE r.pdm_cand_id=%d AND r.pdm_rating_instance_id=%d " % \
+                        (self.cand_id, self.instance_id))
+        rows = db.cursor.fetchall()
+        if type(dbname) == types.StringType:
+            db.close()
+        if not rows:
+            # No matching entry in common DB
+            raise ValueError("No matching entry in common DB!\n" \
+                                "(pdm_cand_id: %d, " \
+                                "rating name: %s, " \
+                                "rating version: %d, " \
+                                "fetched pdm_rating_instance_id: %d)" % \
+                                (self.cand_id, self.ratval.name, \
+                                self.ratval.version, self.instance_id))
+        elif len(rows) > 1:
+            # Too many matching entries!
+            raise ValueError("Too many matching entries in common DB!\n" \
+                                "(pdm_cand_id: %d, " \
+                                "rating name: %s, " \
+                                "rating version: %d, " \
+                                "fetched pdm_rating_instance_id: %d)" % \
+                                (self.cand_id, self.ratval.name, \
+                                self.ratval.version, self.instance_id))
+        else:
+            desc = [d[0] for d in db.cursor.description]
+            r = dict(zip(desc, rows[0]))
+            errormsgs = []
+            for var, fmt in self.to_cmp.iteritems():
+                if r[var] is None:
+                    if not ( getattr(self,var) is None or \
+                             np.isnan(getattr(self, var)) ):
+                        errormsgs.append("Values for '%s' don't match (local: %s, DB: NULL)" % \
+                                            (var, str(getattr(self,var))))
+                else: 
+                    local = (fmt % getattr(self, var)).lower()
+                    fromdb = (fmt % r[var]).lower()
+                    if local != fromdb:
+                        errormsgs.append("Values for '%s' don't match (local: %s, DB: %s)" % \
+                                            (var, local, fromdb))
+            if errormsgs:
+                errormsg = "Candidate rating doesn't match what was " \
+                            "uploaded to the DB:"
+                for msg in errormsgs:
+                    errormsg += '\n    %s' % msg
+                raise PeriodicityCandidateError(errormsg)
 
 
 class PeriodicityCandidateError(upload.UploadNonFatalError):
@@ -336,7 +666,7 @@ class PeriodicityCandidateError(upload.UploadNonFatalError):
     pass
 
 
-def get_candidates(versionnum, directory, header_id=None):
+def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, inst_cache=None):
     """Upload candidates to common DB.
 
         Inputs:
@@ -345,9 +675,13 @@ def get_candidates(versionnum, directory, header_id=None):
             directory: The directory containing results from the pipeline.
             header_id: header_id number for this beam, as returned by
                         spHeaderLoader/header.upload_header (default=None)
+            timestamp_mjd: mjd timstamp for this observation (default=None).
+            inst_cache: ratings2 RatingInstanceIDCache instance.
 
         Ouput:
             cands: List of candidates.
+            tempdir: Path of temporary directory that PFDs have been untarred,
+                     returned so that it can be deleted after successful PFD upload.
     """
     # find *.accelcands file    
     candlists = glob.glob(os.path.join(directory, "*.accelcands"))
@@ -377,22 +711,35 @@ def get_candidates(versionnum, directory, header_id=None):
 
     if foldedcands:
 
-        tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
-        if len(tarfns) != 1:
+        pfd_tarfns = glob.glob(os.path.join(directory, "*_pfd.tgz"))
+        if len(pfd_tarfns) != 1:
             raise PeriodicityCandidateError("Wrong number (%d) of *_pfd.tgz " \
-                                             "files found in %s" % (len(tarfns), \
+                                             "files found in %s" % (len(pfd_tarfns), \
                                                 directory))
-        
-        tar = tarfile.open(tarfns[0])
-        try:
-            tar.extractall(path=tempdir)
-        except IOError:
-            if os.path.isdir(tempdir):
-                shutil.rmtree(tempdir)
-            raise PeriodicityCandidateError("Error while extracting pfd files " \
-                                            "from tarball (%s)!" % tarfns[0])
-        finally:
-            tar.close()
+
+        bestprof_tarfns = glob.glob(os.path.join(directory, "*_bestprof.tgz"))
+        if len(bestprof_tarfns) != 1:
+            raise PeriodicityCandidateError("Wrong number (%d) of *_bestprof.tgz " \
+                                             "files found in %s" % (len(bestprof_tarfns), \
+                                                directory))
+
+        rating_tarfns = glob.glob(os.path.join(directory, "*_pfd_rat.tgz"))
+        if len(rating_tarfns) != 1:
+            raise PeriodicityCandidateError("Wrong number (%d) of *_pfd_rat.tgz " \
+                                             "files found in %s" % (len(rating_tarfns), \
+                                                directory))
+
+        for tarfn in [ pfd_tarfns[0], bestprof_tarfns[0], rating_tarfns[0] ]: 
+            tar = tarfile.open(tarfn)
+            try:
+                tar.extractall(path=tempdir)
+            except IOError:
+                if os.path.isdir(tempdir):
+                    shutil.rmtree(tempdir)
+                raise PeriodicityCandidateError("Error while extracting pfd files " \
+                                                "from tarball (%s)!" % tarfn)
+            finally:
+                tar.close()
 
     # Loop over candidates that were folded
     cands = []
@@ -401,31 +748,38 @@ def get_candidates(versionnum, directory, header_id=None):
                                     c.candnum)
         pfdfn = os.path.join(tempdir, basefn+".pfd")
         pngfn = os.path.join(directory, basefn+".pfd.png")
-        
+        ratfn = os.path.join(tempdir, basefn+".pfd.rat")
+
         pfd = prepfold.pfd(pfdfn)
         
+        orig_out = sys.stdout
+        sys.stdout = StringIO()
         try:
             cand = PeriodicityCandidate(ii+1, pfd, c.snr, \
                                     c.cpow, c.ipow, len(c.dmhits), \
                                     c.numharm, versionnum, c.sigma, \
-                                    header_id=header_id)
+                                    c.period, c.dm, header_id=header_id)
         except Exception:
             raise PeriodicityCandidateError("PeriodicityCandidate could not be " \
                                             "created (%s)!" % pfdfn)
+        sys.stdout = orig_out
 
-
-        cand.add_dependent(PeriodicityCandidatePFD(pfdfn))
+        cand.add_dependent(PeriodicityCandidatePFD(pfdfn, timestamp_mjd=timestamp_mjd))
         cand.add_dependent(PeriodicityCandidatePNG(pngfn))
+
+        for ratval in ratings2.rating_value.read_file(ratfn):
+            cand.add_dependent(PeriodicityCandidateRating(ratval,inst_cache=inst_cache))
         cands.append(cand)
         
-    shutil.rmtree(tempdir)
-    return cands
+    #shutil.rmtree(tempdir)
+    return cands,tempdir
 
 
 def main():
+    import CornellFTP
     db = database.Database('default', autocommit=False)
     try:
-        cands = get_candidates(options.versionnum, options.directory, \
+        cands,tempdir = get_candidates(options.versionnum, options.directory, \
                             header_id=options.header_id)
         for cand in cands:
             cand.upload(db)
@@ -435,6 +789,13 @@ def main():
         raise
     else:
         db.commit()
+        for cand in cands:
+            # FTP ftpables 
+            cftp = CornellFTP.CornellFTP()
+            cand.upload_FTP(cftp,db)
+            cftp.close()
+        shutil.rmtree(tempdir)
+        
     finally:
         db.close()
 
