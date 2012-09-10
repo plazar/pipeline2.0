@@ -96,7 +96,7 @@ def remove_file(fn):
         # remove_HPSS_file(fn)
         raise PipelineError("Deletion of HPSS files not implemented yet!")
 
-    else
+    else:
 	if os.path.exists(fn):
 	    os.remove(fn)
 	    print "Deleted: %s" % fn
