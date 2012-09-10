@@ -4,7 +4,7 @@ import time
 import datetime
 import types
 
-import prettytable
+#import prettytable
 
 import debug 
 import config.background
@@ -155,22 +155,22 @@ class JobtrackerDatabase(object):
         """
         return self.cursor.fetchall()
 
-    def showall(self):
-        """Prettily show the rows currently pointed at by the DB cursor.
-
-            Intputs:
-                None
-
-            Outputs:
-                None
-        """
-        desc = self.cursor.description
-        if desc is not None:
-            fields = [d[0] for d in desc] 
-            table = prettytable.PrettyTable(fields)
-            for row in self.cursor:
-                table.add_row(row)
-            table.printt()
+    #def showall(self):
+#        """Prettily show the rows currently pointed at by the DB cursor.
+#
+#            Intputs:
+#                None
+#
+#            Outputs:
+#                None
+#        """
+#        desc = self.cursor.description
+#        if desc is not None:
+#            fields = [d[0] for d in desc] 
+#            table = prettytable.PrettyTable(fields)
+#            for row in self.cursor:
+#                table.add_row(row)
+#            table.printt()
     
     def union(self, tablename):
         """Return a string that is the SQL syntax to return
