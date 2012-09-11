@@ -16,6 +16,7 @@ import datetime
 import string
 
 import debug
+import config.basic
 
 class PipelineError(Exception):
     """A generic exception to be thrown by the pipeline.
