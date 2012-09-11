@@ -1,4 +1,5 @@
 import subprocess
+import os
 
 import database
 import jobtracker
@@ -82,7 +83,7 @@ def get_files_infos(request, dbname='default'):
     """
 
     db = database.Database(dbname)
-    QUERY = "SELECT r.path, r.filename, r.datasize FROM full_processing as p LEFT JOIN raw_files as r ON r.obs_id=p.obs_id WHERE p.guid='%s'"%request['guid']
+    QUERY = "SELECT r.path, r.filename, r.datasize FROM full_processing as p LEFT JOIN stagged_files as r ON r.obs_id=p.obs_id WHERE p.guid='%s'"%request['guid']
     db.cursor.execute(QUERY)
     status = [[os.path.join(row[0],row[1]), row[2]] for row in db.cursor.fetchall()]
     db.conn.close()
@@ -93,8 +94,7 @@ def exec_download(request, file):
     """
     """
     # Download using bbftp
-    cmd = "bbftp -e 'setoption localrfio; setoption notmpfile; \
-    		get %s %s' -u %s %s -E \"/usr/local/bin/bbftpd -s\"" % \
+    cmd = "bbftp -e 'setoption localrfio; setoption notmpfile; get %s %s' -u %s %s -E \"/usr/local/bin/bbftpd -s\"" % \
     		(file['remote_filename'], config.download.datadirbbftp, config.commondb.username, config.commondb.host)
     pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
             stdin=subprocess.PIPE).stdout.read().strip()
@@ -106,18 +106,32 @@ def exec_download(request, file):
     return res_pipe
 
 
+def delete_stagged_file(request, dbname="default"):
+    """Given a row from the requests table in the job-tracker DB
+	delete a file in the stagging area.
+
+	Input:
+            request: A row from the requests table.
+	Outputs:
+	    None
+    """
+    db = database.Database(dbname)
+    QUERY = "UPDATE full_processing SET status='download complete (to be deleted)', updated_at=NOW() WHERE guid='%s'"%request['guid']
+    db.cursor.execute(QUERY)
+    db.conn.close()
+
+
 def acknowledge_downloaded_files():
     """Acknowledge the reception of the files
     """
     requests_to_delete = jobtracker.query("SELECT * FROM requests " \
                                           "WHERE status='finished'")
     if len(requests_to_delete) > 0:
-	db = database.Database(dbname)
 
         queries = []
         for request_to_delete in requests_to_delete:
-	    QUERY = "UPDATE full_processing SET status='download complete (to be deleted)', updated_at=NOW() WHERE guid='%s'"%request_to_delete['guid']
-	    db.cursor.execute(QUERY)
+
+	    delete_stagged_file(request_to_delete)
 
 	    dlm_cout.outs("Report download (%s) succeeded." % request_to_delete['guid'])
 	    queries.append("UPDATE requests " \
@@ -128,6 +142,5 @@ def acknowledge_downloaded_files():
                                (jobtracker.nowstr(), request_to_delete['id']))
 
         jobtracker.query(queries)
-	db.conn.close()
     else: pass
 
