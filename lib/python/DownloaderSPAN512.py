@@ -120,27 +120,3 @@ def delete_stagged_file(request, dbname="default"):
     db.cursor.execute(QUERY)
     db.conn.close()
 
-
-def acknowledge_downloaded_files():
-    """Acknowledge the reception of the files
-    """
-    requests_to_delete = jobtracker.query("SELECT * FROM requests " \
-                                          "WHERE status='finished'")
-    if len(requests_to_delete) > 0:
-
-        queries = []
-        for request_to_delete in requests_to_delete:
-
-	    delete_stagged_file(request_to_delete)
-
-	    dlm_cout.outs("Report download (%s) succeeded." % request_to_delete['guid'])
-	    queries.append("UPDATE requests " \
-                               "SET status='cleaned_up', " \
-                               "details='download complete', " \
-                               "updated_at='%s' " \
-                               "WHERE id=%d" % \
-                               (jobtracker.nowstr(), request_to_delete['id']))
-
-        jobtracker.query(queries)
-    else: pass
-

@@ -11,12 +11,16 @@ import debug
 import mailer
 import OutStream
 import datafile
+import database
 import jobtracker
 import pipeline_utils
 import config.background
 import config.download
 import config.email
 import config.basic
+
+import DownloaderSPAN512 
+
 dlm_cout = OutStream.OutStream("Download Module", \
                         os.path.join(config.basic.log_dir, "downloader.log"), \
                         config.background.screen_output)
@@ -148,6 +152,61 @@ def run():
     return numsuccess
 
 
+def make_request(dbname='default'):
+    """Make a request for data to be restored by connecting to the
+        data server.
+    """
+    num_beams = get_num_to_request()
+    if not num_beams:
+        # Request size is 0
+        return
+    dlm_cout.outs("Requesting data\nIssuing a request of size %d" % num_beams)
+
+    # Ask to restore num_beams
+    db = database.Database(dbname)
+    QUERY = "SELECT obs_id FROM full_processing WHERE status='available' LIMIT %d"%num_beams
+    db.cursor.execute(QUERY)
+    obs_ids = [row[0] for row in db.cursor.fetchall()]
+
+    # Ask for an uuid
+    QUERY = "SELECT  UUID();"
+    db.cursor.execute(QUERY)
+    guid = db.cursor.fetchone()[0]
+
+    # Mark the beams for restorations
+    for obs_id in obs_ids:
+        QUERY = "UPDATE full_processing SET status='requested', guid='%s', \
+		updated_at=NOW() WHERE obs_id=%s"%(guid, obs_id)
+        db.cursor.execute(QUERY)
+    db.conn.close()
+
+    #if guid == "fail":
+    #   raise pipeline_utils.PipelineError("Request for restore returned 'fail'.")
+
+    requests = jobtracker.query("SELECT * FROM requests WHERE guid='%s'" % guid)
+
+    if requests:
+        # Entries in the requests table exist with this GUID!?
+        raise pipeline_utils.PipelineError("There are %d requests in the " \
+                               "job-tracker DB with this GUID %s" % \
+                               (len(requests), guid))
+
+    jobtracker.query("INSERT INTO requests ( " \
+                        "numbits, " \
+                        "numrequested, " \
+                        "file_type, " \
+                        "guid, " \
+                        "created_at, " \
+                        "updated_at, " \
+                        "status, " \
+                        "details) " \
+                     "VALUES (%d, %d, '%s', '%s', '%s', '%s', '%s', '%s')" % \
+                     (config.download.request_numbits, num_beams, \
+                        config.download.request_datatype, guid, \
+                        jobtracker.nowstr(), jobtracker.nowstr(), 'waiting', \
+                        'Newly created request'))
+
+
 def check_active_requests():
     """Check for any requests with status='waiting'. If there are
         some, check if the files are ready for download.
@@ -158,17 +217,37 @@ def check_active_requests():
     for request in active_requests:
 
 	# Check requested status 
-	if check_request_done(request):
-	    dlm_cout.outs("Request (GUID: %s) has succeeded. Will create file entries.\n" % request['guid'])
+	if DownloaderSPAN512.check_request_done(request):
+	    dlm_cout.outs("Rstore (GUID: %s) has succeeded. Will create file entries.\n" % request['guid'])
 	    create_file_entries(request)
 
 	else:
-	    dlm_cout.outs("Request (GUID: %s) has failed.\n" \
-	             "\tDatabase failed to report the data as restored." % request['guid'])
-	    jobtracker.query("UPDATE requests SET status='failed', " \
-                     "details='Request failed. Why ?', " \
-                     "updated_at='%s' " \
-                     "WHERE guid='%s'" % (jobtracker.nowstr(), request['guid']))
+#	    dlm_cout.outs("Request (GUID: %s) has failed.\n" \
+#	             "\tDatabase failed to report the data as restored." % request['guid'])
+#	    jobtracker.query("UPDATE requests SET status='failed', " \
+#                     "details='Request failed. Why ?', " \
+#                     "updated_at='%s' " \
+#                     "WHERE guid='%s'" % (jobtracker.nowstr(), request['guid']))
+
+            query = "SELECT (julianday('%s')-julianday(created_at))*24 " \
+                        "AS deltaT_hours " \
+                    "FROM requests " \
+                    "WHERE guid='%s'" % \
+                        (jobtracker.nowstr(), request['guid'])
+            row = jobtracker.query(query, fetchone=True)
+            if row['deltaT_hours'] > config.download.request_timeout:
+                dlm_cout.outs("Restore (GUID: %s) is over %d hr old " \
+                                "and still not ready. Marking " \
+                                "it as failed." % \
+                        (request['guid'], config.download.request_timeout))
+                jobtracker.query("UPDATE requests " \
+                                 "SET status='failed', " \
+                                    "details='Request took too long (> %d hr)', " \
+                                    "updated_at='%s' " \
+                                 "WHERE guid='%s'" % \
+                    (config.download.request_timeout, jobtracker.nowstr(), \
+                            request['guid']))
+
 
 
 def create_file_entries(request):
@@ -182,7 +261,7 @@ def create_file_entries(request):
             None
     """
 
-    files = get_files_infos(request)
+    files = DownloaderSPAN512.get_files_infos(request)
     
     total_size = 0
     num_files = 0
@@ -225,17 +304,7 @@ def create_file_entries(request):
                         request['guid'])
 
         # delete restore since there may be skipped files
-        delete_status = web_service.Deleter(guid=request['guid'], \
-                                            username=config.download.api_username, \
-                                            pw=config.download.api_password)
-        if delete_status == "deletion successful":
-            dlm_cout.outs("Deletion (%s) succeeded." % request['guid'])
-	elif delete_status == "invalid user":
-	    dlm_cout.outs("Deletion (%s) failed due to invalid user." % \
-			  request['guid'])
-	elif delete_status == "deletion failed":
-	    dlm_cout.outs("Deletion (%s) failed for unknown reasons." % \
-			  request['guid'])
+	DownloaderSPAN512.delete_stagged_file(request)
 
 	# redefine 'queries' because there are no files to update
 	queries = ["UPDATE requests " \
@@ -387,11 +456,11 @@ def download(attempt):
     queries = []
 
     # Download using bbftp
-    res = exec_download(request, file)
+    res = DownloaderSPAN512.exec_download(request, file)
 
 
     # bbftp should report 'get filename OK' if the transfer is successfull
-    if res_pipe == 'OK': 
+    if res == 'OK': 
         queries.append("UPDATE files " \
                        "SET status='unverified', " \
                             "updated_at='%s', " \
@@ -410,13 +479,13 @@ def download(attempt):
                             "updated_at='%s', " \
                             "details='Download failed - %s' " \
                        "WHERE id=%d" % \
-                       (jobtracker.nowstr(), str(pipe), file['id']))
+                       (jobtracker.nowstr(), str(res), file['id']))
 	queries.append("UPDATE download_attempts " \
                        "SET status='download_failed', " \
                             "details='Download failed - %s', " \
                             "updated_at='%s' " \
                        "WHERE id=%d" % \
-                       (str(pipe), jobtracker.nowstr(), attempt['id']))
+                       (str(res), jobtracker.nowstr(), attempt['id']))
 
     jobtracker.query(queries)
 
@@ -464,7 +533,7 @@ def verify_files():
                            (jobtracker.nowstr(), last_attempt_id))
 
 	    # Mark the beam as downloaded in the main database
-	    mark_beam_downloaded(os.path.split(file['filename'])[-1]))
+	    #mark_beam_downloaded(os.path.split(file['filename'])[-1]))
 
             numverified += 1
         else:
@@ -518,6 +587,30 @@ def recover_failed_downloads():
                                   "details='This file has been abandoned' " \
                              "WHERE id=%s" % \
                              (jobtracker.nowstr(), file['id']))
+
+def acknowledge_downloaded_files():
+    """Acknowledge the reception of the files
+    """
+    requests_to_delete = jobtracker.query("SELECT * FROM requests " \
+                                          "WHERE status='finished'")
+    if len(requests_to_delete) > 0:
+
+        queries = []
+        for request_to_delete in requests_to_delete:
+
+            DownloaderSPAN512.delete_stagged_file(request_to_delete)
+
+            dlm_cout.outs("Report download (%s) succeeded." % request_to_delete['guid'])
+            queries.append("UPDATE requests " \
+                               "SET status='cleaned_up', " \
+                               "details='download complete', " \
+                               "updated_at='%s' " \
+                               "WHERE id=%d" % \
+                               (jobtracker.nowstr(), request_to_delete['id']))
+
+        jobtracker.query(queries)
+    else: pass
+
 
     
 def status():
