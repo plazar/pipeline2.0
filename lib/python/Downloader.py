@@ -146,6 +146,7 @@ def run():
             numsuccess: The number of successfully downloaded files 
                         this iteration.
     """
+    pipeline_utils.get_zaplist_tarball(verbose=True)
     check_active_requests()
     start_downloads()
     check_download_attempts()

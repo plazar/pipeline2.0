@@ -198,7 +198,7 @@ def get_modtime(file, local=False):
     return modtime
 
 
-def get_zaplist_tarball(force_download=False):
+def get_zaplist_tarball(force_download=False, verbose=False):
     """Download zaplist tarball. If the local version has a
         modification time equal to, or later than, the version
         on the FTP server don't download unless 'force_download'
@@ -207,6 +207,8 @@ def get_zaplist_tarball(force_download=False):
         Input:
             force_download: Download zaplist tarball regardless
                 of modification times.
+            verbose: If True, print messages to stdout.
+                (Default: Be silent)
 
         Outputs:
             None
@@ -217,14 +219,26 @@ def get_zaplist_tarball(force_download=False):
     
     zaptarfile = os.path.join(config.processing.zaplistdir, "zaplists.tar.gz")
     ftpzappath = "/zaplists/zaplists.tar.gz"
-    if force_download or (not os.path.exists(zaptarfile)) or \
-            (cftp.get_modtime(ftpzappath) > get_modtime(zaptarfile)):
-        # Download the file on the FTP
+    getzap = False
+    if force_download:
+        if verbose:
+            print "Forcing download of zaplist tarball"
+        getzap = True
+    if not os.path.exists(zaptarfile):
+        if verbose:
+            print "Zaplist tarball doesn't exist, will download"
+        getzap = True
+    if cftp.get_modtime(ftpzappath) > get_modtime(zaptarfile):
+        if verbose:
+            print "Zaplist on FTP server is newer than local copy, will download"
+        getzap = True
+
+    if getzap:
+        # Download the file from the FTP
         cftp.download(ftpzappath, config.processing.zaplistdir)
     else:
         # Do nothing
-        Pass
-
+        pass
     cftp.close()
 
 
