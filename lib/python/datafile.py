@@ -150,52 +150,6 @@ class Data(object):
         self.fns = fns
         self.posn_corrected = False # Have RA/Dec been corrected in file header
 
-    def get_correct_positions(self):
-        """Reconstruct original wapp filename and check
-            for correct beam positions from the coordinates
-            table.
-
-            Returns nothing, updates object in place.
-        """
-        wappfn = '.'.join([self.project_id, self.source_name, \
-                            "wapp%d" % (self.beam_id/2+1), \
-                            "%5d" % int(self.timestamp_mjd), \
-                            self.fnmatch(self.original_file).groupdict()['scan']])
-        # Get corrected beam positions
-        matches = [line for line in open(config.basic.coords_table, 'r') if \
-                        line.startswith(wappfn)]
-        if len(matches) == 0 and self.timestamp_mjd > 54651:
-            # No corrected coords found, but coordinate problem is fixed,
-            # so use header values.
-            # MJD=54651 is July 4th 2008, it is a recent date by which
-            # the coord problem is definitely corrected. (The problem
-            # was discovered and fixed in ~2005).
-            self.right_ascension = self.orig_right_ascension
-            self.declination = self.orig_declination
-            self.ra_deg = self.orig_ra_deg
-            self.dec_deg = self.orig_dec_deg
-            self.galactic_longitude = self.orig_galactic_longitude
-            self.galactic_latitude = self.orig_galactic_latitude
-        elif len(matches) == 1:
-            # Use values from coords table
-            self.posn_corrected = True
-            if self.beam_id % 2:
-                # Even beam number. Use columns 2 and 3.
-                self.correct_ra, self.correct_decl = matches[0].split()[1:3]
-            else:
-                self.correct_ra, self.correct_decl = matches[0].split()[3:5]
-            self.right_ascension = float(self.correct_ra.replace(':', ''))
-            self.declination = float(self.correct_decl.replace(':', ''))
-            self.ra_deg = float(protractor.convert(self.correct_ra, 'hmsstr', 'deg')[0])
-            self.dec_deg = float(protractor.convert(self.correct_decl, 'dmsstr', 'deg')[0])
-            l, b = sextant.equatorial_to_galactic(self.correct_ra, self.correct_decl, \
-                                    'sexigesimal', 'deg', J2000=True)
-            self.galactic_longitude = float(l[0])
-            self.galactic_latitude = float(b[0])
-        else:
-            raise DataFileError("Bad number of matches (%d) in coords table! " \
-                             "(Files: %s)" % (len(matches), ", ".join(self.fns)))
-
     # These are class methods.
     # They don't need to be called with an instance.
     @classmethod
@@ -299,6 +253,7 @@ class PsrfitsData(Data):
                                             'deg', 'deg', J2000=True)
         self.orig_galactic_longitude = float(l)
         self.orig_galactic_latitude = float(b)
+        self.get_correct_positions()
 
         self.file_size = int(sum([os.path.getsize(fn) for fn in fitsfns]))
         self.observation_time = self.specinfo.T
@@ -308,6 +263,30 @@ class PsrfitsData(Data):
                             self.num_channels_per_record
         self.num_samples_per_record = self.specinfo.spectra_per_subint
         self.header_version = float(self.specinfo.header_version)
+
+    def update_positions(self, ra, decl):
+        """Update positions in raw data file's header.
+
+            Inputs:
+                ra: The new right ascension coordinates.
+                     (A string in hh:mm:ss.ssss format.)
+                decl: The new declination coordinates.
+                     (A string in dd:mm:ss.ssss format.)
+
+            Outputs:
+                None
+
+            Note: This cannot be undone!
+        
+        """
+        import pyfits
+        if self.posn_corrected:
+            for fn in self.fns:
+                hdus = pyfits.open(fn, mode='update')
+                primary = hdus['PRIMARY'].header
+                primary['RA'] = self.correct_ra 
+                primary['DEC'] = self.correct_decl
+                hdus.close() # hdus are updated at close-time
 
 
 class WappPsrfitsData(PsrfitsData):
@@ -337,20 +316,52 @@ class WappPsrfitsData(PsrfitsData):
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
+    
+    def get_correct_positions(self):
+        """Reconstruct original wapp filename and check
+            for correct beam positions from the coordinates
+            table.
 
-    def update_positions(self):
-        """Update positions in raw data file's header.
-            
-            Note: This cannot be undone!
+            Returns nothing, updates object in place.
         """
-        import pyfits
-        if self.posn_corrected:
-            for fn in self.fns:
-                hdus = pyfits.open(fn, mode='update')
-                primary = hdus['PRIMARY'].header
-                primary['RA'] = self.correct_ra 
-                primary['DEC'] = self.correct_decl
-                hdus.close() # hdus are updated at close-time
+        wappfn = '.'.join([self.project_id, self.source_name, \
+                            "wapp%d" % (self.beam_id/2+1), \
+                            "%5d" % int(self.timestamp_mjd), \
+                            self.fnmatch(self.original_file).groupdict()['scan']])
+        # Get corrected beam positions
+        matches = [line for line in open(config.basic.wapp_coords_table, 'r') if \
+                        line.startswith(wappfn)]
+        if len(matches) == 0 and self.timestamp_mjd > 54651:
+            # No corrected coords found, but coordinate problem is fixed,
+            # so use header values.
+            # MJD=54651 is July 4th 2008, it is a recent date by which
+            # the coord problem is definitely corrected. (The problem
+            # was discovered and fixed in ~2005).
+            self.right_ascension = self.orig_right_ascension
+            self.declination = self.orig_declination
+            self.ra_deg = self.orig_ra_deg
+            self.dec_deg = self.orig_dec_deg
+            self.galactic_longitude = self.orig_galactic_longitude
+            self.galactic_latitude = self.orig_galactic_latitude
+        elif len(matches) == 1:
+            # Use values from coords table
+            self.posn_corrected = True
+            if self.beam_id % 2:
+                # Even beam number. Use columns 2 and 3.
+                self.correct_ra, self.correct_decl = matches[0].split()[1:3]
+            else:
+                self.correct_ra, self.correct_decl = matches[0].split()[3:5]
+            self.right_ascension = float(self.correct_ra.replace(':', ''))
+            self.declination = float(self.correct_decl.replace(':', ''))
+            self.ra_deg = float(protractor.convert(self.correct_ra, 'hmsstr', 'deg')[0])
+            self.dec_deg = float(protractor.convert(self.correct_decl, 'dmsstr', 'deg')[0])
+            l, b = sextant.equatorial_to_galactic(self.correct_ra, self.correct_decl, \
+                                    'sexigesimal', 'deg', J2000=True)
+            self.galactic_longitude = float(l[0])
+            self.galactic_latitude = float(b[0])
+        else:
+            raise ValueError("Bad number of matches (%d) in coords table! " \
+                             "(Files: %s)" % (len(matches), ", ".join(self.fns)))
 
     @classmethod
     def are_grouped(cls, fn1, fn2):
@@ -394,7 +405,66 @@ class WappPsrfitsData(PsrfitsData):
             complete = False
         return complete
 
-class MockPsrfitsData(PsrfitsData):
+class MockPsrfitsBaseData(PsrfitsData):
+    """A base class for PSRFITS MockSpec data.
+    """
+    # An impossible to match string:
+    # The end-of-line mark is before the start-of-line mark
+    # This variable should be overridden by subclasses of Header
+    filename_re = re.compile('$x^')
+    
+    def __init__(self, fitsfns):
+        super(MockPsrfitsBaseData, self).__init__(fitsfns)
+        self.obstype = 'Mock'
+        # Note Puerto Rico doesn't observe daylight savings time
+        # so it is 4 hours behind UTC all year
+        dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1
+        self.start_ast = int((dayfrac*24-4)*3600)
+        self.start_ast %= 24*3600
+        # Parse filename to get the scan number
+        m = self.fnmatch(fitsfns[0])
+        self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
+        self.obs_name = '.'.join([self.project_id, self.source_name, \
+                                    str(int(self.timestamp_mjd)), \
+                                    str(self.scan_num)])
+        self.get_correct_positions() # This sets self.right_ascension, etc.
+
+    def get_correct_positions(self):
+        """Reconstruct original wapp filename and check
+            for correct beam positions from the coordinates
+            table.
+
+            Returns nothing, updates object in place.
+        """
+        fn0 = min(self.fns)
+        # Get corrected beam positions
+        matches = [line for line in open(config.basic.mock_coords_table, 'r') if \
+                        line.startswith(fn0)]
+        if len(matches) == 1:
+            # Use values from coords table
+            self.posn_corrected = True
+            
+            # Format of mock coords table is:
+            # <first sub0 filename> <ra deg> <dec deg> <frac year> <lst hrs> <ALFA rot deg>
+            split = matches[0].split()
+            self.ra_deg = float(split[1])
+            self.dec_deg = float(split[2])
+            
+            self.correct_ra = protractor.convert(self.ra_deg, 'deg', 'hmsstr')[0]
+            self.correct_deg = protractor.convert(self.dec_deg, 'deg', 'dmsstr')[0]
+            self.right_ascension = float(self.correct_ra.replace(':', ''))
+            self.declination = float(self.correct_decl.replace(':', ''))
+            l, b = sextant.equatorial_to_galactic(self.ra_deg, self.dec_deg, \
+                                    'deg', 'deg', J2000=True)
+            self.galactic_longitude = float(l[0])
+            self.galactic_latitude = float(b[0])
+        else:
+            raise ValueError("Bad number of matches (%d) in coords table! " \
+                             "(Files: %s)" % (len(matches), ", ".join(self.fns)))
+
+
+class MockPsrfitsData(MockPsrfitsBaseData):
     """PSR fits Data object for MockSpec data.
     """
     filename_re = re.compile(r'^4bit-(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
@@ -403,23 +473,10 @@ class MockPsrfitsData(PsrfitsData):
 
     def __init__(self, fitsfns):
         super(MockPsrfitsData, self).__init__(fitsfns)
-        self.obstype = 'Mock'
         self.beam_id = self.specinfo.beam_id
         if self.beam_id is None:
             raise ValueError("Beam number not encoded in PSR fits header.")
-        # Note Puerto Rico doesn't observe daylight savings time
-        # so it is 4 hours behind UTC all year
-        dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1
-        self.start_ast = int((dayfrac*24-4)*3600)
-        self.start_ast %= 24*3600
         self.num_ifs = self.specinfo.hdus[1].header['NUMIFS']
-        # Parse filename to get the scan number
-        m = self.fnmatch(fitsfns[0])
-        self.scan_num = m.groupdict()['scan']
-        self.project_id = m.groupdict()['projid']
-        self.obs_name = '.'.join([self.project_id, self.source_name, \
-                                    str(int(self.timestamp_mjd)), \
-                                    str(self.scan_num)])
 
     @classmethod
     def are_grouped(cls, fn1, fn2):
@@ -557,7 +614,7 @@ class MockPsrfitsData(PsrfitsData):
         return [mergedfn]
 
 
-class MergedMockPsrfitsData(PsrfitsData):
+class MergedMockPsrfitsData(MockPsrfitsBaseData):
     """PSRFITS Data object for merged MockSpec data.
     """
     filename_re = re.compile(r'^(?P<projid>[Pp]\d{4})\.(?P<date>\d{8})\.' \
@@ -566,17 +623,10 @@ class MergedMockPsrfitsData(PsrfitsData):
 
     def __init__(self, fitsfns):
         super(MergedMockPsrfitsData, self).__init__(fitsfns)
-        self.obstype = 'Mock'
-        # Note Puerto Rico doesn't observe daylight savings time
-        # so it is 4 hours behind UTC all year
-        dayfrac = calendar.MJD_to_date(self.timestamp_mjd)[-1]%1
-        self.start_ast = int((dayfrac*24-4)*3600)
-        self.start_ast %= 24*3600
         self.num_ifs = 2
         # Parse filename to get the scan number
         m = self.fnmatch(fitsfns[0])
         self.beam_id = int(m.groupdict()['beam'])
-        self.get_correct_positions() # This sets self.right_ascension, etc.
         self.scan_num = m.groupdict()['scan']
         self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
