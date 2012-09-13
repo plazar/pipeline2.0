@@ -97,7 +97,7 @@ def create_jobs_for_new_files():
                             "status, " \
                             "task, " \
                             "updated_at) " \
-                       "VALUES ('%s', '%s', '%s', '%s')" % \
+                       "VALUES ('%s', '%s', '%s', '%s', '%s')" % \
                         (jobtracker.nowstr(), 'Newly created job', \
                             'new', task_name, jobtracker.nowstr()))
         queries.append("INSERT INTO job_files (" \
@@ -127,7 +127,7 @@ def create_parallel_search_jobs():
 
         # retrieve file_ids
         rows2 = jobtracker.query("SELECT * from job_files " \
-				"WHERE job_id=%d'"row['job_id'])
+				"WHERE job_id=%d'"%row['job_id'])
 
         files_ids = [str(row2['file_id']) for row2 in rows2]
 
@@ -227,7 +227,7 @@ def create_parallel_folding_jobs():
 
         # retrieve file_ids
         rows2 = jobtracker.query("SELECT * from job_files " \
-				"WHERE job_id=%d'"row['job_id'])
+				"WHERE job_id=%d'"%row['job_id'])
 
         files_ids = [str(row2['file_id']) for row2 in rows2]
 
@@ -541,7 +541,7 @@ def submit(job_row):
                        "WHERE id=?" )
         arglist.append( (jobtracker.nowstr(), job_row['id']) )
         jobtracker.execute(queries, arglist)
->>>>>>> V-2
+
     except (queue_managers.QueueManagerJobFatalError,\
               datafile.DataFileError):
         # Error caught during job submission.
@@ -663,7 +663,7 @@ def presubmission_check(fns):
     """Check to see if datafiles meet the critera for submission.
     """
     # Check that files exist
-    missingfiles = [fn for fn in fns if not os.path.exists(fn)]
+    missingfiles = [fn for fn in fns if pipeline_utils.get_file_size(fn) <=0 ]
     if missingfiles:
         errormsg = "The following files cannot be found:\n"
         for missing in missingfiles:
