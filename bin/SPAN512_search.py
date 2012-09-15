@@ -142,55 +142,6 @@ def search(fns, workdir, resultsdir):
 
 def copy_zaplist(fns, workdir):
     # Copy zaplist to working directory
-    filetype = datafile.get_datafile_type(fns)
-    parsed = filetype.fnmatch(fns[0]).groupdict()
-    if 'date' not in parsed.keys():
-        parsed['date'] = "%04d%02d%02d" % \
-                            astro_utils.calendar.MJD_to_date(int(parsed['mjd']))
-
-    customzapfns = []
-    # First, try to find a custom zaplist for this specific data file
-    customzapfns.append(fns[0].replace(".fits", ".zaplist"))
-    # Next, try to find custom zaplist for this beam
-    customzapfns.append("%s.%s.b%s.zaplist" % \
-                        (parsed['projid'], parsed['date'], parsed['beam']))
-    # Try to find custom zaplist for this MJD
-    customzapfns.append("%s.%s.all.zaplist" % (parsed['projid'], parsed['date']))
-
-    zaptar = tarfile.open(os.path.join(config.processing.zaplistdir, \
-                                        "zaplists.tar.gz"), mode='r')
-    members = zaptar.getmembers()
-    for customzapfn in customzapfns:
-        matches = [mem for mem in members \
-                    if mem.name.endswith(customzapfn)]
-        if matches:
-            ti = matches[0] # The first TarInfo object found 
-                            # that matches the file name
-            # Write custom zaplist to workdir
-            localfn = os.path.join(workdir, customzapfn)
-            f = open(localfn, 'w')
-            f.write(zaptar.extractfile(ti).read())
-            f.close()
-            print "Copied custom zaplist: %s" % customzapfn
-            break
-        else:
-            # The member we searched for doesn't exist, try next one
-            pass
-    else:
-        # Copy default zaplist
-        if filetype == datafile.WappPsrfitsData:
-            zapfn = config.processing.default_wapp_zaplist
-        elif ( filetype == datafile.MockPsrfitsData or
-             filetype == datafile.MergedMockPsrfitsData ):
-            zapfn = config.processing.default_mock_zaplist
-        else:
-            raise ValueError("No default zaplist for data files of type %s" % \
-                                filetype.__name__)
-        shutil.copy(zapfn, workdir)
-        print "No custom zaplist found. Copied default zaplist: %s" % \
-                zapfn
-    
-    zaptar.close()
 
 
 def copy_results(resultsdir, outdir):
