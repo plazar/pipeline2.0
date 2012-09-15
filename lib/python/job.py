@@ -14,6 +14,7 @@ import traceback
 import string
 
 import datafile
+import SPAN512_job
 import jobtracker
 import mailer
 import OutStream
@@ -79,7 +80,7 @@ def create_jobs_for_new_files():
     groups = datafile.simple_group_files(newfns)
 
     # Keep only groups that are not missing any files
-    complete_groups = [grp for grp in groups if datafile.is_complete(grp)]
+    complete_groups = [grp for grp in groups if SPAN512_job.is_complete(grp)]
 
     if complete_groups:
         jobpool_cout.outs("Inserting %d new entries into jobs table" % \
@@ -486,8 +487,8 @@ def submit(job_row):
     res = []
     
     try:
-        presubmission_check(fns)
-        outdir = get_output_dir(fns)
+        SPAN512_job.presubmission_check(fns)
+        outdir = SPAN512_job.get_output_dir(fns)
         # Attempt to submit the job
         queue_id = config.jobpooler.queue_manager.submit\
                             (fns, outdir, job_row['id'], resources=res, script=script)
@@ -610,81 +611,6 @@ def submit(job_row):
         jobtracker.query(queries)
 
 
-def get_output_dir(fns):
-    """Given a list of data files, 'fns', generate path to output results.
-
-        path is:
-            {base_results_directory}/{mjd}/{obs_name}/{beam_num}/{proc_date}/
-        Note: 'base_results_directory' is defined in the processing config file.
-                'mjd', 'obs_name', and 'beam_num' are from parsing
-                the job's datafiles. 'proc_date' is the current date
-                in yymmddThhmmss format.
-    """
-
-    # Get info from datafile headers
-    data = datafile.autogen_dataobj([fns[0]])
-    if not isinstance(data, datafile.PsrfitsData):
-        errormsg  = "Data must be of PSRFITS format.\n"
-        errormsg += "\tData type: %s\n" % type(data)
-        raise pipeline_utils.PipelineError(errormsg)
-
-    # Generate output directory
-    mjd = int(data.timestamp_mjd)
-    beam_num = data.beam_id
-    obs_name = data.obs_name
-    proc_date = datetime.datetime.now().strftime('%y%m%dT%H%M%S')
-    baseoutdir = os.path.join(config.processing.base_results_directory, \
-                                    str(mjd), str(obs_name), \
-                                    str(beam_num), proc_date)
-    outdir = baseoutdir
-    
-    # Make sure our output directory doesn't already exist
-    counter = 0
-    while os.path.exists(outdir):
-        counter += 1
-        outdir = "%s_%d" % (baseoutdir, counter)
-    
-    # Make the directory immediately so the pipeline knows it's taken
-    os.makedirs(outdir)
-
-    # Send an email if our first choice for outdir wasn't available
-    if counter:
-        errormsg = "The first-choice output directory '%s' " \
-                    "already existed. Had to settle for '%s' " \
-                    "after %d tries. \n\n " \
-                    "Data files:\n " \
-                    "\t%s" % (baseoutdir, outdir, counter, "\n\t".join(fns))
-        notification = mailer.ErrorMailer(errormsg, \
-                        subject="Job outdir existance warning")
-        notification.send()
-    return outdir
-
-def presubmission_check(fns):
-    """Check to see if datafiles meet the critera for submission.
-    """
-    # Check that files exist
-    missingfiles = [fn for fn in fns if pipeline_utils.get_file_size(fn) <=0 ]
-    if missingfiles:
-        errormsg = "The following files cannot be found:\n"
-        for missing in missingfiles:
-            errormsg += "\t%s\n" % missing
-        raise pipeline_utils.PipelineError(errormsg) # if files missing want to crash
-    try:
-        #for WAPP, check if coords are in table
-        data = datafile.autogen_dataobj([fns[0]])
-        if not isinstance(data, datafile.PsrfitsData):
-            errormsg  = "Data must be of PSRFITS format.\n"
-            errormsg += "\tData type: %s\n" % type(data)
-            raise FailedPreCheckError(errormsg)
-    except (datafile.DataFileError, ValueError), e:
-        raise FailedPreCheckError(e)
-    #check if observation is too short
-    limit = float(config.jobpooler.obstime_limit)
-    obs_time = data.observation_time
-    if obs_time < limit:
-        errormsg = 'Observation is too short (%.2f s < %.2f s)' % (obs_time, limit) 
-        raise FailedPreCheckError(errormsg)
-    #check if datafile has been successfully processed in the past
 
 class FailedPreCheckError(pipeline_utils.PipelineError):
     """Error to raise when datafile has failed the presubmssion check.
