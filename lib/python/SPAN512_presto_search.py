@@ -171,7 +171,7 @@ def get_folding_command(cand, obs):
     if config.searching.fold_rawdata:
         # Fold raw data
         foldfiles = obs.filenmstr
-        mask = "-mask %s" % (obs.basefilenm + "_rfifind.mask")
+        mask = "-mask %s" % (obs.maskfilenm)
     else:
         if config.searching.use_subbands:
             # Fold the subbands
@@ -236,16 +236,17 @@ def get_folding_command(cand, obs):
 
 class obs_info:
     """
-    class obs_info(filenms, resultsdir)
+    class obs_info(filenms, resultsdir, task)
         A class describing the observation and the analysis.
     """
-    def __init__(self, filenms, resultsdir):
+    def __init__(self, filenms, resultsdir, task):
         # Where to dump all the results
         self.outputdir = resultsdir
         
         self.filenms = filenms
         self.filenmstr = ' '.join(self.filenms)
         self.basefilenm = os.path.split(filenms[0])[1].rstrip(".fits")
+	self.maskfilenm = self.basefilenm + "_rfifind.mask"
 
         # Read info from PSRFITS file
         data = datafile.autogen_dataobj(self.filenms)
@@ -297,9 +298,9 @@ class obs_info:
         self.num_folded_cands = 0
         self.num_single_cands = 0
         # Set dedispersion plan
-        self.set_DDplan()
+        self.set_DDplan(task)
 
-    def set_DDplan(self):
+    def set_DDplan(self, task):
         """Set the dedispersion plan.
 
             The dedispersion plans are hardcoded and
@@ -308,13 +309,20 @@ class obs_info:
         # Generate dedispersion plan
         self.ddplans = []
 
-        try:
-	    for plan in config.searching.ddplans[config.basic.survey]:
-	        self.ddplans.append(dedisp_plan(plan))
-
-        except:
-            raise ValueError("No dedispersion plan for unknown backend (%s)!" % self.backend)
-        
+	if "DD" in task:
+	    plan_id # GD TODO
+	    try:
+	        self.ddplans.append( dedisp_plan(config.searching.ddplans[self.backend][plan_id]) )
+	    except:
+	        raise ValueError("No dedispersion plan (id=%d)for backend '%s'!" % (plan_id, self.backend) )
+	    
+	else:
+	    try:
+		for plan in config.searching.ddplans[self.backend]:
+		    self.ddplans.append(dedisp_plan(plan))
+	    except:
+		raise ValueError("No dedispersion plan for backend '%s'!" % self.backend)
+	    
 
     def write_report(self, filenm):
         report_file = open(filenm, "w")
@@ -359,7 +367,12 @@ class dedisp_plan:
     class dedisp_plan(lodm, dmstep, dmsperpass, numpasses, numsub, downsamp)
         A class describing a de-dispersion plan for prepsubband in detail.
     """
-    def __init__(self, lodm, dmstep, dmsperpass, numpasses, numsub, downsamp):
+    def __init__(self, parameters):
+        try:
+            lodm, dmstep, dmsperpass, numpasses, numsub, downsamp = parameters.split()
+	except:
+	    raise 
+
         self.lodm = float(lodm)
         self.dmstep = float(dmstep)
         self.dmsperpass = int(dmsperpass)
@@ -404,10 +417,19 @@ def main(filenms, workdir, resultsdir, task):
     print "UTC time is:  %s"%(time.asctime(time.gmtime()))
     
     try:
-        if task == 'rfifind' or task == 'all': rfifind_job(job)
-        if task == 'search' or task == 'all': search_job(job)
-        if task == 'sifting' or task == 'all': sifting_job(job)
-        if task == 'folding' or task == 'all': folding_job(job)
+        if task == 'rfifind':
+	    rfifind_job(job)
+        elif task == 'search':
+	    search_job(job)
+        elif task == 'sifting':
+	    sifting_job(job)
+        elif task == 'folding':
+	    folding_job(job)
+	elif task == 'all':
+	    rfifind_job(job)
+	    search_job(job)
+	    sifting_job(job)
+	    folding_job(job)
     except:
         print "***********************ERRORS!************************"
         print "  Search has been aborted due to errors encountered."
@@ -423,7 +445,7 @@ def main(filenms, workdir, resultsdir, task):
         print "UTC time is:  %s"%(time.asctime(time.gmtime()))
 
         # Write the job report
-        # job.write_report(job.basefilenm+".report")
+        job.masked_fraction = find_masked_fraction(job)
         job.write_report(os.path.join(job.outputdir, job.basefilenm+".report"))
 
     
@@ -432,17 +454,13 @@ def set_up_job(filenms, workdir, resultsdir, task='all'):
         Create a obs_info instance, set it up and return it.
     """
     # Get information on the observation and the job
-    job = obs_info(filenms, resultsdir)
+    job = obs_info(filenms, resultsdir, task)
     if job.T < config.searching.low_T_to_search:
         raise PrestoError("The observation is too short to search. " \
                             "(%.2f s < %.2f s)" % \
                             (job.T, config.searching.low_T_to_search))
     job.total_time = time.time()
 
-    #
-    if 'DD' in task:
-         job.plan_id = 
-    
     # Make sure the output directory (and parent directories) exist
     try:
         os.makedirs(job.outputdir)
@@ -479,11 +497,9 @@ def rfifind_job(job):
           (config.searching.datatype_flag, config.searching.rfifind_chunk_time, job.basefilenm,
            job.filenmstr)
     job.rfifind_time += timed_execute(cmd, stdout="%s_rfifind.out" % job.basefilenm)
-    maskfilenm = job.basefilenm + "_rfifind.mask"
     # Find the fraction that was suggested to be masked
     # Note:  Should we stop processing if the fraction is
     #        above some large value?  Maybe 30%?
-    job.masked_fraction = find_masked_fraction(job)
 
 
 def search_job(job):
@@ -501,6 +517,7 @@ def search_job(job):
 
     # Iterate over the stages of the overall de-dispersion plan
     dmstrs = []
+
     for ddplan in job.ddplans:
 
         # Iterate over the individual passes through the data file
@@ -516,7 +533,7 @@ def search_job(job):
                 cmd = "prepsubband %s -sub -subdm %s -downsamp %d -nsub %d -mask %s " \
                         "-o %s/subbands/%s %s" % \
                         (config.searching.datatype_flag, ddplan.subdmlist[passnum], ddplan.sub_downsamp,
-                        ddplan.numsub, maskfilenm, job.tempdir, job.basefilenm,
+                        ddplan.numsub, job.maskfilenm, job.tempdir, job.basefilenm,
                         job.filenmstr)
                 job.subbanding_time += timed_execute(cmd, stdout="%s.subout" % subbasenm)
             
@@ -541,7 +558,7 @@ def search_job(job):
             else:  # Not using subbands
                 cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
                         "-numout %d -nsub %d -o %s/%s %s"%\
-                        (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
+                        (job.maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
                         ddplan.dmsperpass, ddplan.dd_downsamp*ddplan.sub_downsamp, 
                         psr_utils.choose_N(job.orig_N/ddplan.downsamp), ddplan.numsub, 
                         job.tempdir, job.basefilenm, job.filenmstr)

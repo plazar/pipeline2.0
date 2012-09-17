@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 """
 A batch script to search pulsar data.
-
-Patrick Lazarus, May 20, 2010
 """
 
 import sys
@@ -18,6 +16,7 @@ import datafile
 import astro_utils.calendar
 
 import config.processing
+import config.basic
 
 
 def get_datafns():
@@ -29,10 +28,10 @@ def get_datafns():
                 arguments, so we check for if "DATAFILES" environment 
                 variable is set.)
     """
-    if sys.argv[2:]:
+    if sys.argv[3:]:
         # First argument is results directory
         # Files provided on command line
-        fns = sys.argv[2:]
+        fns = sys.argv[3:]
     else:
         # Files provided with environment variable
         fns = os.getenv("DATAFILES", "").split(';')
@@ -70,6 +69,26 @@ def get_outdir():
     return outdir
         
 
+def get_options():
+    """Get output directory from command line or environment variable.
+        Environment variable option is only checked if no files
+        are provided on command line. 
+        
+        (NOTE: PBS does not provide batch scripts wtih command line 
+                arguments, so we check for if "OUTDIR" environment 
+                variable is set.)
+    """
+    if sys.argv[2:]:
+        # Check command line
+        options = sys.argv[2]
+    else:
+        # Use environment variable
+        options = os.getenv("OPTIONS", "")
+
+    # return options, can be none
+    return options
+
+
 def init_workspace():
     """Initialize workspace. 
         - Create working directory.
@@ -80,9 +99,9 @@ def init_workspace():
     if not os.path.isdir(config.processing.base_working_directory):
         print "Creating base work directory..."
         os.makedirs(config.processing.base_working_directory)
-    workdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_processing_", \
+    workdir = tempfile.mkdtemp(suffix="_tmp", prefix="SPAN512_processing_", \
                         dir=config.processing.base_working_directory)
-    resultsdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_results_", \
+    resultsdir = tempfile.mkdtemp(suffix="_tmp", prefix="SPAN512_results_", \
                         dir=config.processing.base_working_directory)
     return (workdir, resultsdir)
 
@@ -112,43 +131,43 @@ def set_up():
     fns = get_datafns()
     print "Searching %d files:" % len(fns)
     outdir = get_outdir()
+    task = get_options()
     workdir, resultsdir = init_workspace()
    
     print "Local working directory:", workdir
     print "Local results directory:", resultsdir
     print "When finished results will be copied to: %s" % outdir
 
-    # Copy data files locally
+    # Get the filenames in the working directory
+    wfns = [os.path.join(workdir, os.path.split(fn)[-1]) for fn in fns]
+
+    return fns, wfns, workdir, resultsdir, outdir, task
+
+
+def copy_data(fns, workdir):
+    # Copy data to working directory
     for fn in fns:
-        system_call("rsync -auvl %s %s" % (fn, workdir))
-    fns = [os.path.join(workdir, os.path.split(fn)[-1]) for fn in fns]
-
-    return fns, workdir, resultsdir, outdir
-
-
-def search(fns, workdir, resultsdir):
-    # Search the data
-    print "Go-Go-Gadget pulsar search..."
-    import PALFA2_presto_search
-    PALFA2_presto_search.main(fns, workdir, resultsdir)
-    
-    # Remove data, weights, scales and offsets from fits files
-    # and stash them in the results directory.
-    print "Removing data, weights, scales and offsets."
-    for fn in fns:
-        system_call("fitsdelcol %s[SUBINT] DATA DAT_WTS DAT_SCL DAT_OFFS" % fn)
-        system_call("rsync -auvl %s %s" % (fn, resultsdir))
-
+        print "Copying data %s to %s"%(fn, workdir)
+        if config.basic.use_HPSS:
+	    system_call("rfcp %s %s"%(fn, workdir))
+	else:
+	    shutil.copy(fn, workdir)
 
 def copy_zaplist(fns, workdir):
     # Copy zaplist to working directory
+    print "Copying default zaplist %s to %s"%(config.processing.default_zaplist, workdir)
+    shutil.copy(config.processing.default_zaplist, workdir)
 
+
+def copy_intermediate_results(outdir, workdir):
+    print "Copying contents of main results directory %s to %s"%(outdir, workdir)
+    system_call("rsync -av %s/ %s" % (outdir, workdir))
 
 def copy_results(resultsdir, outdir):
     # Copy search results to outdir (only if no errors occurred)
     print "Copying contents of local results directory to", outdir
-    system_call("mkdir -m 750 -p %s" % outdir)
-    system_call("rsync -auvl --chmod=Dg+rX,Fg+r %s/ %s" % (resultsdir, outdir))
+    system_call("mkdir -p %s" % outdir)
+    system_call("rsync -auvl %s/ %s" % (resultsdir, outdir))
 
 
 def clean_up(workdir, resultsdir):
@@ -160,16 +179,27 @@ def clean_up(workdir, resultsdir):
         print "Removing local results directory:", resultsdir
         shutil.rmtree(resultsdir)
     
+def search(fns, workdir, resultsdir, task):
+    import SPAN512_presto_search
+    SPAN512_presto_search.main(fns, workdir, resultsdir, task)
 
 def main():
     workdir = None
     resultsdir = None
     try:
-        fns, workdir, resultsdir, outdir = set_up()
+        fns, wfns, workdir, resultsdir, outdir, task = set_up()
         os.chdir(workdir)
-        ppfns = [os.path.split(fn)[-1] for fn in datafile.preprocess(fns)]
-        copy_zaplist(ppfns, workdir)
-        search(ppfns, workdir, resultsdir)
+
+	copy_data(fns,workdir)
+        copy_zaplist(config.processing.default_zaplist, workdir)
+
+	# TODO  Copy intermediate results
+	# There is currently no check to see if we have all intermediate products required
+	tasks2copy = ['search', 'sifting', 'folding']
+	if any(tk2 in task for tk2 in tasks2copy):
+	    copy_intermediate_results(outdir, workdir)
+        search(ppfns, workdir, resultsdir, task)
+
         copy_results(resultsdir, outdir)
     except:
         # Some error was encountered

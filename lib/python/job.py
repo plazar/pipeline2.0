@@ -134,7 +134,7 @@ def create_parallel_search_jobs():
 
 	# Submit all parallel jobs (1 job per DDplan)
         for istep in range(len(config.searching.ddplans['nuppi'])): 
-            task_name = "DDplan %d"%istep # TODO
+            task_name = "search %d"%istep # TODO
             queries.append("INSERT INTO jobs (" \
                             "created_at, " \
                             "details, " \
@@ -174,13 +174,13 @@ def create_sifting_jobs():
     # First make sur that all plans are done
     rows = jobtracker.query("SELECT * from jobs " \
 				"WHERE status='processed' " \
-				"AND 'DD' like task")
+				"AND 'search' like task")
     # TODO: how to find out that the parallel task are done ?				
 
     rows = jobtracker.query("SELECT jobs.task, job_files.file_id  FROM jobs " \
                             "LEFT JOIN job_files " \
                             "ON job_files.job_id=jobs.id " \
-                            "WHERE jobs.status='processed' and 'DDplan ' LIKE jobs.task")
+                            "WHERE jobs.status='processed' and 'search' LIKE jobs.task")
 
 
 def check_parallel_jobs(task, rows):
@@ -199,7 +199,7 @@ def check_parallel_jobs(task, rows):
     keys.sort()
     
     # Expected list of plans
-    plans = ["DDplan %d"%i for i in range(config.searching.ddplans['nuppi'])]
+    plans = ["search %d"%i for i in range(config.searching.ddplans['nuppi'])]
 
     finished_files = []
     for key in keys:
@@ -467,22 +467,20 @@ def submit(job_row):
     """
     fns = pipeline_utils.get_fns_for_jobid(job_row['id']) 
 
+    script = os.path.join(config.basic.pipelinedir, 'bin', '%s_search.py'%config.basic.survey)
+
     # Specify requested resources for job submission
     if job_row['task']=='rfifind':
         res = [4*60*60, 1024, 24]
-	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
-    elif job_row['task']=='search':
-        res = [4*60*60, 1024, 24]
-	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
+    elif search in job_row['task']:
+        res = [24*60*60, 1024, 24]
     elif job_row['task']=='sifting': # Sifting should be quick
         res = [30*60, 256, 5]
-	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
-    elif job_row['task']=='folding':
+    elif folding in job_row['task']:
         res = [4*60*60, 1024, 24]
-	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
-    elif job_row['task']=='tidyup':
-        res = [30*60, 256, 5]
-	script = os.path.join(config.basic.pipelinedir, 'bin', 'search.py')
+    #elif job_row['task']=='tidyup':
+    #    res = [30*60, 256, 5]
+    options = job_row['task']
     
     res = []
     
@@ -491,7 +489,7 @@ def submit(job_row):
         outdir = SPAN512_job.get_output_dir(fns)
         # Attempt to submit the job
         queue_id = config.jobpooler.queue_manager.submit\
-                            (fns, outdir, job_row['id'], resources=res, script=script)
+                            (fns, outdir, job_row['id'], resources=res, script=script, opts=options)
     except (FailedPreCheckError):
         # Error caught during presubmission check.
         exceptionmsgs = traceback.format_exception(*sys.exc_info())
