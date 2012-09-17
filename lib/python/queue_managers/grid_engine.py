@@ -91,6 +91,9 @@ class GEManager(queue_managers.generic_interface.PipelineQueueManager):
         cmd = "qsub  -V -v DATAFILES='%s',OUTDIR='%s' -l ct=%d,vmem=%dM,fsize=%dG -N %s -e %s -o %s %s" %\
                    (';'.join(datafiles), outdir, cputime, memory, fsize, self.job_basename + str(job_id),\
                       errorlog, stdoutlog, script)
+		     
+	if config.basic.use_HPSS:
+	    cmd += " -l hpss=1"
 
         queue_id, error, comm_err = self._exec_check_for_failure(cmd)
         queue_id = queue_id.strip()
