@@ -51,7 +51,7 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
         return (output, error, comm_err)
 
     def submit(self, datafiles, outdir, job_id, resources=[],\
-                script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
+                script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py'), opts=""):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
 
@@ -87,9 +87,13 @@ class MoabManager(queue_managers.generic_interface.PipelineQueueManager):
             stdoutlog = os.path.join(config.basic.qsublog_dir, "'$MOAB_JOBID'.OU")
         else:
             stdoutlog = os.devnull
+
+	if opts:
+	    opts = ",OPTIONS='%s'"%opts
+
         #-E needed for $MOAB_JOBID to be defined
-        cmd = "msub -E -v DATAFILES='%s',OUTDIR='%s' -q %s -l nodes=1:ppn=1,walltime=%s -N %s -e %s -o %s %s" %\
-                   (';'.join(datafiles), outdir, self.property, walltime, self.job_basename + str(job_id),\
+        cmd = "msub -E -v DATAFILES='%s',OUTDIR='%s'%s -q %s -l nodes=1:ppn=1,walltime=%s -N %s -e %s -o %s %s" %\
+                   (';'.join(datafiles), outdir, opts, self.property, walltime, self.job_basename + str(job_id),\
                       errorlog, stdoutlog, script)
 
         if debug.QMANAGER:

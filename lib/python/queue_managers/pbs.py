@@ -32,7 +32,7 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
         self.queue_name = queue_name
 
     def submit(self, datafiles, outdir, job_id, resources=[],\
-                script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
+                script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py'), opts=""):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
 
@@ -64,8 +64,12 @@ class PBSManager(queue_managers.generic_interface.PipelineQueueManager):
             qname_opt = "-q %s" % self.queue_name
         else:
             qname_opt = ""
-        cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s' %s -l nodes=%s:ppn=1 -N %s -e %s -o %s %s" % \
-                        (';'.join(datafiles), outdir, qname_opt, node, \
+
+        if opts:
+	    opts = ",OPTIONS='%s'"%opts
+
+        cmd = "qsub -V -v DATAFILES='%s',OUTDIR='%s'%s %s -l nodes=%s:ppn=1 -N %s -e %s -o %s %s" % \
+                        (';'.join(datafiles), outdir, opts, qname_opt, node, \
                             self.job_basename, errorlog, stdoutlog, script)
         if debug.QMANAGER:
             print "Job submit command: %s" % cmd

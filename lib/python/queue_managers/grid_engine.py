@@ -50,7 +50,7 @@ class GEManager(queue_managers.generic_interface.PipelineQueueManager):
         return (output, error, comm_err)
 
     def submit(self, datafiles, outdir, job_id, resources=[600, 512, 5],\
-                script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py')):
+                script=os.path.join(config.basic.pipelinedir, 'bin', 'search.py'), opts=""):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
 
@@ -87,9 +87,12 @@ class GEManager(queue_managers.generic_interface.PipelineQueueManager):
         errorlog = config.basic.qsublog_dir
         stdoutlog = config.basic.qsublog_dir
 
+	if opts:
+	    opts = ",OPTIONS='%s'"%opts
+
 	# Submit
-        cmd = "qsub  -V -v DATAFILES='%s',OUTDIR='%s' -l ct=%d,vmem=%dM,fsize=%dG -N %s -e %s -o %s %s" %\
-                   (';'.join(datafiles), outdir, cputime, memory, fsize, self.job_basename + str(job_id),\
+        cmd = "qsub  -V -v DATAFILES='%s',OUTDIR='%s'%s -l ct=%d,vmem=%dM,fsize=%dG -N %s -e %s -o %s %s" %\
+                   (';'.join(datafiles), outdir, opts, cputime, memory, fsize, self.job_basename + str(job_id),\
                       errorlog, stdoutlog, script)
 		     
 	if config.basic.use_HPSS:
