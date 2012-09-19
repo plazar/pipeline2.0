@@ -437,10 +437,10 @@ class MockPsrfitsBaseData(PsrfitsData):
 
             Returns nothing, updates object in place.
         """
-        fn0 = min(self.fns)
+        fn0 = os.path.basename(min(self.fns))
         # Get corrected beam positions
         matches = [line for line in open(config.basic.mock_coords_table, 'r') if \
-                        line.startswith(fn0)]
+                        line.replace('s0g0','').startswith(fn0)]
         if len(matches) == 1:
             # Use values from coords table
             self.posn_corrected = True
@@ -452,13 +452,13 @@ class MockPsrfitsBaseData(PsrfitsData):
             self.dec_deg = float(split[2])
             
             self.correct_ra = protractor.convert(self.ra_deg, 'deg', 'hmsstr')[0]
-            self.correct_deg = protractor.convert(self.dec_deg, 'deg', 'dmsstr')[0]
+            self.correct_decl = protractor.convert(self.dec_deg, 'deg', 'dmsstr')[0]
             self.right_ascension = float(self.correct_ra.replace(':', ''))
             self.declination = float(self.correct_decl.replace(':', ''))
             l, b = sextant.equatorial_to_galactic(self.ra_deg, self.dec_deg, \
                                     'deg', 'deg', J2000=True)
-            self.galactic_longitude = float(l[0])
-            self.galactic_latitude = float(b[0])
+            self.galactic_longitude = float(l)
+            self.galactic_latitude = float(b)
         else:
             raise ValueError("Bad number of matches (%d) in coords table! " \
                              "(Files: %s)" % (len(matches), ", ".join(self.fns)))
