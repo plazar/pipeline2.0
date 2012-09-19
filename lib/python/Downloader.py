@@ -173,6 +173,10 @@ def make_request(dbname='default'):
     db.cursor.execute(QUERY)
     guid = db.cursor.fetchone()[0]
 
+    if not obs_ids:
+        print "There are no files to be restored."
+        return
+
     # Mark the beams for restorations
     for obs_id in obs_ids:
         QUERY = "UPDATE full_processing SET status='requested', guid='%s', \
@@ -218,7 +222,7 @@ def check_active_requests():
 
 	# Check requested status 
 	if DownloaderSPAN512.check_request_done(request):
-	    dlm_cout.outs("Rstore (GUID: %s) has succeeded. Will create file entries.\n" % request['guid'])
+	    dlm_cout.outs("Restore (GUID: %s) has succeeded. Will create file entries.\n" % request['guid'])
 	    create_file_entries(request)
 
 	else:
