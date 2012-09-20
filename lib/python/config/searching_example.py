@@ -5,6 +5,10 @@ use_subbands          = True
 # To fold from raw data (ie not from subbands or dedispersed FITS files)
 # set the following to True.
 fold_rawdata          = True
+# To do single-pulse (sp) or accel search both with and without zerodm set 
+# the appropriate option to True (if False, only without)
+use_zerodm_sp         = False
+use_zerodm_accel      = False
 
 # Tunable parameters for searching and folding
 # (you probably don't need to tune any of them)
@@ -38,6 +42,18 @@ low_T_to_search         = 20.0 # sec
 #     numsub  = 96     # subbands
 # else:
 #     numsub  = 0      # Defaults to number of channels
+
+# Configuration of DD plans
+ddplans = {}
+ddplans['pdev'] = []
+ddplans['wapp'] = []
+ddplans['nuppi'] = []
+
+ddplans['pdev'].append([   0.0,  0.1,    76,     28,     96,        1 ])
+ddplans['pdev'].append([ 212.8,  0.3,    64,     12,     96,        2 ])
+
+ddplans['nuppi'].append([   0.0,  0.1,   100,      1,     96,        1 ])
+ddplans['nuppi'].append([  10.0,  0.1,   100,      1,     96,        2 ])
 
 # Sifting specific parameters (don't touch without good reason!)
 sifting_sigma_threshold = to_prepfold_sigma-1.0  

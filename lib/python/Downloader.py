@@ -7,20 +7,19 @@ import re
 import threading
 import traceback
 
-import M2Crypto
-
 import debug
 import mailer
 import OutStream
 import datafile
+import database
 import jobtracker
-import CornellFTP
-import CornellWebservice
 import pipeline_utils
 import config.background
 import config.download
 import config.email
 import config.basic
+
+import DownloaderSPAN512 
 
 dlm_cout = OutStream.OutStream("Download Module", \
                         os.path.join(config.basic.log_dir, "downloader.log"), \
@@ -80,13 +79,13 @@ def can_request_more():
     num_to_restore = active_requests
     num_to_download = len(to_download)
     used = get_space_used()
-    avail = get_space_available()
     reserved = get_space_committed()
 
     can_request = ((num_to_restore+num_to_download) < config.download.numrestored) and \
-            (avail-reserved > config.download.min_free_space) and \
             (used+reserved < config.download.space_to_use)
     return can_request
+
+
 
 
 def get_space_used():
@@ -102,24 +101,18 @@ def get_space_used():
 
     total_size = 0
     for file in files:
-        if os.path.exists(file['filename']):
-            total_size += file['size']
+        total_size += int(file['size'])
     return total_size
 
-
 def get_space_available():
-    """Return space available on the file system where files
-        are being downloaded.
-    
-        Inputs:
-            None
-        Output:
-            avail: Number of bytes available on the file system.
-    """
-    s = os.statvfs(os.path.abspath(config.download.datadir))
-    total = s.f_bavail*s.f_bsize
-    return total
+    """Return space available
 
+    Inputs:
+        None
+    Output:
+        available: Size of download directory (in bytes)
+    """
+    return config.download.space_to_use - get_space_used()
 
 def get_space_committed():
     """Return space reserved to files to be downloaded.
@@ -152,14 +145,16 @@ def run():
     check_download_attempts()
     numsuccess = verify_files()
     recover_failed_downloads()
+    check_downloading_requests()
+    acknowledge_downloaded_files()
     if can_request_more():
         make_request()
     return numsuccess
 
 
-def make_request():
+def make_request(dbname='default'):
     """Make a request for data to be restored by connecting to the
-        web services at Cornell.
+        data server.
     """
     num_beams = get_num_to_request()
     if not num_beams:
@@ -167,23 +162,38 @@ def make_request():
         return
     dlm_cout.outs("Requesting data\nIssuing a request of size %d" % num_beams)
 
-    web_service = CornellWebservice.Client()
-    guid = web_service.Restore(username=config.download.api_username, \
-                               pw=config.download.api_password, \
-                               pipeline=config.basic.pipeline.lower(), \
-                               number=num_beams, \
-                               bits=config.download.request_numbits, \
-                               fileType=config.download.request_datatype)
-    if guid == "fail":
-        raise pipeline_utils.PipelineError("Request for restore returned 'fail'.")
+    # Ask to restore num_beams
+    db = database.Database(dbname)
+    QUERY = "SELECT obs_id FROM full_processing WHERE status='available' LIMIT %d"%num_beams
+    db.cursor.execute(QUERY)
+    obs_ids = [row[0] for row in db.cursor.fetchall()]
 
-    requests = jobtracker.query("SELECT * FROM requests " \
-                             "WHERE guid='%s'" % guid)
+    # Ask for an uuid
+    QUERY = "SELECT  UUID();"
+    db.cursor.execute(QUERY)
+    guid = db.cursor.fetchone()[0]
+
+    if not obs_ids:
+        print "There are no files to be restored."
+        return
+
+    # Mark the beams for restorations
+    for obs_id in obs_ids:
+        QUERY = "UPDATE full_processing SET status='requested', guid='%s', \
+		updated_at=NOW() WHERE obs_id=%s"%(guid, obs_id)
+        db.cursor.execute(QUERY)
+    db.conn.close()
+
+    #if guid == "fail":
+    #   raise pipeline_utils.PipelineError("Request for restore returned 'fail'.")
+
+    requests = jobtracker.query("SELECT * FROM requests WHERE guid='%s'" % guid)
+
     if requests:
         # Entries in the requests table exist with this GUID!?
         raise pipeline_utils.PipelineError("There are %d requests in the " \
-                                           "job-tracker DB with this GUID %s" % \
-                                           (len(requests), guid))
+                               "job-tracker DB with this GUID %s" % \
+                               (len(requests), guid))
 
     jobtracker.query("INSERT INTO requests ( " \
                         "numbits, " \
@@ -199,25 +209,30 @@ def make_request():
                         config.download.request_datatype, guid, \
                         jobtracker.nowstr(), jobtracker.nowstr(), 'waiting', \
                         'Newly created request'))
-  
+
 
 def check_active_requests():
     """Check for any requests with status='waiting'. If there are
         some, check if the files are ready for download.
     """
+
     active_requests = jobtracker.query("SELECT * FROM requests " \
                                        "WHERE status='waiting'")
-    
-    web_service = CornellWebservice.Client()
     for request in active_requests:
-        location = web_service.Location(guid=request['guid'], \
-                                        username=config.download.api_username, \
-                                        pw=config.download.api_password)
-        if location == "done":
-            dlm_cout.outs("Restore (%s) is done. Will create file entries." % \
-                            request['guid'])
-            create_file_entries(request)
-        else:
+
+	# Check requested status 
+	if DownloaderSPAN512.check_request_done(request):
+	    dlm_cout.outs("Restore (GUID: %s) has succeeded. Will create file entries.\n" % request['guid'])
+	    create_file_entries(request)
+
+	else:
+#	    dlm_cout.outs("Request (GUID: %s) has failed.\n" \
+#	             "\tDatabase failed to report the data as restored." % request['guid'])
+#	    jobtracker.query("UPDATE requests SET status='failed', " \
+#                     "details='Request failed. Why ?', " \
+#                     "updated_at='%s' " \
+#                     "WHERE guid='%s'" % (jobtracker.nowstr(), request['guid']))
+
             query = "SELECT (julianday('%s')-julianday(created_at))*24 " \
                         "AS deltaT_hours " \
                     "FROM requests " \
@@ -225,7 +240,7 @@ def check_active_requests():
                         (jobtracker.nowstr(), request['guid'])
             row = jobtracker.query(query, fetchone=True)
             if row['deltaT_hours'] > config.download.request_timeout:
-                dlm_cout.outs("Restore (%s) is over %d hr old " \
+                dlm_cout.outs("Restore (GUID: %s) is over %d hr old " \
                                 "and still not ready. Marking " \
                                 "it as failed." % \
                         (request['guid'], config.download.request_timeout))
@@ -238,9 +253,10 @@ def check_active_requests():
                             request['guid']))
 
 
+
 def create_file_entries(request):
     """Given a row from the requests table in the job-tracker DB
-        check the FTP server for its files and create entries in
+        check the data server for its files and create entries in
         the files table.
 
         Input:
@@ -248,22 +264,15 @@ def create_file_entries(request):
         Outputs:
             None
     """
-    cftp = CornellFTP.CornellFTP()
-    try:
-        files = cftp.get_files(request['guid'])
-    except CornellFTP.M2Crypto.ftpslib.error_perm:
-        exctype, excvalue, exctb = sys.exc_info()
-        dlm_cout.outs("FTP error getting file information.\n" \
-                        "\tGUID: %s\n\tError: %s" % \
-                        (request['guid'], \
-                        "".join(traceback.format_exception_only(exctype, excvalue)).strip()))
-        files = []
+
+    files = DownloaderSPAN512.get_files_infos(request)
     
     total_size = 0
     num_files = 0
     queries = []
     for fn, size in files:
-        if not pipeline_utils.can_add_file(fn):
+        # Check if it's ok to add the file in the DB (check if it's already in the DB, may add further criteria...)
+        if not pipeline_utils.can_add_file_generic(fn): 
             dlm_cout.outs("Skipping %s" % fn)
             continue
 
@@ -277,7 +286,7 @@ def create_file_entries(request):
                             "updated_at, " \
                             "size) " \
                        "VALUES ('%s', '%s', '%s', '%s', '%s', '%s', %d)" % \
-                       (request['id'], fn, os.path.join(config.download.datadir, fn), \
+                       (request['id'], fn, os.path.join(config.download.datadir, os.path.split(fn)[-1]), \
                         'new', jobtracker.nowstr(), jobtracker.nowstr(), size))
         total_size += size
         num_files += 1
@@ -289,7 +298,7 @@ def create_file_entries(request):
         queries.append("UPDATE requests " \
                        "SET size=%d, " \
                             "updated_at='%s', " \
-                            "status='finished', " \
+                            "status='downloading', " \
                             "details='Request has been filled' " \
                        "WHERE id=%d" % \
                        (total_size, jobtracker.nowstr(), request['id']))
@@ -297,13 +306,18 @@ def create_file_entries(request):
         dlm_cout.outs("Request (GUID: %s) has failed.\n" \
                         "\tThere are no files to be downloaded." % \
                         request['guid'])
-        # redefine 'queries' because there are no files to update
-        queries = ["UPDATE requests " \
-                   "SET updated_at='%s', " \
-                        "status='failed', " \
-                        "details='No files to download' " \
-                   "WHERE id=%d" % \
-                   (jobtracker.nowstr(), request['id'])]
+
+        # delete restore since there may be skipped files
+	DownloaderSPAN512.delete_stagged_file(request)
+
+	# redefine 'queries' because there are no files to update
+	queries = ["UPDATE requests " \
+		   "SET updated_at='%s', " \
+			"status='failed', " \
+			"details='No files to download.' " \
+		   "WHERE id=%d" % \
+		   (jobtracker.nowstr(), request['id'])]
+
     jobtracker.query(queries)
 
 
@@ -362,7 +376,7 @@ def get_num_to_request():
         Outputs:
             num_to_request: The size of the request.
     """
-    ALLOWABLE_REQUEST_SIZES = [5,10,20,50,100,200]
+    ALLOWABLE_REQUEST_SIZES = [1, 3, 5, 10, 15, 20]
     avgrate = jobtracker.query("SELECT AVG(files.size/" \
                                 "(JULIANDAY(download_attempts.updated_at) - " \
                                 "JULIANDAY(download_attempts.created_at))) " \
@@ -405,7 +419,9 @@ def get_num_to_request():
     # 'ideal_num_to_request'
     num_to_request = max([0]+[N for N in ALLOWABLE_REQUEST_SIZES \
                             if N <= ideal_num_to_request])
+
     return num_to_request
+    
 
 
 def can_download():
@@ -442,23 +458,13 @@ def download(attempt):
                                fetchone=True)
 
     queries = []
-    try:
-        cftp = CornellFTP.CornellFTP()
-        cftp.download(os.path.join(request['guid'], file['remote_filename']))
-    except Exception, e:
-        queries.append("UPDATE files " \
-                       "SET status='failed', " \
-                            "updated_at='%s', " \
-                            "details='Download failed - %s' " \
-                       "WHERE id=%d" % \
-                       (jobtracker.nowstr(), str(e), file['id']))
-        queries.append("UPDATE download_attempts " \
-                       "SET status='download_failed', " \
-                            "details='Download failed - %s', " \
-                            "updated_at='%s' " \
-                       "WHERE id=%d" % \
-                       (str(e), jobtracker.nowstr(), attempt['id']))
-    else:
+
+    # Download using bbftp
+    res = DownloaderSPAN512.exec_download(request, file)
+
+
+    # bbftp should report 'get filename OK' if the transfer is successfull
+    if res == 'OK': 
         queries.append("UPDATE files " \
                        "SET status='unverified', " \
                             "updated_at='%s', " \
@@ -471,6 +477,20 @@ def download(attempt):
                             "updated_at='%s' " \
                        "WHERE id=%d" % \
                        (jobtracker.nowstr(), attempt['id']))
+    else:		       
+	queries.append("UPDATE files " \
+                       "SET status='failed', " \
+                            "updated_at='%s', " \
+                            "details='Download failed - %s' " \
+                       "WHERE id=%d" % \
+                       (jobtracker.nowstr(), str(res), file['id']))
+	queries.append("UPDATE download_attempts " \
+                       "SET status='download_failed', " \
+                            "details='Download failed - %s', " \
+                            "updated_at='%s' " \
+                       "WHERE id=%d" % \
+                       (str(res), jobtracker.nowstr(), attempt['id']))
+
     jobtracker.query(queries)
 
 
@@ -487,10 +507,9 @@ def verify_files():
 
     numverified = 0
     for file in toverify:
-        if os.path.exists(file['filename']):
-            actualsize = os.path.getsize(file['filename'])
-        else:
-            actualsize = -1
+
+        actualsize = pipeline_utils.get_file_size(file['filename'])
+
         expectedsize = file['size']
 
         last_attempt_id = jobtracker.query("SELECT id " \
@@ -516,6 +535,10 @@ def verify_files():
                                 "updated_at='%s'" \
                            "WHERE id=%d" % \
                            (jobtracker.nowstr(), last_attempt_id))
+
+	    # Mark the beam as downloaded in the main database
+	    #mark_beam_downloaded(os.path.split(file['filename'])[-1]))
+
             numverified += 1
         else:
             dlm_cout.outs("Verification of %s failed. \n" \
@@ -569,6 +592,30 @@ def recover_failed_downloads():
                              "WHERE id=%s" % \
                              (jobtracker.nowstr(), file['id']))
 
+def acknowledge_downloaded_files():
+    """Acknowledge the reception of the files
+    """
+    requests_to_delete = jobtracker.query("SELECT * FROM requests " \
+                                          "WHERE status='finished'")
+    if len(requests_to_delete) > 0:
+
+        queries = []
+        for request_to_delete in requests_to_delete:
+
+            DownloaderSPAN512.delete_stagged_file(request_to_delete)
+
+            dlm_cout.outs("Report download (%s) succeeded." % request_to_delete['guid'])
+            queries.append("UPDATE requests " \
+                               "SET status='cleaned_up', " \
+                               "details='download complete', " \
+                               "updated_at='%s' " \
+                               "WHERE id=%d" % \
+                               (jobtracker.nowstr(), request_to_delete['id']))
+
+        jobtracker.query(queries)
+    else: pass
+
+
     
 def status():
     """Print downloader's status to screen.
@@ -597,6 +644,31 @@ def status():
                                  fetchone=True)[0]
     print "Number of active downloads: %d" % numdlactive
     print "Number of failed downloads: %d" % numdlfail
+
+
+def check_downloading_requests():
+    requests = jobtracker.query("SELECT * FROM requests "\
+                                "WHERE status='downloading'")
+    if len(requests) > 0:
+        queries = []
+        for request in requests:
+            files_in_request = jobtracker.query("SELECT * FROM files "\
+                                                "WHERE request_id=%d" % \
+                                                request['id'])
+            downloaded_files = 0
+            for f in files_in_request:
+                if f['status'] == 'downloaded': downloaded_files += 1
+            if downloaded_files == len(files_in_request):
+                queries.append("UPDATE requests " \
+                               "SET status='finished', " \
+                               "details='All files downloaded', " \
+                               "updated_at='%s' " \
+                               "WHERE id=%d" % \
+                               (jobtracker.nowstr(), request['id']))
+        jobtracker.query(queries)
+    else:
+        pass
+
 
 
 class DownloadThread(threading.Thread):

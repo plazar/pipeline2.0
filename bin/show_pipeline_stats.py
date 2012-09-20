@@ -109,7 +109,7 @@ def get_data():
     rows = jobtracker.query("SELECT status FROM requests")
     restore_status = []
     for r in rows:
-        if r['status'] == 'finished':
+        if r['status'] == 'cleaned_up':
             restore_status.append((0,1,0)) # Greeen
         elif r['status'] == 'failed':
             restore_status.append((1,0,0)) # Red

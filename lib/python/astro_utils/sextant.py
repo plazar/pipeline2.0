@@ -225,8 +225,13 @@ def equatorial_to_galactic(ra, decl, input="sexigesimal", output="deg", \
     l = np.mod(l, np.pi*2)
     b = np.mod(b, np.pi*2)
 
-    if b > np.pi:
-        b -= np.pi*2
+    if type(b) == np.float64:
+        if b > np.pi:
+            b -= np.pi*2
+    else: #assume its an array
+        for i in range(len(b)):
+            if b[i] > np.pi:
+                b[i] -= np.pi*2
 
     # Convert output values to desired units
     if output == "sexigesimal":

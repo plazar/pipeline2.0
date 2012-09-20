@@ -93,6 +93,7 @@ def is_complete(fns):
             complete: Boolean value. True if list of file names
                 is a group that is complete.
     """
+    """
     if not fns:
         return False
     datatypes = [get_datafile_type([fn]) for fn in fns]
@@ -100,6 +101,11 @@ def is_complete(fns):
         if datatypes[0] != t:
             return False
     return datatypes[0].is_complete(fns)
+    """
+    if len(fns)==8:
+        return True
+    else:
+        return False
 
 
 def group_files(fns):
@@ -118,6 +124,41 @@ def group_files(fns):
         for jj in range(len(fns)-1, ii, -1):
             other = fns[jj]
             if are_grouped(fn, other):
+                group.append(fns.pop(jj))
+        groups.append(group)
+    return groups
+
+def match_observation(fn1, fn2):
+    sfn1 = os.path.split(fn1)[-1]
+    sfn2 = os.path.split(fn2)[-1]
+
+    try:
+        s1 = '_'.join(sfn1.split('_')[0:4])
+        s2 = '_'.join(sfn2.split('_')[0:4])
+    except:
+        return False
+    if s1==s2:
+        return True
+    else:
+        return False
+
+
+def simple_group_files(fns):
+    """Given a list of file names form groups of files
+        that belong to the same observation (only based on file names).
+
+        Intput:
+            fns: A list of file names.
+
+        Output:
+            groups: A list of groups (each group is a list of filenames).
+    """
+    groups = []
+    for ii, fn in enumerate(fns):
+        group = [fn]
+        for jj in range(len(fns)-1, ii, -1):
+            other = fns[jj]
+            if match_observation(fn, other):
                 group.append(fns.pop(jj))
         groups.append(group)
     return groups
@@ -307,6 +348,7 @@ class PsrfitsData(Data):
                             self.specinfo.bits_per_sample/8.0 * \
                             self.num_channels_per_record
         self.num_samples_per_record = self.specinfo.spectra_per_subint
+        self.header_version = float(self.specinfo.header_version)
 
 
 class WappPsrfitsData(PsrfitsData):
@@ -332,6 +374,7 @@ class WappPsrfitsData(PsrfitsData):
         # Parse filename to get the scan number
         m = self.fnmatch(fitsfns[0])
         self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
@@ -421,6 +464,7 @@ class MockPsrfitsData(PsrfitsData):
         # Parse filename to get the scan number
         m = self.fnmatch(fitsfns[0])
         self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
@@ -492,6 +536,7 @@ class MockPsrfitsData(PsrfitsData):
         """
         infiles = " ".join(fns)
         fnmatchdict = cls.fnmatch(fns[0]).groupdict()
+        obsdata = cls(fns)
         outbasenm = "%(projid)s.%(date)s.%(source)s.b%(beam)s.%(scan)s" % \
                         fnmatchdict
         
@@ -504,15 +549,60 @@ class MockPsrfitsData(PsrfitsData):
         # Merge mock subbands
         mergecmd = "combine_mocks %s -o %s" % (infiles, outbasenm)
         pipeline_utils.execute(mergecmd, stdout=outbasenm+"_merge.out")
-
-        # Remove first 7 rows from file
-        rowdelcmd = "fitsdelrow %s[SUBINT] 1 7" % outfile
-        pipeline_utils.execute(rowdelcmd)
         
         # Rename file to remove the '_0001' that was added
-        os.rename(outfile, outbasenm+'.fits')
+        mergedfn = outbasenm+'.fits'
+        os.rename(outfile, mergedfn)
+        
+        merged = autogen_dataobj([mergedfn])
+        if not isinstance(merged, MergedMockPsrfitsData):
+            raise ValueError("Preprocessing of Mock data has not produced " \
+                                "a recognized merged file!")
+        subints_with_cal = merged.get_subints_with_cal()
+        num_subints = merged.num_samples/merged.num_samples_per_record
+        subints_with_cal = [isub for isub in subints_with_cal \
+                                if isub >=0 and isub < num_subints]
+        if len(subints_with_cal):
+            rowdelcmds = []
+            startrow = subints_with_cal[0]
+            numrows = 1
+            numdelrows = 0 # Number of rows deleted so far
+            # Add infinity to the list of subints with cal to 
+            # make sure we remove the last cal-block.
+            for isub in subints_with_cal[1:]+[np.inf]:
+                isub -= numdelrows # Adjust based on the number of missing rows
+                if isub == startrow+numrows:
+                    numrows+=1
+                else:
+                    if startrow+1 < 0.1*num_subints:
+                        print "Cal-affected region is within 10%% of start of obs " \
+                                "remove all rows before cal. (cal start: %d; " \
+                                "total num rows: %d)" % (startrow, num_subints)
+                        numrows += startrow
+                        startrow = 0
+                    elif startrow+numrows > 0.9*num_subints:
+                        print "Cal-affected region is within 10%% of end of obs " \
+                                "remove all rows after cal. (cal start: %d; " \
+                                "total num rows: %d)" % (startrow, num_subints)
+                        numrows = num_subints - startrow
+                    numdelrows += numrows # Keep track of number of rows deleted
+                    print "Will delete %d rows starting at %d" % (numrows, startrow+1)
+                    rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
+                                    (mergedfn, startrow+1, numrows))
+                    startrow = isub-numrows # NOTE: only delete numrows because
+                                            # numdelrows has already been deleted
+                                            # from isub
+                    num_subints -= numrows # Adjust number of subints in the file
+                    print "resetting startrow to", startrow
+                    numrows = 1
+            for rowdelcmd in rowdelcmds:
+                pipeline_utils.execute(rowdelcmd)
 
-        return [outbasenm+'.fits']
+        # Make dat file
+        prepdatacmd = "prepdata -noclip -nobary -dm 0 -o %s_post_DM0.00 %s" % (outbasenm, mergedfn)
+        pipeline_utils.execute(prepdatacmd, stdout=outbasenm+"_post_prepdata.out")
+
+        return [mergedfn]
 
 
 class MergedMockPsrfitsData(PsrfitsData):
@@ -536,6 +626,7 @@ class MergedMockPsrfitsData(PsrfitsData):
         self.beam_id = int(m.groupdict()['beam'])
         self.get_correct_positions() # This sets self.right_ascension, etc.
         self.scan_num = m.groupdict()['scan']
+        self.project_id = m.groupdict()['projid']
         self.obs_name = '.'.join([self.project_id, self.source_name, \
                                     str(int(self.timestamp_mjd)), \
                                     str(self.scan_num)])
@@ -583,6 +674,60 @@ class MergedMockPsrfitsData(PsrfitsData):
             complete = False
         return complete
 
+    def get_subints_with_cal(self, nsigma=15, margin_of_error=1):
+        """Return a list of subint numbers with the cal turned on.
+ 
+            Input:
+                nsigma: The number of sigma above the median a
+                    subint needs to be in order to be flagged as
+                    having the cal on. (Default: 15)
+
+                    NOTE: The median absolute deviation is used in
+                        place of the standard deviation here.
+                margin_of_error: For each subint with the cal on 
+                    also flag 'margin_of_error' subints on either
+                    side. (Default: 1)
+ 
+            Output:
+                subints_with_cal: A sorted list of subints with the
+                    cal on.
+        """
+        fn = self.fns[0]
+        if not fn.endswith(".fits"):
+            raise ValueError("Filename doesn't end with '.fits'!")
+        basenm = fn[:-5] # Chop off '.fits'
+        # Make dat file
+        prepdatacmd = "prepdata -noclip -nobary -dm 0 -o %s_pre_DM0.00 %s" % (basenm, fn)
+        pipeline_utils.execute(prepdatacmd, stdout=basenm+"_pre_prepdata.out")
+        datfn = basenm+"_pre_DM0.00.dat"
+        samp_per_rec = self.num_samples_per_record
+        dat = np.memmap(datfn, mode='r', dtype='float32')
+        dat = dat[:dat.size/samp_per_rec*samp_per_rec]
+        dat.shape = (dat.size/samp_per_rec, samp_per_rec)
+        meds = np.median(dat, axis=1)
+        med_of_meds = np.median(meds)
+        mad_of_meds = np.median(np.abs(meds-med_of_meds))
+        print "Median of medians:", med_of_meds
+        print "MAD of medians:", mad_of_meds
+        for ii, (med, nsig) in enumerate(zip(meds, (meds-med_of_meds)/mad_of_meds)):
+            print "%d: %g (%g)" % (ii, med, nsig)
+        has_cal = (meds-med_of_meds)/mad_of_meds > nsigma
+ 
+        subints_with_cal = set()
+        print "Subints with cal: %s" % sorted(list(subints_with_cal))
+        for isub in np.flatnonzero(has_cal):
+            subints_with_cal.add(isub)
+            for x in range(1,margin_of_error+1):
+                subints_with_cal.add(isub-x)
+                subints_with_cal.add(isub+x)
+ 
+        print "Conservative list of subints to remove: %s" % sorted(list(subints_with_cal))
+
+        # Remove dat file created
+        os.remove(datfn)
+        
+        return sorted(list(subints_with_cal))
+
 
 class DataFileError(pipeline_utils.PipelineError):
     pass
@@ -596,6 +741,13 @@ def main():
         # Print file type
         filetype = get_datafile_type(sys.argv[2:])
         print filetype.__name__
+    elif sys.argv[1]=='group+preprocess':
+        # Group files
+        groups = group_files(sys.argv[2:])
+        # Preprocess each group
+        for group in groups:
+            if is_complete(group):
+                preprocess(group)
     else:
         # Print datafile's header information
         data = autogen_dataobj(sys.argv[1:])

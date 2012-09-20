@@ -22,19 +22,20 @@ import pipeline_utils
 
 import config.basic
 
-class SinglePulseTarball(upload.Uploadable):
+class SinglePulseTarball(upload.FTPable,upload.Uploadable):
     """A class to represent a tarball of single pulse files.
     """
     # A dictionary which contains variables to compare (as keys) and
     # how to compare them (as values)
     to_cmp = {'header_id': '%d', \
               'filename': '%s', \
+              'ftp_path': '%s', \
               'filetype': '%s', \
               'institution': '%s', \
               'pipeline': '%s', \
               'versionnum': '%s'}
     
-    def __init__(self, filename, versionnum, header_id=None):
+    def __init__(self, filename, versionnum, header_id=None, timestamp_mjd=None):
         self.header_id = header_id
         self.fullpath = filename
         self.filename = os.path.split(filename)[-1]
@@ -42,6 +43,11 @@ class SinglePulseTarball(upload.Uploadable):
         # Store a few configurations so the upload can be checked
         self.pipeline = config.basic.pipeline
         self.institution = config.basic.institution
+        self.ftp_base = config.upload.sp_ftp_dir
+        self.uploaded = False
+
+        mjd = int(timestamp_mjd)
+        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
 
     def get_upload_sproc_call(self):
         """Return the EXEC spSinglePulseFileUpload string to upload
@@ -53,7 +59,9 @@ class SinglePulseTarball(upload.Uploadable):
             "@filetype='%s', " % self.filetype + \
             "@institution='%s', " % config.basic.institution + \
             "@pipeline='%s', " % config.basic.pipeline + \
-            "@version_number='%s'" % self.versionnum
+            "@version_number='%s', " % self.versionnum + \
+            "@file_location='%s', " % self.ftp_path + \
+            "@uploaded=0"
         return sprocstr
 
     def compare_with_db(self, dbname='default'):
@@ -72,6 +80,7 @@ class SinglePulseTarball(upload.Uploadable):
             db = database.Database(dbname)
         db.execute("SELECT spf.header_id, " \
                         "spf.filename, " \
+                        "spf.ftpfilepath as ftp_path," \
                         "spft.sp_files_type AS filetype, " \
                         "v.institution, " \
                         "v.pipeline, " \
@@ -127,10 +136,10 @@ class SinglePulseTarball(upload.Uploadable):
         if self.header_id is None:
             raise SinglePulseCandidateError("Cannot upload SP tarball " \
                     "with header_id == None!")
-        
+
         if debug.UPLOAD: 
             starttime = time.time()
-        id, path = super(SinglePulseTarball, self).upload(dbname=dbname, \
+        id = super(SinglePulseTarball, self).upload(dbname=dbname, \
                     *args, **kwargs)
         self.compare_with_db(dbname=dbname)
         
@@ -141,17 +150,43 @@ class SinglePulseTarball(upload.Uploadable):
         if id < 0:
             # An error has occurred
             raise SinglePulseCandidateError(path)
+
+    def upload_FTP(self,cftp,dbname='default'):
+        """An extension to the inherited 'upload_FTP' method.
+            This method FTP's the file to Cornell.
+
+            Input:
+                cftp: A CornellFTP connection.
+        """
+        if isinstance(dbname, database.Database):
+            db = dbname
         else:
-            if debug.UPLOAD: 
+            db = database.Database(dbname)
+
+        if debug.UPLOAD: 
                 starttime = time.time()
-            cftp = CornellFTP.CornellFTP()
-            ftp_path = os.path.join(path, self.filename) 
-            cftp.upload(self.fullpath, ftp_path)
-            cftp.quit()
-            if debug.UPLOAD:
-                upload.upload_timing_summary['sp info (ftp)'] = \
-                    upload.upload_timing_summary.setdefault('sp info (ftp)', 0) + \
-                    (time.time()-starttime)
+
+        if not self.uploaded:
+
+	    ftp_fullpath = os.path.join(self.ftp_path, self.filename)
+	    if not cftp.dir_exists(self.ftp_path):
+		cftp.mkd(self.ftp_path)
+
+	    cftp.upload(self.fullpath, ftp_fullpath)
+
+	    db.execute("spSPCandBinUploadConf " + \
+		   "@sp_file_type='%s', " % self.filetype + \
+		   "@filename='%s', " % self.filename + \
+		   "@file_location='%s', " % self.ftp_path + \
+		   "@uploaded=1" )
+	    db.commit()
+
+            self.uploaded = True
+
+        if debug.UPLOAD:
+            upload.upload_timing_summary['sp info (ftp)'] = \
+                upload.upload_timing_summary.setdefault('sp info (ftp)', 0) + \
+                (time.time()-starttime)
 
 
 class SinglePulseCandsTarball(SinglePulseTarball):
@@ -317,7 +352,7 @@ class SinglePulseCandidateError(upload.UploadNonFatalError):
     pass
 
 
-def get_spcandidates(versionnum, directory, header_id=None):
+def get_spcandidates(versionnum, directory, header_id=None, timestamp_mjd=None):
     """Return single pulse candidates to common DB.
 
         Inputs:
@@ -360,14 +395,14 @@ def get_spcandidates(versionnum, directory, header_id=None):
         raise SinglePulseCandidateError("Wrong number of *_inf.tgz " \
                                         "tarballs found (%d)!" % len(fns))
     sp_cands.append(SinglePulseInfTarball(fns[0], versionnum, \
-                        header_id=header_id))
+                        header_id=header_id, timestamp_mjd=timestamp_mjd))
     
     fns = glob.glob(os.path.join(directory, "*_singlepulse.tgz"))
     if len(fns) != 1:
         raise SinglePulseCandidateError("Wrong number of *_singlepulse.tgz " \
                                         "tarballs found (%d)!" % len(fns))
     sp_cands.append(SinglePulseCandsTarball(fns[0] , versionnum, \
-                        header_id=header_id))
+                        header_id=header_id, timestamp_mjd=timestamp_mjd))
 
     return sp_cands
 

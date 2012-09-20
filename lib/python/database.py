@@ -4,7 +4,6 @@ import warnings
 import traceback
 import cmd
 
-import prettytable
 import pyodbc
 
 import debug
@@ -15,6 +14,13 @@ import config.commondb
 DATABASES = {
     'common': {
         'DATABASE': 'palfa-common',
+        'UID':  config.commondb.username,
+        'PWD':  config.commondb.password,
+        'HOST': config.commondb.host,
+        'DSN':  'FreeTDSDSN'
+        },
+    'common2': {
+        'DATABASE': 'palfaCandDB2',
         'UID':  config.commondb.username,
         'PWD':  config.commondb.password,
         'HOST': config.commondb.host,
@@ -34,11 +40,18 @@ DATABASES = {
         'HOST': config.commondb.host,
         'DSN':  'FreeTDSDSN'
         },
+    'SPAN512': {
+        'DATABASE': 'SBON512',
+        'UID':  config.commondb.username,
+        'PWD':  config.commondb.password,
+        'HOST': config.commondb.host,
+        'DSN':  'MySQLDSN'
+        },
 }
 
 
 # Set defaults
-DEFAULTDB = 'common'
+DEFAULTDB = 'SPAN512'
 DATABASES['default'] = DATABASES[DEFAULTDB]
 
 
@@ -87,7 +100,7 @@ class Database:
         if debug.COMMONDB:
             print query
         try:
-            self.cursor.execute(query, *args, **kwargs)
+            self.cursor.execute(query.encode('ascii'), *args, **kwargs)
         except Exception, e:
             if "has been chosen as the deadlock victim. Rerun the transaction." in str(e):
                 raise DatabaseDeadlockError(e)
@@ -111,15 +124,6 @@ class Database:
 
     def fetchall(self):
         return self.cursor.fetchall()
-
-    def showall(self):
-        desc = self.cursor.description
-        if desc is not None:
-            fields = [d[0] for d in desc] 
-            table = prettytable.PrettyTable(fields)
-            for row in self.cursor:
-                table.add_row(row)
-            table.printt()
 
     def insert(self, query):
         self.cursor.execute(query)

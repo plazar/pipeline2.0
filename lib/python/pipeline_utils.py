@@ -13,8 +13,10 @@ import traceback
 import optparse
 import time
 import datetime
+import string
 
 import debug
+import config.basic
 
 class PipelineError(Exception):
     """A generic exception to be thrown by the pipeline.
@@ -32,6 +34,8 @@ class PipelineError(Exception):
             msg += "\n\n========== Original Traceback ==========\n"
             msg += "".join(traceback.format_exception(*self.orig_exc_info))
             msg += "\n(See PipelineError traceback above)\n"
+        if msg.count("\n") > 100:
+            msg = string.join(msg.split("\n")[:50],"\n")
         return msg
 
 
@@ -68,6 +72,16 @@ def clean_up(jobid):
     for fn in fns:
         remove_file(fn)
 
+def remove_HPSS_file(fn):
+    """Delete a file stored on a HPSS file system
+
+	Input:
+	    fn: The name of the file to remove.
+	Outputs:
+	    None
+    """
+
+
 def remove_file(fn):
     """Delete a file (if it exists) and mark it as deleted in the 
         job-tracker DB.
@@ -79,18 +93,55 @@ def remove_file(fn):
             None
     """
     import jobtracker
-    if os.path.exists(fn):
-        os.remove(fn)
-        print "Deleted: %s" % fn
-    jobtracker.query("UPDATE files " \
-                     "SET status='deleted', " \
-                         "updated_at='%s', " \
-                         "details='File was deleted' " \
-                     "WHERE filename='%s'" % \
-                     (jobtracker.nowstr(), fn))
+    if config.basic.use_HPSS:
+        # remove_HPSS_file(fn)
+        raise PipelineError("Deletion of HPSS files not implemented yet!")
+
+    else:
+	if os.path.exists(fn):
+	    os.remove(fn)
+	    print "Deleted: %s" % fn
+	jobtracker.query("UPDATE files " \
+			 "SET status='deleted', " \
+			     "updated_at='%s', " \
+			     "details='File was deleted' " \
+			 "WHERE filename='%s'" % \
+			 (jobtracker.nowstr(), fn))
+
+def get_hpss_file_size(filename):
+    """Return the size of a file in HPSS space
+    """
+    cmd = "rfstat %s"%filename
+    pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, 
+stdin=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read().strip()
+
+    try:
+        size = int(pipe.split('\n')[6].split(':')[1])
+    except:
+        size = -1
+    return size
 
 
-def can_add_file(fn, verbose=False):
+def get_file_size(filename):
+    """Return the size of the file using functions depending of the 
+    pipeline
+
+    Inputs:
+        Filename
+    Output:
+        The size of the file (in bytes), -1 in case of error
+    """
+    if config.basic.use_HPSS:
+        return get_hpss_file_size(filename)
+    else:
+        if os.path.exists(filename):
+            actualsize = os.path.getsize(filename)
+        else:
+            actualsize = -1
+        return actualsize
+
+
+def can_add_file_palfa(fn, verbose=False):
     """Checks a file to see if it should be added to the 'files'
         table in the jobtracker DB.
 
@@ -124,16 +175,42 @@ def can_add_file(fn, verbose=False):
         return False
     return True
 
+def can_add_file_generic(fn, verbose=False):
+    """Checks a file to see if it should be added to the 'files'
+        table in the jobtracker DB.
 
-def execute(cmd, stdout=None, stderr=sys.stderr): 
+        Input:
+            fn: The file to check.
+            verbose: Print messages to stdout. (Default: be silent).
+
+        Outputs:
+            can_add: Boolean value. True if the file should be added. 
+                    False otherwise.
+    """
+    import jobtracker
+
+    # Check if file is already in the job-tracker DB
+    files = jobtracker.query("SELECT * FROM files " \
+                             "WHERE filename LIKE '%%%s'" % os.path.split(fn)[-1])
+    if len(files):
+        if verbose:
+            print "File is already being tracked: %s" % fn
+        return False
+    return True
+
+def execute(cmd, stdout=subprocess.PIPE, stderr=sys.stderr, dir=None): 
     """Execute the command 'cmd' after logging the command
-        to STDOUT.  Return the wall-clock amount of time
-        the command took to execute.
+        to STDOUT. Execute the command in the directory 'dir',
+        which defaults to the current directory is not provided.
 
         Output standard output to 'stdout' and standard
         error to 'stderr'. Both are strings containing filenames.
         If values are None, the out/err streams are not recorded.
-        By default stdout is None and stderr is sent to sys.stderr.
+        By default stdout is subprocess.PIPE and stderr is sent 
+        to sys.stderr.
+
+        Returns (stdoutdata, stderrdata). These will both be None, 
+        unless subprocess.PIPE is provided.
     """
     # Log command to stdout
     if debug.SYSCALLS:
@@ -150,7 +227,10 @@ def execute(cmd, stdout=None, stderr=sys.stderr):
         stderrfile = True
     
     # Run (and time) the command. Check for errors.
-    retcode = subprocess.call(cmd, shell=True, stdout=stdout, stderr=stderr)
+    pipe = subprocess.Popen(cmd, shell=True, cwd=dir, \
+                            stdout=stdout, stderr=stderr)
+    (stdoutdata, stderrdata) = pipe.communicate()
+    retcode = pipe.returncode 
     if retcode < 0:
         raise PipelineError("Execution of command (%s) terminated by signal (%s)!" % \
                                 (cmd, -retcode))
@@ -167,7 +247,7 @@ def execute(cmd, stdout=None, stderr=sys.stderr):
     if stderrfile:
         stderr.close()
 
-
+    return (stdoutdata, stderrdata)
 def get_modtime(file, local=False):
     """Get modification time of a file.
 

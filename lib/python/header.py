@@ -24,7 +24,7 @@ import pipeline_utils
 # Raise warnings produced by invalid coord strings as exceptions
 warnings.filterwarnings("error", message="Input is not a valid sexigesimal string: .*")
 
-class Header(upload.Uploadable):
+class Header(upload.Uploadable,upload.FTPable):
     """PALFA Header object. 
     """
     # A dictionary which contains variables to compare (as keys) and
@@ -60,7 +60,8 @@ class Header(upload.Uploadable):
               'galactic_latitude': '%.8f', \
               'ra_deg': '%.8f', \
               'dec_deg': '%.8f', \
-              'obstype': '%s'}
+              'obstype': '%s', \
+              'header_version': '%.3f'}
     
     def __init__(self, datafns, *args, **kwargs):
         if isinstance(datafns, datafile.Data):
@@ -100,6 +101,11 @@ class Header(upload.Uploadable):
             dep.header_id = header_id
             dep.upload(dbname=dbname, *args, **kwargs)
         return header_id
+
+    def upload_FTP(self, cftp, dbname):
+        for dep in self.dependents:
+           if isinstance(dep,upload.FTPable):
+               dep.upload_FTP(cftp,dbname)
 
     def __getattr__(self, key):
         # Allow Header object to return Data object's attributes
@@ -144,7 +150,8 @@ class Header(upload.Uploadable):
             "@galactic_latitude=%.8f, " % self.galactic_latitude + \
             "@ra_deg=%.8f, " % self.ra_deg + \
             "@dec_deg=%.8f, " % self.dec_deg + \
-            "@obsType='%s'" % self.obstype
+            "@obsType='%s', " % self.obstype + \
+            "@header_version=%.3f" % self.header_version
         return sprocstr
 
     def compare_with_db(self, dbname='default'):
@@ -195,7 +202,8 @@ class Header(upload.Uploadable):
                           "h.galactic_latitude, " \
                           "h.ra_deg, " \
                           "h.dec_deg, " \
-                          "h.obsType  AS obstype " \
+                          "h.obsType  AS obstype, " \
+                          "h.header_version as header_version " \
                    "FROM headers AS h " \
                    "LEFT JOIN observations AS obs ON obs.obs_id=h.obs_id " \
                    "WHERE obs.obs_name='%s' AND h.beam_id=%d " % \

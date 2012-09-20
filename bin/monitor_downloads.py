@@ -5,6 +5,7 @@ import curses
 import time
 
 import jobtracker
+import pipeline_utils
 
 
 class File:
@@ -24,10 +25,8 @@ class File:
             self.starttime = None
 
     def update(self):
-        if os.path.exists(self.name):
-            newsize = os.path.getsize(self.name)
-        else:
-            newsize = 0
+	newsize = pipeline_utils.get_file_size(self.name)
+            #newsize = 0
         if newsize != self.currsize:
             self.oldsize = self.currsize
             self.oldtime = self.currtime
@@ -122,7 +121,7 @@ def loop(scr):
         files.update()
         files.sort(reverse=True)
         show_status(scr)
-        time.sleep(1)
+        time.sleep(2)
 
 
 def main():

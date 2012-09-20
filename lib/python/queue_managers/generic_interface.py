@@ -4,7 +4,7 @@ class PipelineQueueManager(object):
         """
         raise NotImplementedError
 
-    def submit(self, datafiles, outdir, job_id, script):
+    def submit(self, datafiles, outdir, job_id, script, opts):
         """Submits a job to the queue to be processed.
             Returns a unique identifier for the job.
 
@@ -14,6 +14,7 @@ class PipelineQueueManager(object):
                 job_id: The unique job identifer from the jobtracker database.
                 script: The script to submit to the queue. It should 
                         default to '{config.basic.pipelinedir}/bin/search.py'
+		opts: Other options to give to the processing script	
 
             Output:
                 jobid: A unique job identifier.
