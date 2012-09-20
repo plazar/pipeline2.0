@@ -20,7 +20,6 @@ from astro_utils import sextant
 from astro_utils import protractor
 from astro_utils import calendar
 import pipeline_utils
-import config.basic
 
 date_re = re.compile(r'^(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})$')
 time_re = re.compile(r'^(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})$')
@@ -157,6 +156,7 @@ class Data(object):
 
             Returns nothing, updates object in place.
         """
+        import config.basic
         wappfn = '.'.join([self.project_id, self.source_name, \
                             "wapp%d" % (self.beam_id/2+1), \
                             "%5d" % int(self.timestamp_mjd), \
@@ -392,6 +392,13 @@ class WappPsrfitsData(PsrfitsData):
             complete = False
         return complete
 
+
+class NuppiPsrfitsData(PsrfitsData):
+    """PSR fits Data object for NUPPI data.
+    """
+    filename_re = re.compile(r'nuppi_(?P<mjd>\d{5})_(?P<source>SRV\d{6})\_' \
+                                r'(?P<scan>\d{6})_(?P<fileno>\d{4}).fits')
+
 class MockPsrfitsData(PsrfitsData):
     """PSR fits Data object for MockSpec data.
     """
@@ -585,6 +592,10 @@ def main():
     if sys.argv[1]=='preprocess':
         # Preprocess data files
         preprocess(sys.argv[2:])
+    elif sys.argv[1]=='filetype':
+        # Print file type
+        filetype = get_datafile_type(sys.argv[2:])
+        print filetype.__name__
     else:
         # Print datafile's header information
         data = autogen_dataobj(sys.argv[1:])
