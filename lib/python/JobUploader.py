@@ -101,7 +101,10 @@ def upload_results(job_submit):
             raise upload.UploadNonFatalError(errormsg)
 
         fitsfiles = get_fitsfiles(job_submit)
-        data = datafile.autogen_dataobj(fitsfiles)
+        try:
+            data = datafile.autogen_dataobj(fitsfiles)
+        except ValueError:
+            raise upload.UploadNonFatalError
         version_number = get_version_number(dir)
 
         if debug.UPLOAD: 
