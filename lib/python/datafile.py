@@ -437,10 +437,12 @@ class MockPsrfitsBaseData(PsrfitsData):
 
             Returns nothing, updates object in place.
         """
-        fn0 = os.path.basename(min(self.fns))
+        fn0 = os.path.basename(min(self.fns)).lstrip('4bit-').replace('s0g0','').replace('s1g0','').replace('00100','00000')
         # Get corrected beam positions
         matches = [line for line in open(config.basic.mock_coords_table, 'r') if \
                         line.replace('s0g0','').startswith(fn0)]
+        if len(matches) > 1:
+            matches = [ matches[0] ]
         if len(matches) == 1:
             # Use values from coords table
             self.posn_corrected = True

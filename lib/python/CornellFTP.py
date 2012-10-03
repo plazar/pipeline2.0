@@ -10,6 +10,7 @@ import config.basic
 import config.background
 import config.download
 import subprocess
+import datetime
 
 cout = OutStream.OutStream("CornellFTP Module", \
                 os.path.join(config.basic.log_dir, "downloader.log"), \
@@ -67,14 +68,14 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
                 modtime: datetime.datetime object that encodes the file's
                     last time of modification.
         """
-        response = self.sendcmd("MDTM %s")
+        response = self.sendcmd("MDTM %s" % ftp_path)
         respcode = response.split()[0]
         if respcode=='213':
             # All's good
             # Parse first 14 characters of date string
             # (Characters 15+ are fractions of a second)
             modstr = response.split()[1][:14]
-            modtime = datetime.strptime(modstr, "%Y%m%d%H%M%S")
+            modtime = datetime.datetime.strptime(modstr, "%Y%m%d%H%M%S")
         else:
             raise get_ftp_exception(response)
         return modtime
