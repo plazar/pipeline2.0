@@ -386,6 +386,10 @@ def submit(job_row):
     except queue_managers.QueueManagerFatalError:
         # A fatal error occurred. Re-raise!
         raise
+    except:
+        # Unexpected error
+         sys.stderr.write("Unexpected error during job submission!\n")
+         raise 
     else: 
         # No error occurred
         msg  = "Submitted job to process:\n" 
