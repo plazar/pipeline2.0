@@ -380,20 +380,19 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
     """
     # A dictionary which contains variables to compare (as keys) and
     # how to compare them (as values)
-    # NEED TO UPDATE FOR BINARIES!
     to_cmp = {'cand_id': '%d', \
               'filetype': '%s', \
               'filename': '%s'}
     
-    def __init__(self, filename, cand_id=None, timestamp_mjd=None):
+    def __init__(self, filename, filesize, cand_id=None, remote_pfd_dir=None):
         self.cand_id = cand_id
         self.fullpath = filename 
         self.filename = os.path.split(filename)[-1]
+        self.filesize = filesize
         self.ftp_base = config.upload.pfd_ftp_dir
         self.uploaded = False
 
-        mjd = int(timestamp_mjd)
-        self.ftp_path = os.path.join(self.ftp_base,str(mjd))
+        self.ftp_path = remote_pfd_dir
 
     def get_upload_sproc_call(self):
         """Return the EXEC spPFDBLAH string to upload
@@ -484,7 +483,8 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
 
     def upload_FTP(self, cftp, dbname='default'): 
         """An extension to the inherited 'upload_FTP' method.
-            This method FTP's the file to Cornell.
+            This method checks that the binary file was 
+            successfully uploaded to Cornell.
 
             Input:
                 cftp: A CornellFTP connection.
@@ -500,23 +500,29 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
         if not self.uploaded:
 
 	    ftp_fullpath = os.path.join(self.ftp_path, self.filename) 
-	    if not cftp.dir_exists(self.ftp_path):
-		cftp.mkd(self.ftp_path)
+	    if cftp.dir_exists(self.ftp_path):
+	        remotesize = cftp.size(ftp_fullpath)	
+            else:
+                remotesize = -1
 
-	    cftp.upload(self.fullpath, ftp_fullpath)
+            if remotesize == self.filesize:
+	        db.execute("EXEC spPDMCandBinUploadConf " + \
+	               "@pdm_plot_type='%s', " % self.filetype + \
+	               "@filename='%s', " % self.filename + \
+	               "@file_location='%s', " % self.ftp_path + \
+	               "@uploaded=1") 
+	        db.commit() 
 
-	    db.execute("EXEC spPDMCandBinUploadConf " + \
-		   "@pdm_plot_type='%s', " % self.filetype + \
-		   "@filename='%s', " % self.filename + \
-		   "@file_location='%s', " % self.ftp_path + \
-		   "@uploaded=1") 
-	    db.commit() 
-
-	    self.uploaded=True
+	        self.uploaded=True
+            else:
+                errormsg = "Size of binary file %s on remote server does not match local"\
+                           " size.\n\tRemote size (%d bytes) != Local size (%d bytes)" % \
+                           (self.filename,remote_size,self.filesize)
+                raise PeriodicityCandidateError(errormsg)
 
         if debug.UPLOAD:
-            upload.upload_timing_summary[self.filetype + ' (ftp)'] = \
-                upload.upload_timing_summary.setdefault(self.filetype + ' (ftp)', 0) + \
+            upload.upload_timing_summary[self.filetype + ' (ftp-check)'] = \
+                upload.upload_timing_summary.setdefault(self.filetype + ' (ftp-check)', 0) + \
                 (time.time()-starttime)
         
 
@@ -687,6 +693,43 @@ class PeriodicityCandidateError(upload.UploadNonFatalError):
     """
     pass
 
+def upload_pfds(tarfn,remote_dir,tempdir):
+
+    basename = os.path.basename(tarfn).rstrip('_pfd.tgz')
+
+    #extract pfd tarball to temporary dir
+    local_pfd_dir = os.path.join(tempdir,basename)
+    os.mkdir(local_pfd_dir)
+    tar = tarfile.open(tarfn)
+    try:
+        tar.extractall(path=local_pfd_dir)
+    except IOError:
+        if os.path.isdir(tempdir):
+            shutil.rmtree(tempdir)
+        raise PeriodicityCandidateError("Error while extracting pfd files " \
+                                        "from tarball (%s)!" % tarfn)
+    finally:
+        tar.close()
+
+    files = os.listdir(local_pfd_dir)
+    sizes = [os.path.getsize(os.path.join(local_pfd_dir, fn)) for fn in files]
+
+    # upload the pfds to Cornell using the lftp mirror command
+    if debug.UPLOAD: 
+        starttime = time.time()
+
+    try:
+        CornellFTP.mirror(local_pfd_dir,remote_dir,reverse=True,parallel=10)
+    except:
+        raise
+
+    if debug.UPLOAD:
+        upload.upload_timing_summary['pfd (ftp)'] = \
+            upload.upload_timing_summary.setdefault('pfd (ftp)', 0) + \
+            (time.time()-starttime)
+
+    return local_pfd_dir,zip(files,sizes)
+
 
 def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, inst_cache=None):
     """Upload candidates to common DB.
@@ -742,36 +785,35 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, in
                                              "files found in %s" % (len(pfd_tarfns), \
                                                 directory))
 
-        bestprof_tarfns = glob.glob(os.path.join(directory, "*_bestprof.tgz"))
-        if len(bestprof_tarfns) != 1:
-            raise PeriodicityCandidateError("Wrong number (%d) of *_bestprof.tgz " \
-                                             "files found in %s" % (len(bestprof_tarfns), \
-                                                directory))
-
         rating_tarfns = glob.glob(os.path.join(directory, "*_pfd_rat.tgz"))
         if len(rating_tarfns) != 1:
             raise PeriodicityCandidateError("Wrong number (%d) of *_pfd_rat.tgz " \
                                              "files found in %s" % (len(rating_tarfns), \
                                                 directory))
 
-        for tarfn in [ pfd_tarfns[0], bestprof_tarfns[0], rating_tarfns[0] ]: 
-            tar = tarfile.open(tarfn)
-            try:
-                tar.extractall(path=tempdir)
-            except IOError:
-                if os.path.isdir(tempdir):
-                    shutil.rmtree(tempdir)
-                raise PeriodicityCandidateError("Error while extracting pfd files " \
-                                                "from tarball (%s)!" % tarfn)
-            finally:
-                tar.close()
+        remote_pfd_base = os.path.join(config.upload.pfd_ftp_dir,str(mjd)) 
+        remote_pfd_dir = os.path.join(remote_pfd_base,\
+                                      os.path.basename(pfd_tarfns[0]).rstrip('_pfd.tgz'))
+        pfd_tempdir,pfd_list = upload_pfds(pfd_tarfns[0],remote_pfd_base,tempdir)
+        
+        # extract ratings tarball 
+        tar = tarfile.open(rating_tarfns[0])
+        try:
+            tar.extractall(path=tempdir)
+        except IOError:
+            if os.path.isdir(tempdir):
+                shutil.rmtree(tempdir)
+            raise PeriodicityCandidateError("Error while extracting pfd files " \
+                                            "from tarball (%s)!" % tarfn)
+        finally:
+            tar.close()
 
     # Loop over candidates that were folded
     cands = []
     for ii, c in enumerate(foldedcands):
         basefn = "%s_ACCEL_Cand_%d" % (c.accelfile.replace("ACCEL_", "Z"), \
                                     c.candnum)
-        pfdfn = os.path.join(tempdir, basefn+".pfd")
+        pfdfn = os.path.join(pfd_tempdir, basefn+".pfd")
         pngfn = os.path.join(directory, basefn+".pfd.png")
         ratfn = os.path.join(tempdir, basefn+".pfd.rat")
 
@@ -786,7 +828,8 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, in
         except Exception:
             raise PeriodicityCandidateError("PeriodicityCandidate could not be " \
                                             "created (%s)!" % pfdfn)
-        cand.add_dependent(PeriodicityCandidatePFD(pfdfn, timestamp_mjd=timestamp_mjd))
+        pfd_size = dict(pfd_list)[pfdfn]
+        cand.add_dependent(PeriodicityCandidatePFD(pfdfn, pfd_size, remote_pfd_dir=remote_pfd_dir))
         cand.add_dependent(PeriodicityCandidatePNG(pngfn))
 
         ratvals = ratings2.rating_value.read_file(ratfn)

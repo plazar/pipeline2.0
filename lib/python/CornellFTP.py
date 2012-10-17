@@ -176,6 +176,22 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
                                     "don't match (%d != %d)." % \
                                     (local_size, ftp_size))
 
+def mirror(source_dir,dest_dir,reverse=False,parallel=10):
+    """Use the lftp mirror command to mirror a local/remote directory to a 
+        remote/local directory. To download (remote to local) use reverse=True,
+        otherwise set as False (the default).
+    """
+    username=config.download.ftp_username
+    password=config.download.ftp_password
+
+    reverse_flag = '-R' if reverse else ''
+    lftp_cmd = '"mirror %s --parallel=%d %s %s"' % \
+                (reverse_flag,parallel,source_dir,dest_dir)
+    cmd = "lftp -c 'open -e %s -u %s,%s " %\
+             (lftp_cmd, username, password)\
+             + "-p 31001 arecibo.tc.cornell.edu' > /dev/null"
+    subprocess.call(cmd, shell=True)
+
 
 def get_ftp_exception(msg):
     """Return a CornellFTPError or a CornellFTPTimeout depending
