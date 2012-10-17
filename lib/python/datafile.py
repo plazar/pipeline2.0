@@ -443,7 +443,20 @@ class MockPsrfitsBaseData(PsrfitsData):
                         line.replace('s0g0','').startswith(fn0)]
         if len(matches) > 1:
             matches = [ matches[0] ]
-        if len(matches) == 1:
+
+        if len(matches) == 0 and self.timestamp_mjd > 55750:
+            # No corrected coords found, but coordinate problem is fixed,
+            # so use header values.
+            # MJD=55750 is July 8th 2011, it is a recent date by which
+            # the coord problem is definitely corrected. (The problem
+            # occured from Feb 2009 to Jan 28, 2010).
+            self.right_ascension = self.orig_right_ascension
+            self.declination = self.orig_declination
+            self.ra_deg = self.orig_ra_deg
+            self.dec_deg = self.orig_dec_deg
+            self.galactic_longitude = self.orig_galactic_longitude
+            self.galactic_latitude = self.orig_galactic_latitude
+        elif len(matches) == 1:
             # Use values from coords table
             self.posn_corrected = True
             
