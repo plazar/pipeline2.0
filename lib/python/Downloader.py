@@ -301,6 +301,7 @@ def create_file_entries(request):
                         request['guid'])
 
         # delete restore since there may be skipped files
+        web_service = CornellWebservice.Client()
         delete_status = web_service.Deleter(guid=request['guid'], \
                                             username=config.download.api_username, \
                                             pw=config.download.api_password)
