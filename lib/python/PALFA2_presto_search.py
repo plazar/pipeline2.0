@@ -249,9 +249,8 @@ class obs_info:
 
         # Read info from PSRFITS file
         data = datafile.autogen_dataobj(self.filenms)
-        # Correct positions in data file headers for WappPsrfitsData
-        if isinstance(data, datafile.WappPsrfitsData):
-            data.update_positions()
+        # Correct positions in data file headers
+        data.update_positions()
         
         spec_info = data.specinfo
         self.backend = spec_info.backend
