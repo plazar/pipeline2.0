@@ -28,6 +28,7 @@ import debug
 import database
 import pipeline_utils
 import upload
+import CornellFTP
 from formats import accelcands
 import ratings2.rating_value
 import ratings2.utils
@@ -500,10 +501,10 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
         if not self.uploaded:
 
 	    ftp_fullpath = os.path.join(self.ftp_path, self.filename) 
-	    if cftp.dir_exists(self.ftp_path):
-	        remotesize = cftp.size(ftp_fullpath)	
-            else:
-                remotesize = -1
+	    #if cftp.dir_exists(self.ftp_path):
+	    remotesize = cftp.size(ftp_fullpath)	
+            #else:
+            #remotesize = -1
 
             if remotesize == self.filesize:
 	        db.execute("EXEC spPDMCandBinUploadConf " + \
@@ -693,42 +694,52 @@ class PeriodicityCandidateError(upload.UploadNonFatalError):
     """
     pass
 
-def upload_pfds(tarfn,remote_dir,tempdir):
+class PFDTarball(upload.FTPable):
 
-    basename = os.path.basename(tarfn).rstrip('_pfd.tgz')
+    def __init__(self,tarfn,remote_dir,tempdir):
+        basename = os.path.basename(tarfn).rstrip('_pfd.tgz')
 
-    #extract pfd tarball to temporary dir
-    local_pfd_dir = os.path.join(tempdir,basename)
-    os.mkdir(local_pfd_dir)
-    tar = tarfile.open(tarfn)
-    try:
-        tar.extractall(path=local_pfd_dir)
-    except IOError:
-        if os.path.isdir(tempdir):
-            shutil.rmtree(tempdir)
-        raise PeriodicityCandidateError("Error while extracting pfd files " \
-                                        "from tarball (%s)!" % tarfn)
-    finally:
-        tar.close()
+        self.local_pfd_dir = os.path.join(tempdir,basename)
+        self.remote_dir = remote_dir
+        self.tempdir = tempdir
+        self.tarfn = tarfn
 
-    files = os.listdir(local_pfd_dir)
-    sizes = [os.path.getsize(os.path.join(local_pfd_dir, fn)) for fn in files]
+    def extract(self):
+        os.mkdir(self.local_pfd_dir)
 
-    # upload the pfds to Cornell using the lftp mirror command
-    if debug.UPLOAD: 
-        starttime = time.time()
+        #extract pfd tarball to temporary dir
+        tar = tarfile.open(self.tarfn)
+        try:
+            tar.extractall(path=self.local_pfd_dir)
+        except IOError:
+            if os.path.isdir(self.tempdir):
+                shutil.rmtree(self.tempdir)
+            raise PeriodicityCandidateError("Error while extracting pfd files " \
+                                            "from tarball (%s)!" % tarfn)
+        finally:
+            tar.close()
 
-    try:
-        CornellFTP.mirror(local_pfd_dir,remote_dir,reverse=True,parallel=10)
-    except:
-        raise
+        files = glob.glob(os.path.join(self.local_pfd_dir,'*.pfd'))
+        sizes = [os.path.getsize(os.path.join(self.local_pfd_dir, fn)) for fn in files]
 
-    if debug.UPLOAD:
-        upload.upload_timing_summary['pfd (ftp)'] = \
-            upload.upload_timing_summary.setdefault('pfd (ftp)', 0) + \
-            (time.time()-starttime)
+        return self.local_pfd_dir,zip(files,sizes)
 
-    return local_pfd_dir,zip(files,sizes)
+    def upload_FTP(self,cftp,dbname='default'):
+
+        # upload the pfds to Cornell using the lftp mirror command
+        if debug.UPLOAD: 
+            starttime = time.time()
+
+        try:
+            CornellFTP.mirror(self.local_pfd_dir,self.remote_dir,reverse=True,parallel=10)
+        except:
+            raise
+
+        if debug.UPLOAD:
+            upload.upload_timing_summary['pfd (ftp)'] = \
+                upload.upload_timing_summary.setdefault('pfd (ftp)', 0) + \
+                (time.time()-starttime)
+
 
 
 def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, inst_cache=None):
@@ -791,10 +802,12 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, in
                                              "files found in %s" % (len(rating_tarfns), \
                                                 directory))
 
+        mjd = int(timestamp_mjd)
         remote_pfd_base = os.path.join(config.upload.pfd_ftp_dir,str(mjd)) 
         remote_pfd_dir = os.path.join(remote_pfd_base,\
                                       os.path.basename(pfd_tarfns[0]).rstrip('_pfd.tgz'))
-        pfd_tempdir,pfd_list = upload_pfds(pfd_tarfns[0],remote_pfd_base,tempdir)
+        pfd_tarball = PFDTarball(pfd_tarfns[0],remote_pfd_base,tempdir)
+        pfd_tempdir, pfd_list = pfd_tarball.extract()
         
         # extract ratings tarball 
         tar = tarfile.open(rating_tarfns[0])
@@ -810,6 +823,7 @@ def get_candidates(versionnum, directory, header_id=None, timestamp_mjd=None, in
 
     # Loop over candidates that were folded
     cands = []
+    cands.append(pfd_tarball)
     for ii, c in enumerate(foldedcands):
         basefn = "%s_ACCEL_Cand_%d" % (c.accelfile.replace("ACCEL_", "Z"), \
                                     c.candnum)

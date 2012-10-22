@@ -184,14 +184,24 @@ def mirror(source_dir,dest_dir,reverse=False,parallel=10):
     username=config.download.ftp_username
     password=config.download.ftp_password
 
+    # make sure ends with '/' so that directory is copied, and not individual files
+    if not dest_dir.endswith('/'):
+        dest_dir += '/'
+
     reverse_flag = '-R' if reverse else ''
+
+    cout.outs("CornellFTP - Starting lftp mirror of: %s" % \
+                os.path.split(source_dir)[-1])
+
     lftp_cmd = '"mirror %s --parallel=%d %s %s"' % \
                 (reverse_flag,parallel,source_dir,dest_dir)
     cmd = "lftp -c 'open -e %s -u %s,%s " %\
              (lftp_cmd, username, password)\
-             + "-p 31001 arecibo.tc.cornell.edu' > /dev/null"
+             + "-p 31001 arecibo.tc.cornell.edu'"
     subprocess.call(cmd, shell=True)
 
+    cout.outs("CornellFTP - Finished lftp mirror of: %s" % \
+                os.path.split(source_dir)[-1])
 
 def get_ftp_exception(msg):
     """Return a CornellFTPError or a CornellFTPTimeout depending

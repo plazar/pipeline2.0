@@ -99,7 +99,8 @@ class Header(upload.Uploadable,upload.FTPable):
         
         for dep in self.dependents:
             dep.header_id = header_id
-            dep.upload(dbname=dbname, *args, **kwargs)
+            if isinstance(dep,upload.Uploadable):
+                dep.upload(dbname=dbname, *args, **kwargs)
         return header_id
 
     def upload_FTP(self, cftp, dbname):
