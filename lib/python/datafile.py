@@ -264,7 +264,7 @@ class PsrfitsData(Data):
         self.num_samples_per_record = self.specinfo.spectra_per_subint
         self.header_version = float(self.specinfo.header_version)
 
-    def update_positions(self, ra, decl):
+    def update_positions(self):
         """Update positions in raw data file's header.
 
             Inputs:
