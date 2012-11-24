@@ -589,6 +589,7 @@ class PeriodicityCandidateRating(upload.Uploadable):
 
         query = "INSERT INTO pdm_rating " + \
                 "(value, pdm_rating_instance_id, pdm_cand_id, date) "
+        to_remove = []
 
         for ratval in self.ratvals:
 
@@ -599,8 +600,14 @@ class PeriodicityCandidateRating(upload.Uploadable):
                ratval.value = 9999.0
 
             value = ratval.value
-            instance_id = self.inst_cache.get_id(ratval.name, ratval.version, \
-                                            ratval.description)
+            try:
+                instance_id = self.inst_cache.get_id(ratval.name, \
+                                     ratval.version, ratval.description)
+            except ratings2.utils.RatingDepreciatedError, e:
+                # old version of a rating, don't upload it
+                to_remove.append(ratval)
+                continue
+            
             if value is None or np.isnan(value):
                 query += "SELECT NULL, %d, %d, GETDATE() UNION ALL " % \
                          (instance_id, \
@@ -611,6 +618,8 @@ class PeriodicityCandidateRating(upload.Uploadable):
                          instance_id, \
                          self.cand_id)
 
+        for ratval in to_remove:
+            self.ratvals.remove(ratval)
         query = query.rstrip('UNION ALL') # remove trailing 'UNION ALL' from query
         return query
 
@@ -642,8 +651,8 @@ class PeriodicityCandidateRating(upload.Uploadable):
         query = ""
 
         for ratval in self.ratvals:
-            instance_id = self.inst_cache.get_id(ratval.name, ratval.version, \
-                                            ratval.description)
+            instance_id = self.inst_cache.get_id(ratval.name, \
+                                     ratval.version, ratval.description)
             query += cmp_select % (self.cand_id, instance_id) + "UNION ALL "
 
 
