@@ -502,7 +502,7 @@ class PeriodicityCandidateBinary(upload.FTPable,upload.Uploadable):
 
 	    ftp_fullpath = os.path.join(self.ftp_path, self.filename) 
 	    #if cftp.dir_exists(self.ftp_path):
-	    remotesize = cftp.size(ftp_fullpath)	
+	    remotesize = cftp.get_size(ftp_fullpath)	
             #else:
             #remotesize = -1
 

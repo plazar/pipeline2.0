@@ -99,6 +99,21 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
           if not exists:
               return False
         return True
+
+    def get_size(self,ftp_fn):
+        """Get size of file on FTP server.
+
+            Input: 
+                ftp_fn: filename of file on FTP server.
+
+            Output:
+                size of file.
+        """
+        try:
+            return self.size(ftp_fn)
+        except Exception, e:
+            raise get_ftp_exception("Could not get size of %s " 
+                                    "on FTP server: %s" % (ftp_fn, str(e)))
             
 
     def download(self, ftp_path, local_path=config.download.datadir):
