@@ -207,7 +207,10 @@ def upload_results(job_submit):
                 # Connection error during FTP upload. Reconnect and try again.
                 print "FTP connection lost. Reconnecting..."
                 attempts += 1
-                cftp.quit()
+                try:
+                    cftp.quit()
+                except EOFError:
+                    pass
             except:
                 # Unexpected error
                 sys.stderr.write("Unexpected error during FTP upload!\n")
