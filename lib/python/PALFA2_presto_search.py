@@ -769,7 +769,7 @@ def search_job(job):
     job.num_cands_folded = cands_folded
     
     # Rate candidates
-    timed_execute("rate_pfds.py --redirect-warnings --include-all -x pulse_width *.pfd")
+    timed_execute("rate_pfds.py --redirect-warnings --include-all *.pfd")
     sys.stdout.flush()
 
     # Calculate some candidate attributes from pfds
