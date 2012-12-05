@@ -628,7 +628,7 @@ def check_downloading_requests():
                                                 request['id'])
             downloaded_files = 0
             for f in files_in_request:
-                if f['status'] == 'downloaded': downloaded_files += 1
+                if f['status'] in ('downloaded','deleted'): downloaded_files += 1
             if downloaded_files == len(files_in_request):
                 queries.append("UPDATE requests " \
                                "SET status='finished', " \
