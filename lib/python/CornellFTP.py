@@ -116,7 +116,8 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
                                     "on FTP server: %s" % (ftp_fn, str(e)))
             
 
-    def download(self, ftp_path, local_path=config.download.datadir):
+    def download(self, ftp_path, local_path=config.download.datadir,\
+                 preserve_modtime=True):
 
         localfn = os.path.join(local_path, os.path.basename(ftp_path))
 
@@ -127,9 +128,14 @@ class CornellFTP(M2Crypto.ftpslib.FTP_TLS):
             password = config.download.ftp_password
 
             lftp_cmd = '"get %s -o %s"' % (ftp_path, localfn)
-            cmd = "lftp -c 'set xfer:clobber 1; open -e %s -u %s,%s " %\
-                     (lftp_cmd, username, password)\
-                     + "-p 31001 arecibo.tc.cornell.edu' > /dev/null"
+            
+            if preserve_modtime:
+                cmd = "lftp -c 'set xfer:clobber 1;"
+            else:
+                cmd = "lftp -c 'set xfer:clobber 1; set ftp:use-mdtm 0;"
+
+            cmd += " open -e %s -u %s,%s " % (lftp_cmd, username, password)\
+                   + "-p 31001 arecibo.tc.cornell.edu' > /dev/null"
 
             cout.outs("CornellFTP - Starting Download of: %s" % \
                         os.path.split(ftp_path)[-1])
