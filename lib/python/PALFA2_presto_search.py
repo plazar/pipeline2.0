@@ -870,7 +870,7 @@ def clean_up(job):
     sys.stdout.flush()
     
     # Copy all the important stuff to the output directory
-    resultglobs = ["*rfifind.[bimors]*", "*.ps.gz", "*.tgz", "*.png", \
+    resultglobs = ["*rfifind.[bimors]*", "*.tgz", "*.png", \
                     "*.zaplist", "search_params.txt", "*.accelcands*", \
                     "*_merge.out", "candidate_attributes.txt"]
     
