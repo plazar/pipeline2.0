@@ -239,13 +239,22 @@ class obs_info:
     class obs_info(filenms, resultsdir)
         A class describing the observation and the analysis.
     """
-    def __init__(self, filenms, resultsdir):
-        # Where to dump all the results
-        self.outputdir = resultsdir
+    def __init__(self, filenms, resultsdir, zerodm):
         
+        self.zerodm = zerodm
+
         self.filenms = filenms
         self.filenmstr = ' '.join(self.filenms)
         self.basefilenm = os.path.split(filenms[0])[1].rstrip(".fits")
+        
+        # Where to dump all the results.
+        # Put zerodm results in a separate folder so they don't overwrite
+        # the non-zerodm results
+        if self.zerodm:
+            self.outputdir = os.path.join(resultsdir,'zerodm')
+            self.basefilenm = self.basefilenm + '_zerodm'
+        else:
+            self.outputdir = resultsdir
 
         # Read info from PSRFITS file
         data = datafile.autogen_dataobj(self.filenms)
@@ -324,16 +333,18 @@ class obs_info:
         if self.backend.lower() == 'pdev':
             # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
             self.ddplans.append(dedisp_plan(   0.0,  0.1,    76,     28,     96,        1 ))
-            self.ddplans.append(dedisp_plan( 212.8,  0.3,    64,     12,     96,        2 ))
-            self.ddplans.append(dedisp_plan( 443.2,  0.3,    76,      4,     96,        3 ))
-            self.ddplans.append(dedisp_plan( 534.4,  0.5,    76,      9,     96,        5 ))
-            self.ddplans.append(dedisp_plan( 876.4,  0.5,    76,      3,     96,        6 ))
-            self.ddplans.append(dedisp_plan( 990.4,  1.0,    76,      1,     96,       10 ))
+            if not self.zerodm:
+                self.ddplans.append(dedisp_plan( 212.8,  0.3,    64,     12,     96,        2 ))
+                self.ddplans.append(dedisp_plan( 443.2,  0.3,    76,      4,     96,        3 ))
+                self.ddplans.append(dedisp_plan( 534.4,  0.5,    76,      9,     96,        5 ))
+                self.ddplans.append(dedisp_plan( 876.4,  0.5,    76,      3,     96,        6 ))
+                self.ddplans.append(dedisp_plan( 990.4,  1.0,    76,      1,     96,       10 ))
         elif self.backend.lower() == 'wapp':
             # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
             self.ddplans.append(dedisp_plan(   0.0,  0.3,    76,      9,     96,        1 ))
-            self.ddplans.append(dedisp_plan( 205.2,  2.0,    76,      5,     96,        5 ))
-            self.ddplans.append(dedisp_plan( 965.2, 10.0,    76,      1,     96,       25 ))
+            if not self.zerodm:
+                self.ddplans.append(dedisp_plan( 205.2,  2.0,    76,      5,     96,        5 ))
+                self.ddplans.append(dedisp_plan( 965.2, 10.0,    76,      1,     96,       25 ))
         else:
             raise ValueError("No dediserpsion plan for unknown backend (%s)!" % self.backend)
         
@@ -435,23 +446,41 @@ def main(filenms, workdir, resultsdir):
         raise
     finally:
         clean_up(job)
-
-        # And finish up
         job.total_time = time.time() - job.total_time
-        print "\nFinished"
-        print "UTC time is:  %s"%(time.asctime(time.gmtime()))
-
         # Write the job report
-        # job.write_report(job.basefilenm+".report")
         job.write_report(os.path.join(job.outputdir, job.basefilenm+".report"))
 
+    # Do search with zerodming
+    if config.searching.use_zerodm:
+        zerodm_job = set_up_job(filenms, workdir, resultsdir, zerodm=True) 
+        os.chdir(zerodm_job.workdir)
+
+        try:
+            search_job(zerodm_job)
+        except:
+            print "***********************ERRORS!************************"
+            print "  Search has been aborted due to errors encountered."
+            print "  See error output for more information."
+            print "******************************************************"
+            raise
+        finally:
+            clean_up(zerodm_job)
+            zerodm_job.total_time = time.time() - job.total_time
+            # Write the job report
+            zerodm_job.write_report(os.path.join(job.outputdir, job.basefilenm+".report"))
+
+    # And finish up
+    print "\nFinished"
+    print "UTC time is:  %s"%(time.asctime(time.gmtime()))
+
+
     
-def set_up_job(filenms, workdir, resultsdir):
+def set_up_job(filenms, workdir, resultsdir,zerodm=False):
     """Change to the working directory and set it up.
         Create a obs_info instance, set it up and return it.
     """
     # Get information on the observation and the job
-    job = obs_info(filenms, resultsdir)
+    job = obs_info(filenms, resultsdir, zerodm)
     if job.T < config.searching.low_T_to_search:
         raise PrestoError("The observation is too short to search. " \
                             "(%.2f s < %.2f s)" % \
@@ -463,7 +492,13 @@ def set_up_job(filenms, workdir, resultsdir):
         os.makedirs(job.outputdir)
     except: pass
 
-    job.workdir = workdir
+    if zerodm:
+        zerodm_workdir = os.path.join(workdir,'zerodm')
+        os.mkdir(zerodm_workdir)
+        job.workdir = zerodm_workdir
+    else:
+        job.workdir = workdir
+
     # Create a directory to hold all the subbands
     job.tempdir = tempfile.mkdtemp(suffix="_tmp", prefix=job.basefilenm, \
                         dir=config.processing.base_tmp_dir)
@@ -489,6 +524,9 @@ def search_job(job):
     """Search the observation defined in the obs_info
         instance 'job'.
     """
+
+    zerodm_flag = '-zerodm' if job.zerodm else ''
+
     # Use whatever .zaplist is found in the current directory
     zaplist = glob.glob("*.zaplist")[0]
     print "Using %s as zaplist" % zaplist
@@ -499,9 +537,9 @@ def search_job(job):
         except: pass
 
     # rfifind the data file
-    cmd = "rfifind %s -time %.17g -o %s %s" % \
-          (config.searching.datatype_flag, config.searching.rfifind_chunk_time, job.basefilenm,
-           job.filenmstr)
+    cmd = "rfifind %s %s -time %.17g -o %s %s" % \
+          (config.searching.datatype_flag, zerodm_flag, config.searching.rfifind_chunk_time, 
+           job.basefilenm, job.filenmstr)
     job.rfifind_time += timed_execute(cmd, stdout="%s_rfifind.out" % job.basefilenm)
     maskfilenm = job.basefilenm + "_rfifind.mask"
     # Find the fraction that was suggested to be masked
@@ -523,11 +561,11 @@ def search_job(job):
                 except: pass
     
                 # Create a set of subbands
-                cmd = "prepsubband %s -sub -subdm %s -downsamp %d -nsub %d -mask %s " \
+                cmd = "prepsubband %s %s -sub -subdm %s -downsamp %d -nsub %d -mask %s " \
                         "-o %s/subbands/%s %s" % \
-                        (config.searching.datatype_flag, ddplan.subdmlist[passnum], ddplan.sub_downsamp,
-                        ddplan.numsub, maskfilenm, job.tempdir, job.basefilenm,
-                        job.filenmstr)
+                        (config.searching.datatype_flag, zerodm_flag, ddplan.subdmlist[passnum], 
+                        ddplan.sub_downsamp, ddplan.numsub, maskfilenm, job.tempdir, 
+                        job.basefilenm, job.filenmstr)
                 job.subbanding_time += timed_execute(cmd, stdout="%s.subout" % subbasenm)
             
                 # Now de-disperse using the subbands
@@ -539,20 +577,11 @@ def search_job(job):
                         job.tempdir, job.basefilenm, job.tempdir, subbasenm)
                 job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
             
-                if config.searching.use_zerodm_sp or config.searching.use_zerodm_accel:
-		    cmd = "prepsubband -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
-			    "-nsub %d -numout %d -zerodm -o %s/%s_zerodm %s/subbands/%s.sub[0-9]*" % \
-			    (ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
-			    ddplan.dmsperpass, ddplan.dd_downsamp, ddplan.numsub,
-			    psr_utils.choose_N(job.orig_N/ddplan.downsamp),
-			    job.tempdir, job.basefilenm, job.tempdir, subbasenm)
-		    job.dedispersing_time += timed_execute(cmd, stdout="%s.prepout" % subbasenm)
-
             else:  # Not using subbands
-                cmd = "prepsubband -mask %s -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
+                cmd = "prepsubband %s -mask %s -lodm %.2f -dmstep %.2f -numdms %d -downsamp %d " \
                         "-numout %d -nsub %d -o %s/%s %s"%\
-                        (maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, ddplan.dmstep,
-                        ddplan.dmsperpass, ddplan.dd_downsamp*ddplan.sub_downsamp, 
+                        (zerodm_flag, maskfilenm, ddplan.lodm+passnum*ddplan.sub_dmstep, 
+                        ddplan.dmstep, ddplan.dmsperpass, ddplan.dd_downsamp*ddplan.sub_downsamp, 
                         psr_utils.choose_N(job.orig_N/ddplan.downsamp), ddplan.numsub, 
                         job.tempdir, job.basefilenm, job.filenmstr)
                 job.dedispersing_time += timed_execute(cmd)
@@ -561,9 +590,7 @@ def search_job(job):
             for dmstr in ddplan.dmlist[passnum]:
                 dmstrs.append(dmstr)
                 basenm = os.path.join(job.tempdir, job.basefilenm+"_DM"+dmstr)
-                basenm_zerodm = os.path.join(job.tempdir, job.basefilenm+"_zerodm_DM"+dmstr)
                 datnm = basenm+".dat"
-                datnm_zerodm = basenm_zerodm+".dat"
                 fftnm = basenm+".fft"
                 infnm = basenm+".inf"
 
@@ -575,15 +602,6 @@ def search_job(job):
                 try:
                     shutil.move(basenm+".singlepulse", job.workdir)
                 except: pass
-
-                if config.searching.use_zerodm_sp:
-		    cmd = "single_pulse_search.py -p -m %f -t %f %s"%\
-			  (config.searching.singlepulse_maxwidth, \
-			   config.searching.singlepulse_threshold, datnm_zerodm)
-		    job.singlepulse_time += timed_execute(cmd)
-		    try:
-			shutil.move(basenm_zerodm+".singlepulse", job.workdir)
-		    except: pass
 
                 # FFT, zap, and de-redden
                 cmd = "realfft %s"%datnm
@@ -615,23 +633,24 @@ def search_job(job):
                                     job.workdir)
                 except: pass
         
-                # Do the high-acceleration search
-                cmd = "accelsearch -harmpolish -numharm %d -sigma %f " \
-                        "-zmax %d -flo %f %s"%\
-                        (config.searching.hi_accel_numharm, \
-                         config.searching.hi_accel_sigma, \
-                         config.searching.hi_accel_zmax, \
-                         config.searching.hi_accel_flo, fftnm)
-                job.hi_accelsearch_time += timed_execute(cmd)
-                try:
-                    os.remove(basenm+"_ACCEL_%d.txtcand" % config.searching.hi_accel_zmax)
-                except: pass
-                try:  # This prevents errors if there are no cand files to copy
-                    shutil.move(basenm+"_ACCEL_%d.cand" % config.searching.hi_accel_zmax, \
-                                    job.workdir)
-                    shutil.move(basenm+"_ACCEL_%d" % config.searching.hi_accel_zmax, \
-                                    job.workdir)
-                except: pass
+                # Do the high-acceleration search (only for non-zerodm case)
+                if not job.zerodm:
+                    cmd = "accelsearch -harmpolish -numharm %d -sigma %f " \
+                            "-zmax %d -flo %f %s"%\
+                            (config.searching.hi_accel_numharm, \
+                             config.searching.hi_accel_sigma, \
+                             config.searching.hi_accel_zmax, \
+                             config.searching.hi_accel_flo, fftnm)
+                    job.hi_accelsearch_time += timed_execute(cmd)
+                    try:
+                        os.remove(basenm+"_ACCEL_%d.txtcand" % config.searching.hi_accel_zmax)
+                    except: pass
+                    try:  # This prevents errors if there are no cand files to copy
+                        shutil.move(basenm+"_ACCEL_%d.cand" % config.searching.hi_accel_zmax, \
+                                        job.workdir)
+                        shutil.move(basenm+"_ACCEL_%d" % config.searching.hi_accel_zmax, \
+                                        job.workdir)
+                    except: pass
 
                 # Move the .inf files
                 try:
@@ -656,7 +675,6 @@ def search_job(job):
 
     # Make the single-pulse plots
     basedmb = job.basefilenm+"_DM"
-    basedmb_zerodm = job.basefilenm+"_zerodm_DM"
     basedme = ".singlepulse "
     # The following will make plots for DM ranges:
     #    0-110, 100-310, 300-1000+
@@ -669,17 +687,6 @@ def search_job(job):
                basedmb+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme]
     dmrangestrs = ["0-110", "100-310", "300-1000+"]
     psname = job.basefilenm+"_singlepulse.ps"
-    psname_zerodm = job.basefilenm+"_zerodm_singlepulse.ps"
-
-    if config.searching.use_zerodm_sp:
-	dmglobs.extend([basedmb_zerodm+"[0-9].[0-9][0-9]"+basedme +
-		   basedmb_zerodm+"[0-9][0-9].[0-9][0-9]"+basedme +
-		   basedmb_zerodm+"10[0-9].[0-9][0-9]"+basedme,
-		   basedmb_zerodm+"[12][0-9][0-9].[0-9][0-9]"+basedme +
-		   basedmb_zerodm+"30[0-9].[0-9][0-9]"+basedme,
-		   basedmb_zerodm+"[3-9][0-9][0-9].[0-9][0-9]"+basedme +
-		   basedmb_zerodm+"1[0-9][0-9][0-9].[0-9][0-9]"+basedme])
-	dmrangestrs.extend(["0-110_zerodm", "100-310_zerodm", "300-1000+_zerodm"])
 
     for dmglob, dmrangestr in zip(dmglobs, dmrangestrs):
         dmfiles = []
@@ -690,12 +697,8 @@ def search_job(job):
             cmd = 'single_pulse_search.py -t %f -g "%s"' % \
                 (config.searching.singlepulse_plot_SNR, dmglob)
             job.singlepulse_time += timed_execute(cmd)
-            if dmrangestr.endswith("zerodm"):
-                os.rename(psname_zerodm,
-                        job.basefilenm+"_DMs%s_singlepulse.ps" % dmrangestr)
-            else:
-                os.rename(psname,
-                        job.basefilenm+"_DMs%s_singlepulse.ps" % dmrangestr)
+            os.rename(psname,
+                    job.basefilenm+"_DMs%s_singlepulse.ps" % dmrangestr)
 
     # Sift through the candidates to choose the best to fold
     job.sifting_time = time.time()
