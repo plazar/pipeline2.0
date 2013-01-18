@@ -299,6 +299,7 @@ class obs_info:
         self.singlepulse_time = 0.0
         self.sifting_time = 0.0
         self.folding_time = 0.0
+        self.zerodm_time = 0.0
         self.total_time = 0.0
         # Inialize some candidate counters
         self.num_sifted_cands = 0
@@ -384,6 +385,9 @@ class obs_info:
                           (self.sifting_time, self.sifting_time/self.total_time*100.0))
         report_file.write("          folding time = %7.1f sec (%5.2f%%)\n"%\
                           (self.folding_time, self.folding_time/self.total_time*100.0))
+        if self.zerodm_time:
+            report_file.write("       zerodm job time = %7.1f sec (%5.2f%%)\n"%\
+                              (self.zerodm_time, self.zerodm_time/self.total_time*100.0))
         report_file.write("---------------------------------------------------------\n")
         report_file.close()
 
@@ -446,9 +450,6 @@ def main(filenms, workdir, resultsdir):
         raise
     finally:
         clean_up(job)
-        job.total_time = time.time() - job.total_time
-        # Write the job report
-        job.write_report(os.path.join(job.outputdir, job.basefilenm+".report"))
 
     # Do search with zerodming
     if config.searching.use_zerodm:
@@ -465,9 +466,14 @@ def main(filenms, workdir, resultsdir):
             raise
         finally:
             clean_up(zerodm_job)
-            zerodm_job.total_time = time.time() - job.total_time
-            # Write the job report
-            zerodm_job.write_report(os.path.join(job.outputdir, job.basefilenm+".report"))
+            # Write the job report for zerodm job
+            zerodm_job.total_time = time.time() - zerodm_job.total_time
+            zerodm_job.write_report(os.path.join(zerodm_job.outputdir, zerodm_job.basefilenm+".report"))
+            job.zerodm_time = zerodm_job.total_time
+
+    # Write the job report
+    job.total_time = time.time() - job.total_time
+    job.write_report(os.path.join(job.outputdir, job.basefilenm+".report"))
 
     # And finish up
     print "\nFinished"
