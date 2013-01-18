@@ -178,6 +178,7 @@ def execute(cmd, stdout=subprocess.PIPE, stderr=sys.stderr, dir=None):
         stderr.close()
 
     return (stdoutdata, stderrdata)
+
 def get_modtime(file, local=False):
     """Get modification time of a file.
 
@@ -236,11 +237,73 @@ def get_zaplist_tarball(force_download=False, verbose=False):
     if getzap:
         # Download the file from the FTP
         cftp.download(ftpzappath, config.processing.zaplistdir)
+
+        # Make text list of zaplist tarball contents to speed up
+        # finding of zaplists in tarball
+        zaptar = tarfile.open(os.path.join(config.processing.zaplistdir, \
+                                    "zaplists.tar.gz"), mode='r')
+        names = zaptar.getnames()
+
+        zaplistf = open(os.path.join(config.processing.zaplistdir, \
+                'zaplist_tarball.list'),'w')
+        for name in names:
+            zaplistf.write(name+'\n')
+        
+        zaplistf.close()
+        zaptar.close()
+        
     else:
         # Do nothing
         pass
     cftp.close()
 
+def find_zaplist_in_tarball(filename):
+    """Find the name of the zaplist for a given raw data filename.
+        Searches the 'zaplists_tarball.list' textfile for the name
+        of the zaplist corresponding to the raw data file.        
+
+        Input: filename - name of the raw data file.
+ 
+        Output: zaplist - name of the zaplist in the tarball.
+    """
+    import config.processing
+    import astro_utils
+
+    fns = [ filename ]
+    filetype = datafile.get_datafile_type(fns)
+    parsed = filetype.fnmatch(fns[0]).groupdict()
+    if 'date' not in parsed.keys():
+        parsed['date'] = "%04d%02d%02d" % \
+                            astro_utils.calendar.MJD_to_date(int(parsed['mjd']))
+
+    customzapfns = []
+    # First, try to find a custom zaplist for this specific data file
+    customzapfns.append("%s.%s.%s.b%s.%s.zaplist" % \
+                        (parsed['projid'], parsed['date'], parsed['source'], \
+                         parsed['beam'], parsed['scan']))
+    # Next, try to find custom zaplist for this beam
+    customzapfns.append("%s.%s.b%s.zaplist" % \
+                        (parsed['projid'], parsed['date'], parsed['beam']))
+    # Try to find custom zaplist for this MJD
+    customzapfns.append("%s.%s.all.zaplist" % (parsed['projid'], parsed['date']))
+
+    zaplistf = open(os.path.join(config.processing.zaplistdir,\
+                    'zaplists_tarball.list'),'r')
+    names = zaplistf.readlines()
+    zaplistf.close()
+
+    for customzapfn in customzapfns:
+        matches = [name for name in names \
+                    if name.endswith(customzapfn+'\n')]
+        if matches:
+            zaplist = matches[0].rstrip('\n')
+            return zaplist
+        else:
+            # The member we searched for doesn't exist, try next one
+            pass
+    else:
+        # No custom zaplist found.
+        return None
 
 class PipelineOptions(optparse.OptionParser):
     def __init__(self, *args, **kwargs):
