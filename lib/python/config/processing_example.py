@@ -19,6 +19,9 @@ zaplistdir = os.path.join(config.basic.pipelinedir, "lib", "zaplists")
 default_wapp_zaplist = os.path.join(zaplistdir, "PALFA_commondb_wapp.zaplist")
 default_mock_zaplist = os.path.join(zaplistdir, "PALFA_commondb_Mock.zaplist")
 
+# Set following to False to only process data that has dynamic zaplists
+use_default_zaplists = True 
+
 # The following don't currently get used. They are placeholders.
 num_cores = 1 # The number of cores to use/request for each job
 use_hyperthreading = False # Whether or not to use HyperThreading

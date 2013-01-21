@@ -125,6 +125,11 @@ def can_add_file(fn, verbose=False):
         if verbose:
             print "File is already being tracked: %s" % fn
         return False
+
+    # Check if file has a corresponding custom zaplist
+    if not find_zaplist_in_tarball(fn,verbose=True):
+        return False
+
     return True
 
 
@@ -257,7 +262,7 @@ def get_zaplist_tarball(force_download=False, verbose=False):
         pass
     cftp.close()
 
-def find_zaplist_in_tarball(filename):
+def find_zaplist_in_tarball(filename, verbose=False):
     """Find the name of the zaplist for a given raw data filename.
         Searches the 'zaplists_tarball.list' textfile for the name
         of the zaplist corresponding to the raw data file.        
@@ -267,6 +272,7 @@ def find_zaplist_in_tarball(filename):
         Output: zaplist - name of the zaplist in the tarball.
     """
     import config.processing
+    import datafile
     import astro_utils
 
     fns = [ filename ]
@@ -275,6 +281,9 @@ def find_zaplist_in_tarball(filename):
     if 'date' not in parsed.keys():
         parsed['date'] = "%04d%02d%02d" % \
                             astro_utils.calendar.MJD_to_date(int(parsed['mjd']))
+
+    if verbose:
+        print "Looking for zaplist for %s in %s..." % (filename, 'zaplists.tar.gz')
 
     customzapfns = []
     # First, try to find a custom zaplist for this specific data file
@@ -297,12 +306,16 @@ def find_zaplist_in_tarball(filename):
                     if name.endswith(customzapfn+'\n')]
         if matches:
             zaplist = matches[0].rstrip('\n')
+            if verbose:
+                print "Found zaplist",zaplist
             return zaplist
         else:
             # The member we searched for doesn't exist, try next one
             pass
     else:
         # No custom zaplist found.
+        if verbose:
+            print "No zaplist found."
         return None
 
 class PipelineOptions(optparse.OptionParser):
