@@ -107,6 +107,8 @@ def can_add_file(fn, verbose=False):
     """
     import jobtracker
     import datafile
+    import config.processing
+
     try:
         datafile_type = datafile.get_datafile_type([fn])
     except datafile.DataFileError, e:
@@ -127,7 +129,8 @@ def can_add_file(fn, verbose=False):
         return False
 
     # Check if file has a corresponding custom zaplist
-    if not find_zaplist_in_tarball(fn,verbose=True):
+    if not config.processing.use_default_zaplists \
+       and not find_zaplist_in_tarball(fn,verbose=True):
         return False
 
     return True
