@@ -224,6 +224,30 @@ def mirror(source_dir,dest_dir,reverse=False,parallel=10):
     cout.outs("CornellFTP - Finished lftp mirror of: %s" % \
                 os.path.split(source_dir)[-1])
 
+def pget(ftp_fn, local_path, parallel=10):
+    """Use the lftp pget command to download a from from the FTP server to a 
+        local directory. 
+
+        Input: 
+            ftp_fn: filename of file on FTP server.
+            local_path: local path where file will be to downloaded.
+    """
+    username=config.download.ftp_username
+    password=config.download.ftp_password
+
+    cout.outs("CornellFTP - Starting lftp pget of: %s" % \
+                os.path.split(ftp_fn)[-1])
+
+    lftp_cmd = '"pget -n %d %s %s"' % \
+                (parallel,ftp_fn,local_path)
+    cmd = "lftp -c 'open -e %s -u %s,%s " %\
+             (lftp_cmd, username, password)\
+             + "-p 31001 arecibo.tc.cornell.edu'"
+    subprocess.call(cmd, shell=True)
+
+    cout.outs("CornellFTP - Finished lftp pget of: %s" % \
+                os.path.split(ftp_fn)[-1])
+
 def get_ftp_exception(msg):
     """Return a CornellFTPError or a CornellFTPTimeout depending
         on the string msg.

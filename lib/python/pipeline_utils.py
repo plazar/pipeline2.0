@@ -224,6 +224,7 @@ def get_zaplist_tarball(force_download=False, verbose=False):
     """
     import config.processing
     import CornellFTP
+    import tarfile
     cftp = CornellFTP.CornellFTP()
     
     zaptarfile = os.path.join(config.processing.zaplistdir, "zaplists.tar.gz")
@@ -242,17 +243,21 @@ def get_zaplist_tarball(force_download=False, verbose=False):
             print "Zaplist on FTP server is newer than local copy, will download"
         getzap = True
 
+    cftp.close()
+
     if getzap:
+        zaplistdir = config.processing.zaplistdir
+
         # Download the file from the FTP
-        cftp.download(ftpzappath, config.processing.zaplistdir)
+        CornellFTP.pget(ftpzappath, zaplistdir)
 
         # Make text list of zaplist tarball contents to speed up
         # finding of zaplists in tarball
-        zaptar = tarfile.open(os.path.join(config.processing.zaplistdir, \
+        zaptar = tarfile.open(os.path.join(zaplistdir, \
                                     "zaplists.tar.gz"), mode='r')
         names = zaptar.getnames()
 
-        zaplistf = open(os.path.join(config.processing.zaplistdir, \
+        zaplistf = open(os.path.join(zaplistdir, \
                 'zaplist_tarball.list'),'w')
         for name in names:
             zaplistf.write(name+'\n')
@@ -263,7 +268,6 @@ def get_zaplist_tarball(force_download=False, verbose=False):
     else:
         # Do nothing
         pass
-    cftp.close()
 
 def find_zaplist_in_tarball(filename, verbose=False):
     """Find the name of the zaplist for a given raw data filename.
