@@ -216,6 +216,8 @@ def get_folding_command(cand, obs):
         npart = 30
         otheropts = "-nopdsearch -pstep 1 -pdstep 2 -dmstep 1 -nodmsearch"
 
+    otheropts += " -fixchi" if config.searching.use_fixchi else ""
+
     # If prepfold is instructed to use more subbands than there are rows in the PSRFITS file
     # it doesn't use any data when folding since the amount of data for each part is
     # shorter than the PSRFITS row. However, PRESTO doesn't break up rows.

@@ -23,6 +23,7 @@ searching.add_config('hi_accel_sigma', config_types.FloatConfig())
 searching.add_config('hi_accel_zmax', config_types.IntConfig())
 searching.add_config('hi_accel_flo', config_types.FloatConfig())
 searching.add_config('low_T_to_search', config_types.FloatConfig())
+searching.add_config('use_fixchi', config_types.BoolConfig())
 
 searching.add_config('sifting_sigma_threshold', config_types.FloatConfig())
 searching.add_config('sifting_r_err', config_types.FloatConfig())

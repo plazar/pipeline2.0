@@ -29,6 +29,7 @@ hi_accel_sigma          = 3.0  # threshold gaussian significance
 hi_accel_zmax           = 50   # bins
 hi_accel_flo            = 1.0  # Hz
 low_T_to_search         = 20.0 # sec
+use_fixchi              = False # Use -fixchi option in prepfold
 
 # DDplan configurations
 # The following configurations are for calculating dedispersion plans 
