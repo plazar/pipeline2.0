@@ -454,6 +454,11 @@ def main(filenms, workdir, resultsdir):
     # Do search with zerodming
     if config.searching.use_zerodm:
         zerodm_job = set_up_job(filenms, workdir, resultsdir, zerodm=True) 
+
+        # copy zaplist from non-zerodm job to zerodm job workdir
+        zaplist = glob.glob(os.path.join(job.outputdir,'*.zaplist'))[0]
+        shutil.copy(zaplist,zerodm_job.workdir)
+
         os.chdir(zerodm_job.workdir)
 
         try:
@@ -511,11 +516,11 @@ def set_up_job(filenms, workdir, resultsdir,zerodm=False):
     
     #####
     # Print some info useful for debugging
-    print "Initial contents of workdir (%s): " % workdir
-    for fn in os.listdir(workdir):
+    print "Initial contents of workdir (%s): " % job.workdir
+    for fn in os.listdir(job.workdir):
         print "    %s" % fn
-    print "Initial contents of resultsdir (%s): " % resultsdir
-    for fn in os.listdir(resultsdir):
+    print "Initial contents of resultsdir (%s): " % job.outputdir
+    for fn in os.listdir(job.outputdir):
         print "    %s" % fn
     print "Initial contents of job.tempdir (%s): " % job.tempdir
     for fn in os.listdir(job.tempdir):
