@@ -249,7 +249,7 @@ def get_zaplist_tarball(force_download=False, verbose=False):
         zaplistdir = config.processing.zaplistdir
 
         # Download the file from the FTP
-        CornellFTP.pget(ftpzappath, zaplistdir)
+        CornellFTP.pget(ftpzappath, os.path.join(zaplistdir,'zaplists.tar.gz'))
 
         # Make text list of zaplist tarball contents to speed up
         # finding of zaplists in tarball
@@ -304,7 +304,7 @@ def find_zaplist_in_tarball(filename, verbose=False):
     customzapfns.append("%s.%s.all.zaplist" % (parsed['projid'], parsed['date']))
 
     zaplistf = open(os.path.join(config.processing.zaplistdir,\
-                    'zaplists_tarball.list'),'r')
+                    'zaplist_tarball.list'),'r')
     names = zaplistf.readlines()
     zaplistf.close()
 

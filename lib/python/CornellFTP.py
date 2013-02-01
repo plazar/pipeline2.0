@@ -238,9 +238,9 @@ def pget(ftp_fn, local_path, parallel=10):
     cout.outs("CornellFTP - Starting lftp pget of: %s" % \
                 os.path.split(ftp_fn)[-1])
 
-    lftp_cmd = '"pget -n %d %s %s"' % \
+    lftp_cmd = '"pget -n %d %s -o %s"' % \
                 (parallel,ftp_fn,local_path)
-    cmd = "lftp -c 'open -e %s -u %s,%s " %\
+    cmd = "lftp -c 'set xfer:clobber 1; open -e %s -u %s,%s " %\
              (lftp_cmd, username, password)\
              + "-p 31001 arecibo.tc.cornell.edu'"
     subprocess.call(cmd, shell=True)
