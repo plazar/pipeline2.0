@@ -299,6 +299,7 @@ class obs_info:
         self.lo_accelsearch_time = 0.0
         self.hi_accelsearch_time = 0.0
         self.singlepulse_time = 0.0
+        self.sp_grouping_time = 0.0
         self.sifting_time = 0.0
         self.folding_time = 0.0
         self.zerodm_time = 0.0
@@ -377,6 +378,9 @@ class obs_info:
                           (self.dedispersing_time, self.dedispersing_time/self.total_time*100.0))
         report_file.write("     single-pulse time = %7.1f sec (%5.2f%%)\n"%\
                           (self.singlepulse_time, self.singlepulse_time/self.total_time*100.0))
+        if config.searching.sp_grouping:
+            report_file.write("      SP grouping time = %7.1f sec (%5.2f%%)\n"%\
+                              (self.sp_grouping_time, self.sp_grouping_time/self.total_time*100.0))
         report_file.write("              FFT time = %7.1f sec (%5.2f%%)\n"%\
                           (self.FFT_time, self.FFT_time/self.total_time*100.0))
         report_file.write("   lo-accelsearch time = %7.1f sec (%5.2f%%)\n"%\
@@ -460,6 +464,10 @@ def main(filenms, workdir, resultsdir):
         # copy zaplist from non-zerodm job to zerodm job workdir
         zaplist = glob.glob(os.path.join(job.outputdir,'*.zaplist'))[0]
         shutil.copy(zaplist,zerodm_job.workdir)
+
+        # copy raw data file to zerodm workdir
+        for fn in filenms:
+            shutil.copy(fn,zerodm_job.workdir)
 
         os.chdir(zerodm_job.workdir)
 
@@ -713,6 +721,13 @@ def search_job(job):
             os.rename(psname,
                     job.basefilenm+"_DMs%s_singlepulse.ps" % dmrangestr)
 
+    # Do singlepulse grouping analysis (Chen Karako's code)
+    if config.searching.sp_grouping and job.masked_fraction < 0.2:
+        job.sp_grouping_time = time.time()
+        import analyse_sp_palfa
+        analyse_sp_palfa.main()
+        job.sp_grouping_time = time.time() - job.sp_grouping_time
+
     # Sift through the candidates to choose the best to fold
     job.sifting_time = time.time()
 
@@ -888,7 +903,7 @@ def clean_up(job):
     # Copy all the important stuff to the output directory
     resultglobs = ["*rfifind.[bimors]*", "*.tgz", "*.png", \
                     "*.zaplist", "search_params.txt", "*.accelcands*", \
-                    "*_merge.out", "candidate_attributes.txt"]
+                    "*_merge.out", "candidate_attributes.txt", "groups.txt"]
     
     # Print some info useful for debugging
     print "Contents of workdir (%s) before copy: " % job.workdir
