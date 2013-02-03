@@ -494,7 +494,12 @@ def presubmission_check(fns):
     if obs_time < limit:
         errormsg = 'Observation is too short (%.2f s < %.2f s)' % (obs_time, limit) 
         raise FailedPreCheckError(errormsg)
-    #check if datafile has been successfully processed in the past
+    #check if dynamic zaplist is available
+    if not config.processing.use_default_zaplists and \
+       not pipeline_utils.find_zaplist_in_tarball(fns[0]):
+        errormsg = 'Custom zaplist not available for datafile %s' % (fns[0])
+        raise FailedPreCheckError(errormsg)
+
 
 class FailedPreCheckError(pipeline_utils.PipelineError):
     """Error to raise when datafile has failed the presubmssion check.
