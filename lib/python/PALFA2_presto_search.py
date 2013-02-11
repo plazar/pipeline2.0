@@ -216,7 +216,7 @@ def get_folding_command(cand, obs):
         npart = 30
         otheropts = "-nopdsearch -pstep 1 -pdstep 2 -dmstep 1 -nodmsearch"
 
-    otheropts += " -fixchi" if config.searching.use_fixchi else ""
+    #otheropts += " -fixchi" if config.searching.use_fixchi else ""
 
     # If prepfold is instructed to use more subbands than there are rows in the PSRFITS file
     # it doesn't use any data when folding since the amount of data for each part is
@@ -800,7 +800,7 @@ def search_job(job):
     job.num_cands_folded = cands_folded
     
     # Rate candidates
-    timed_execute("rate_pfds.py --redirect-warnings --include-all *.pfd")
+    timed_execute("rate_pfds.py --redirect-warnings --include-all -x prepfold_sigma *.pfd")
     sys.stdout.flush()
 
     # Calculate some candidate attributes from pfds
@@ -812,12 +812,24 @@ def search_job(job):
         dof = pfd.proflen - 1
         attribs['prepfold_sigma'] = \
                 -scipy.stats.norm.ppf(scipy.stats.chi2.sf(red_chi2*dof, dof))
-	off_red_chi2 = pfd.estimate_offsignal_redchi2()
-	new_red_chi2 = red_chi2 / off_red_chi2
-        # prepfold sigma rescaled to deal with chi-squared suppression
-        # a problem when strong rfi is present
-        attribs['rescaled_prepfold_sigma'] = \
-                -scipy.stats.norm.ppf(scipy.stats.chi2.sf(new_red_chi2*dof, dof))
+        
+        if config.searching.use_fixchi:
+            # Remake prepfold plot with rescaled chi-sq
+            cmd = "show_pfd -noxwin -fixchi %s" pfdfn
+
+            # Get prepfold sigma from the rescaled bestprof
+            pfd = prepfold.pfd(pfdfn)
+            red_chi2 = pfd.bestprof.chi_sqr
+            attribs['rescaled_prepfold_sigma'] = \
+                    -scipy.stats.norm.ppf(scipy.stats.chi2.sf(red_chi2*dof, dof))
+        else:
+            # Rescale prepfold sigma by estimating the off-signal
+            # reduced chi-sq
+	    off_red_chi2 = pfd.estimate_offsignal_redchi2()
+	    new_red_chi2 = red_chi2 / off_red_chi2
+            attribs['rescaled_prepfold_sigma'] = \
+                    -scipy.stats.norm.ppf(scipy.stats.chi2.sf(new_red_chi2*dof, dof))
+
         for key in attribs:
             attrib_file.write("%s\t%s\t%.3f\n" % (pfdfn, key, attribs[key]))
     attrib_file.close()
