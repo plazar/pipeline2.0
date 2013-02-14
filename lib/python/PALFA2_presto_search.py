@@ -816,6 +816,7 @@ def search_job(job):
         if config.searching.use_fixchi:
             # Remake prepfold plot with rescaled chi-sq
             cmd = "show_pfd -noxwin -fixchi %s" % pfdfn
+            timed_execute(cmd) 
 
             # Get prepfold sigma from the rescaled bestprof
             pfd = prepfold.pfd(pfdfn)
