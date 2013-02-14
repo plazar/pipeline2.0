@@ -8,6 +8,8 @@ fold_rawdata          = True
 # To do single-pulse and accel search both with and without zerodm set 
 # the appropriate option to True (if False, only without)
 use_zerodm            = False
+#To do grouping analysis on singlepulse output set to True.
+sp_grouping           = False
 
 # Tunable parameters for searching and folding
 # (you probably don't need to tune any of them)
