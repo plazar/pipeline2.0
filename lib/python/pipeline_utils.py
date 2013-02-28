@@ -130,7 +130,7 @@ def can_add_file(fn, verbose=False):
 
     # Check if file has a corresponding custom zaplist
     if not config.processing.use_default_zaplists \
-       and not find_zaplist_in_tarball(fn,verbose=True):
+       and not find_zaplist_in_tarball(fn,verbose=verbose):
         return False
 
     return True
