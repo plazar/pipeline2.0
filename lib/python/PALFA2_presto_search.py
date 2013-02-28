@@ -799,6 +799,11 @@ def search_job(job):
             cands_folded += 1
     job.num_cands_folded = cands_folded
     
+    # Set up theano compile dir (UBC_AI rating uses theano)
+    theano_compiledir = os.path.join(job.tempdir,'theano_compile')
+    os.mkdir(theano_compiledir)
+    os.putenv("THEANO_FLAGS","compiledir=%s" % theano_compiledir) 
+
     # Rate candidates
     timed_execute("rate_pfds.py --redirect-warnings --include-all -x prepfold_sigma *.pfd")
     sys.stdout.flush()
