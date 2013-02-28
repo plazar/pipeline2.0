@@ -265,7 +265,7 @@ def create_file_entries(request):
     num_files = 0
     queries = []
     for fn, size in files:
-        if not pipeline_utils.can_add_file(fn):
+        if not pipeline_utils.can_add_file(fn,verbose=True):
             dlm_cout.outs("Skipping %s" % fn)
             continue
 
@@ -509,7 +509,15 @@ def verify_files():
         if os.path.exists(file['filename']):
             actualsize = os.path.getsize(file['filename'])
         else:
-            actualsize = -1
+            # Check if download.datadir has changed since file entry was created
+            # and if that is why file missing.
+            alt_path = os.path.join(config.download.datadir,os.path.split(file['filename'])[-1])
+            if os.path.exists(alt_path):
+                actualsize = os.path.getsize(alt_path)
+                jobtracker.query("UPDATE files SET filename='%s' WHERE id=%d" % (alt_path, file['id']))
+            else:
+                actualsize = -1
+
         expectedsize = file['size']
 
         last_attempt_id = jobtracker.query("SELECT id " \
