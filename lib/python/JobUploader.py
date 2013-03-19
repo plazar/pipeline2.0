@@ -20,6 +20,7 @@ import CornellFTP
 import config.upload
 import config.basic
 import ratings2.utils
+import ratings2.database
 
 # Suppress warnings produced by uploaders
 # (typically because data, weights, scales, offsets are missing
@@ -175,17 +176,19 @@ def upload_results(job_submit):
         
         # Rolling back changes. 
         db.rollback()
-    except (database.DatabaseConnectionError, CornellFTP.CornellFTPTimeout,\
-               upload.UploadDeadlockError, database.DatabaseDeadlockError), e:
+    except (database.DatabaseConnectionError, ratings2.database.DatabaseConnectionError,\
+               CornellFTP.CornellFTPTimeout, upload.UploadDeadlockError,\
+               database.DatabaseDeadlockError), e:
         # Connection error while uploading. We will try again later.
         sys.stderr.write(str(e))
         sys.stderr.write("\tRolling back DB transaction and will re-try later.\n")
         
         # Rolling back changes. 
         db.rollback()
-    except:
+    except Exception, e:
         # Unexpected error!
         sys.stderr.write("Unexpected error!\n")
+        sys.stderr.write("%s\n" % str(e))
         sys.stderr.write("\tRolling back DB transaction and re-raising.\n")
         
         # Rolling back changes. 
