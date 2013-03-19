@@ -337,18 +337,16 @@ class obs_info:
         if self.backend.lower() == 'pdev':
             # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
             self.ddplans.append(dedisp_plan(   0.0,  0.1,    76,     28,     96,        1 ))
-            if not self.zerodm:
-                self.ddplans.append(dedisp_plan( 212.8,  0.3,    64,     12,     96,        2 ))
-                self.ddplans.append(dedisp_plan( 443.2,  0.3,    76,      4,     96,        3 ))
-                self.ddplans.append(dedisp_plan( 534.4,  0.5,    76,      9,     96,        5 ))
-                self.ddplans.append(dedisp_plan( 876.4,  0.5,    76,      3,     96,        6 ))
-                self.ddplans.append(dedisp_plan( 990.4,  1.0,    76,      1,     96,       10 ))
+            self.ddplans.append(dedisp_plan( 212.8,  0.3,    64,     12,     96,        2 ))
+            self.ddplans.append(dedisp_plan( 443.2,  0.3,    76,      4,     96,        3 ))
+            self.ddplans.append(dedisp_plan( 534.4,  0.5,    76,      9,     96,        5 ))
+            self.ddplans.append(dedisp_plan( 876.4,  0.5,    76,      3,     96,        6 ))
+            self.ddplans.append(dedisp_plan( 990.4,  1.0,    76,      1,     96,       10 ))
         elif self.backend.lower() == 'wapp':
             # The values here are:       lodm dmstep dms/call #calls #subbands downsamp
             self.ddplans.append(dedisp_plan(   0.0,  0.3,    76,      9,     96,        1 ))
-            if not self.zerodm:
-                self.ddplans.append(dedisp_plan( 205.2,  2.0,    76,      5,     96,        5 ))
-                self.ddplans.append(dedisp_plan( 965.2, 10.0,    76,      1,     96,       25 ))
+            self.ddplans.append(dedisp_plan( 205.2,  2.0,    76,      5,     96,        5 ))
+            self.ddplans.append(dedisp_plan( 965.2, 10.0,    76,      1,     96,       25 ))
         else:
             raise ValueError("No dediserpsion plan for unknown backend (%s)!" % self.backend)
         
@@ -616,9 +614,14 @@ def search_job(job):
                 infnm = basenm+".inf"
 
                 # Do the single-pulse search
-                cmd = "single_pulse_search.py -p -m %f -t %f %s"%\
-                      (config.searching.singlepulse_maxwidth, \
-                       config.searching.singlepulse_threshold, datnm)
+                if job.zerodm:
+                    cmd = "single_pulse_search.py -b -p -m %f -t %f %s"%\
+                          (config.searching.singlepulse_maxwidth, \
+                           config.searching.singlepulse_threshold, datnm)
+                else:
+                    cmd = "single_pulse_search.py -p -m %f -t %f %s"%\
+                          (config.searching.singlepulse_maxwidth, \
+                           config.searching.singlepulse_threshold, datnm)
                 job.singlepulse_time += timed_execute(cmd)
                 try:
                     shutil.move(basenm+".singlepulse", job.workdir)
