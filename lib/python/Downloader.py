@@ -146,7 +146,14 @@ def run():
             numsuccess: The number of successfully downloaded files 
                         this iteration.
     """
-    pipeline_utils.get_zaplist_tarball(verbose=True)
+    try:
+        pipeline_utils.get_zaplist_tarball(verbose=True)
+    except CornellFTP.M2Crypto.ftpslib.error_perm:
+        exctype, excvalue, exctb = sys.exc_info()
+        dlm_cout.outs("FTP error getting zaplist tarball.\n" \
+                        "\tError: %s" % \
+                        ("".join(traceback.format_exception_only(exctype, excvalue)).strip()))
+        return 0
     check_active_requests()
     start_downloads()
     check_download_attempts()
