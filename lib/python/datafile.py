@@ -609,6 +609,10 @@ class MockPsrfitsData(MockPsrfitsBaseData):
                                 "remove all rows after cal. (cal start: %d; " \
                                 "total num rows: %d)" % (startrow, num_subints)
                         numrows = num_subints - startrow
+                    else:
+                        print "Not removing rows in middle of obs " \
+                                "(start: %d; num rows: %d)." % (startrow, num_subints)
+                        continue
                     numdelrows += numrows # Keep track of number of rows deleted
                     print "Will delete %d rows starting at %d" % (numrows, startrow+1)
                     rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
@@ -691,13 +695,13 @@ class MergedMockPsrfitsData(MockPsrfitsBaseData):
             complete = False
         return complete
 
-    def get_subints_with_cal(self, nsigma=15, margin_of_error=1):
+    def get_subints_with_cal(self, nsigma=50, margin_of_error=1):
         """Return a list of subint numbers with the cal turned on.
  
             Input:
                 nsigma: The number of sigma above the median a
                     subint needs to be in order to be flagged as
-                    having the cal on. (Default: 15)
+                    having the cal on. (Default: 50)
 
                     NOTE: The median absolute deviation is used in
                         place of the standard deviation here.
