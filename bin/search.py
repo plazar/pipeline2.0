@@ -196,7 +196,7 @@ def copy_zaplist(fns, workdir):
 def copy_results(resultsdir, outdir):
     # Copy search results to outdir (only if no errors occurred)
     print "Copying contents of local results directory to", outdir
-    system_call("mkdir -m 750 -p %s" % outdir)
+    system_call("mkdir -m 770 -p %s" % outdir)
     system_call("rsync -auvl --chmod=Dg+rX,Fg+r %s/ %s" % (resultsdir, outdir))
 
 
