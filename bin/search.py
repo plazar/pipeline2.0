@@ -76,14 +76,21 @@ def init_workspace():
         - Create results directory.
         - Return 2-tuple (working directory, results directory).
     """
+    if config.processing.use_pbs_subdir:
+        pbs_job_id = os.getenv("PBS_JOBID")
+        base_working_dir = os.path.join(config.processing.base_working_directory, \
+                                        pbs_job_id) 
+    else:
+        base_working_dir = config.processing.base_working_directory
+
     # Generate temporary working directory
-    if not os.path.isdir(config.processing.base_working_directory):
+    if not os.path.isdir(base_working_dir):
         print "Creating base work directory..."
-        os.makedirs(config.processing.base_working_directory)
+        os.makedirs(base_working_dir)
     workdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_processing_", \
-                        dir=config.processing.base_working_directory)
+                        dir=base_working_dir)
     resultsdir = tempfile.mkdtemp(suffix="_tmp", prefix="PALFA_results_", \
-                        dir=config.processing.base_working_directory)
+                        dir=base_working_dir)
     return (workdir, resultsdir)
 
 
