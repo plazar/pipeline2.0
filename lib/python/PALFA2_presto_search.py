@@ -521,8 +521,15 @@ def set_up_job(filenms, workdir, resultsdir,zerodm=False):
         job.workdir = workdir
 
     # Create a directory to hold all the subbands
+    if config.processing.use_pbs_subdir:
+        pbs_job_id = os.getenv("PBS_JOBID")
+        base_tmp_dir = os.path.join(config.processing.base_tmp_dir, \
+                                    pbs_job_id) 
+    else:
+        base_tmp_dir = config.processing.base_tmp_dir
+
     job.tempdir = tempfile.mkdtemp(suffix="_tmp", prefix=job.basefilenm, \
-                        dir=config.processing.base_tmp_dir)
+                                   dir=base_tmp_dir)
     
     #####
     # Print some info useful for debugging

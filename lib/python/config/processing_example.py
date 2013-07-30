@@ -14,6 +14,10 @@ base_working_directory = "/exports/scratch/PALFA/"
 # directory on the worker node.
 base_tmp_dir = "/dev/shm/"
 
+# set to True to use subdirectory with name $PBS_JOBID in
+# base_working_directory and base_tmp_dir (dir has to exist)
+use_pbs_subdir = False
+
 # Should not need to change the names of the zaplists...
 zaplistdir = os.path.join(config.basic.pipelinedir, "lib", "zaplists")
 default_wapp_zaplist = os.path.join(zaplistdir, "PALFA_commondb_wapp.zaplist")
