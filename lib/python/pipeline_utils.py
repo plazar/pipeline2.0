@@ -248,22 +248,27 @@ def get_zaplist_tarball(force_download=False, verbose=False):
     if getzap:
         zaplistdir = config.processing.zaplistdir
 
+        temp_zaplistfn = os.path.join(zaplistdir,'zaplists_dl.tar.gz')
+
         # Download the file from the FTP
-        CornellFTP.pget(ftpzappath, os.path.join(zaplistdir,'zaplists.tar.gz'))
+        CornellFTP.pget(ftpzappath, temp_zaplistfn)
 
         # Make text list of zaplist tarball contents to speed up
         # finding of zaplists in tarball
-        zaptar = tarfile.open(os.path.join(zaplistdir, \
-                                    "zaplists.tar.gz"), mode='r')
+        zaptar = tarfile.open(temp_zaplistfn, mode='r')
         names = zaptar.getnames()
 
         zaplistf = open(os.path.join(zaplistdir, \
-                'zaplist_tarball.list'),'w')
+                'zaplist_tarball_dl.list'),'w')
         for name in names:
             zaplistf.write(name+'\n')
         
         zaplistf.close()
         zaptar.close()
+
+        os.rename(temp_zaplistfn, zaptarfile)
+        os.rename(os.path.join(zaplistdir,'zaplist_tarball_dl.list'), \
+                  os.path.join(zaplistdir,'zaplist_tarball.list')) 
         
     else:
         # Do nothing
