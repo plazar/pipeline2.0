@@ -19,8 +19,8 @@ def version_num():
     return vernum
 
 # Directory on the FTP server to upload PFDs and singlepulse files (do not change unless asked by Adam)
-pfd_ftp_dir = 'pfd/PRESTO3'
-sp_ftp_dir = 'singlePulse/PRESTO3'
+pfd_ftp_dir = 'pfd2/PRESTO3'
+sp_ftp_dir = 'singlePulse2/PRESTO3'
 
 import upload_check
 upload_check.upload.populate_configs(locals())
