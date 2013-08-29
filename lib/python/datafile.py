@@ -587,45 +587,52 @@ class MockPsrfitsData(MockPsrfitsBaseData):
         subints_with_cal = [isub for isub in subints_with_cal \
                                 if isub >=0 and isub < num_subints]
         if len(subints_with_cal):
+            calrowsfile = open(outbasenm+"_calrows.txt", 'w')
+            calrowsfile.write("Subints with cal: %s\n" % \
+                    ",".join(["%d" % ii for ii in sorted(subints_with_cal)]))
             rowdelcmds = []
-            startrow = subints_with_cal[0]
-            numrows = 1
-            numdelrows = 0 # Number of rows deleted so far
-            # Add infinity to the list of subints with cal to 
-            # make sure we remove the last cal-block.
-            for isub in subints_with_cal[1:]+[np.inf]:
-                isub -= numdelrows # Adjust based on the number of missing rows
-                if isub == startrow+numrows:
-                    numrows+=1
-                else:
-                    if startrow+1 < 0.1*num_subints:
-                        print "Cal-affected region is within 10%% of start of obs " \
-                                "remove all rows before cal. (cal start: %d; " \
-                                "total num rows: %d)" % (startrow, num_subints)
-                        numrows += startrow
-                        startrow = 0
-                    elif startrow+numrows > 0.9*num_subints:
-                        print "Cal-affected region is within 10%% of end of obs " \
-                                "remove all rows after cal. (cal start: %d; " \
-                                "total num rows: %d)" % (startrow, num_subints)
-                        numrows = num_subints - startrow
-                    else:
-                        print "Not removing rows in middle of obs " \
-                                "(start: %d; num rows: %d)." % (startrow, num_subints)
-                        continue
-                    numdelrows += numrows # Keep track of number of rows deleted
-                    print "Will delete %d rows starting at %d" % (numrows, startrow+1)
-                    rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
-                                    (mergedfn, startrow+1, numrows))
-                    startrow = isub-numrows # NOTE: only delete numrows because
-                                            # numdelrows has already been deleted
-                                            # from isub
-                    num_subints -= numrows # Adjust number of subints in the file
-                    print "resetting startrow to", startrow
-                    numrows = 1
+            
+            # Enlarge list of rows to remove if some are near 
+            # the beginning or end of the obs
+            to_remove = []
+            nearstart = [ii for ii in subints_with_cal if ii < 0.1*num_subints]
+            nearend = [ii for ii in subints_with_cal if ii > 0.9*num_subints]
+            others = [ii for ii in subints_with_cal if ii not in nearstart+nearend]
+            if len(nearend):
+                cal_start = min(nearend)
+                msg = "Cal-affected region is within 10%% of end of obs.\n" \
+                        "Remove all rows within cal up-to end of obs.\n" \
+                        "(cal start: %d; total num rows: %d)" % \
+                        (cal_start, num_subints)
+                print msg
+                calrowsfile.write(msg+'\n')
+                numrows = num_subints - cal_start
+                rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
+                                (mergedfn, cal_start+1, numrows))
+            if len(nearstart):
+                cal_end = max(nearstart)
+                msg = "Cal-affected region is within 10%% of start of obs.\n" \
+                        "remove all rows up-to and including cal.\n" \
+                        "(cal end: %d; total num rows: %d)" % \
+                        (cal_end, num_subints)
+                print msg
+                calrowsfile.write(msg+'\n')
+                numrows = cal_end
+                rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
+                                (mergedfn, 1, numrows))
+            if len(others):
+                msg = "Not removing rows in middle of obs " \
+                        "(%s)." % ",".join(["%d" % ii for ii in sorted(others)])
+                print msg
+                calrowsfile.write(msg+'\n')
+            if rowdelcmds:
+                calrowsfile.write("Row-deletion commands:\n")
+            else:
+                calrowsfile.write("No rows to delete.\n")
             for rowdelcmd in rowdelcmds:
+                calrowsfile.write(rowdelcmd+'\n')
                 pipeline_utils.execute(rowdelcmd)
-
+        calrowsfile.close()
         # Make dat file
         prepdatacmd = "prepdata -noclip -nobary -dm 0 -o %s_post_DM0.00 %s" % (outbasenm, mergedfn)
         pipeline_utils.execute(prepdatacmd, stdout=outbasenm+"_post_prepdata.out")
@@ -728,24 +735,24 @@ class MergedMockPsrfitsData(MockPsrfitsBaseData):
         meds = np.median(dat, axis=1)
         med_of_meds = np.median(meds)
         mad_of_meds = np.median(np.abs(meds-med_of_meds))
-        print "Median of medians:", med_of_meds
-        print "MAD of medians:", mad_of_meds
-        for ii, (med, nsig) in enumerate(zip(meds, (meds-med_of_meds)/mad_of_meds)):
-            print "%d: %g (%g)" % (ii, med, nsig)
+        #print "Median of medians:", med_of_meds
+        #print "MAD of medians:", mad_of_meds
+        #for ii, (med, nsig) in enumerate(zip(meds, (meds-med_of_meds)/mad_of_meds)):
+        #    print "%d: %g (%g)" % (ii, med, nsig)
         has_cal = (meds-med_of_meds)/mad_of_meds > nsigma
  
         subints_with_cal = set()
-        print "Subints with cal: %s" % sorted(list(subints_with_cal))
         for isub in np.flatnonzero(has_cal):
             subints_with_cal.add(isub)
             for x in range(1,margin_of_error+1):
                 subints_with_cal.add(isub-x)
                 subints_with_cal.add(isub+x)
  
-        print "Conservative list of subints to remove: %s" % sorted(list(subints_with_cal))
+        #print "Subints with cal: %s" % sorted(list(subints_with_cal))
+        #print "Conservative list of subints to remove: %s" % sorted(list(subints_with_cal))
 
         # Remove dat file created
-        os.remove(datfn)
+        #os.remove(datfn)
         
         return sorted(list(subints_with_cal))
 
