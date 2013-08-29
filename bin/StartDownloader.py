@@ -13,16 +13,21 @@ import config.email
 
 def main():
     delay = 0.5 # First iteration will set delay=1 or multiply by 2
+    num_short_delays = 0
     while True:
         try:
             Downloader.status()
             if Downloader.run():
                 # files were successfully downloaded
                 delay=1
-            else:
+                num_short_delays = 0
+            elif num_short_delays <= 8:
                 # No files successfully download this iteration
                 # Increase sleep time
-                delay = min((delay*2, 32))
+                delay = min((delay*2, 4))
+                num_short_delays += 1
+            else:
+                delay = min((delay*2,32))
         except Exception, e:
             if config.email.send_on_crash:
                 msg  = '*** Downloader has crashed! ***\n\n'
