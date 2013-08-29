@@ -871,7 +871,7 @@ def search_job(job):
     psfiles = glob.glob("*.ps")
     for psfile in psfiles:
         # The '[0]' appeneded to the end of psfile is to convert only the 1st page
-        timed_execute("convert -quality 90 %s -background white -flatten -rotate 90 +matte %s" % \
+        timed_execute("convert -quality 90 %s -background white -trim -rotate 90 +matte %s" % \
                             (psfile+"[0]", psfile[:-3]+".png"))
         timed_execute("gzip "+psfile)
     
