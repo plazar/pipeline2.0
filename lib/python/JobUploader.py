@@ -21,6 +21,7 @@ import config.upload
 import config.basic
 import ratings2.utils
 import ratings2.database
+import M2Crypto
 
 # Suppress warnings produced by uploaders
 # (typically because data, weights, scales, offsets are missing
@@ -212,7 +213,7 @@ def upload_results(job_submit):
                 attempts += 1
                 try:
                     cftp.quit()
-                except EOFError:
+                except (EOFError, M2Crypto.SSL.SSLError):
                     pass
             except:
                 # Unexpected error
