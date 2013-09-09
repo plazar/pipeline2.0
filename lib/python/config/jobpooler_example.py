@@ -16,6 +16,11 @@ queue_manager = queue_managers.pbs.PBSManager(
                     "node-property", # Use nodes with this name/property
                     8) # Maximum number of jobs running on a node
 
+# Use the following to use an alternative script that gets submitted
+# to the worker nodes. e.g. A script that sets things up before calling
+# search.py.
+alternative_submit_script = None
+
 import jobpooler_check
 jobpooler_check.jobpooler.populate_configs(locals())
 jobpooler_check.jobpooler.check_sanity()
