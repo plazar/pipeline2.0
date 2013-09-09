@@ -594,6 +594,7 @@ class MockPsrfitsData(MockPsrfitsBaseData):
             
             # Enlarge list of rows to remove if some are near 
             # the beginning or end of the obs
+            total_removed = 0
             to_remove = []
             nearstart = [ii for ii in subints_with_cal if ii < 0.1*num_subints]
             nearend = [ii for ii in subints_with_cal if ii > 0.9*num_subints]
@@ -609,6 +610,7 @@ class MockPsrfitsData(MockPsrfitsBaseData):
                 numrows = num_subints - cal_start
                 rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
                                 (mergedfn, cal_start+1, numrows))
+                total_removed += numrows
             if len(nearstart):
                 cal_end = max(nearstart)
                 msg = "Cal-affected region is within 10%% of start of obs.\n" \
@@ -620,6 +622,7 @@ class MockPsrfitsData(MockPsrfitsBaseData):
                 numrows = cal_end
                 rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
                                 (mergedfn, 1, numrows))
+                total_removed += numrows
             if len(others):
                 msg = "Not removing rows in middle of obs " \
                         "(%s)." % ",".join(["%d" % ii for ii in sorted(others)])
@@ -632,6 +635,9 @@ class MockPsrfitsData(MockPsrfitsBaseData):
             for rowdelcmd in rowdelcmds:
                 calrowsfile.write(rowdelcmd+'\n')
                 pipeline_utils.execute(rowdelcmd)
+        msg = "Total number of rows removed: %d" % total_removed
+        print msg
+        calrowsfile.write(msg+'\n')
         calrowsfile.close()
         # Make dat file
         prepdatacmd = "prepdata -noclip -nobary -dm 0 -o %s_post_DM0.00 %s" % (outbasenm, mergedfn)
