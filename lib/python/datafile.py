@@ -586,15 +586,16 @@ class MockPsrfitsData(MockPsrfitsBaseData):
         num_subints = merged.num_samples/merged.num_samples_per_record
         subints_with_cal = [isub for isub in subints_with_cal \
                                 if isub >=0 and isub < num_subints]
+
+        total_removed = 0
+        calrowsfile = open(outbasenm+"_calrows.txt", 'w')
         if len(subints_with_cal):
-            calrowsfile = open(outbasenm+"_calrows.txt", 'w')
             calrowsfile.write("Subints with cal: %s\n" % \
                     ",".join(["%d" % ii for ii in sorted(subints_with_cal)]))
             rowdelcmds = []
             
             # Enlarge list of rows to remove if some are near 
             # the beginning or end of the obs
-            total_removed = 0
             to_remove = []
             nearstart = [ii for ii in subints_with_cal if ii < 0.1*num_subints]
             nearend = [ii for ii in subints_with_cal if ii > 0.9*num_subints]
