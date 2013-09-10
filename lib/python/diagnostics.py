@@ -618,6 +618,37 @@ class SearchParameters(PlotDiagnostic):
         param_file.close()
 
 
+class CalRemovalSummary(PlotDiagnostic):
+    name = "Cal removal summary"
+    description = "The command used and other information for " \
+                    "the removal of the cal signal. (A text file)."
+
+    def get_diagnostic(self):
+        # find the *_calrows.txt file
+        calrowsfn = get_calrowsfn(self.directory)
+        self.value = os.path.split(calrowsfn)[-1]
+        self.datalen = os.path.getsize(calrowsfn)
+        calrows_file = open(calrowsfn, 'rb')
+        self.filedata = calrows_file.read()
+        calrows_file.close()
+
+class NumCalRowsRemoved(FloatDiagnostic):
+    name = "Num cal rows removed"
+    description = "The number of rows removed from the raw data " \
+                    "during removal of the cal signal."
+
+    def get_diagnostic(self):
+        # find the cal rows file
+        calrowsfn = get_calrowsfn(self.directory)
+        calrows = open(calrowsfn,'r')
+        num_rows_str = calrows.readlines()[-1]
+        calrows.close()
+        if num_rows_str.startswith('Total number of rows removed:'):
+            self.value = int(num_rows_str.lstrip('Total number of rows removed:'))
+        else:
+            raise DiagnosticError("Last row of Cal rows file (%s) is not " \
+                                   "the number of rows removed!" % calrowsfn)
+
 class SigmaThreshold(FloatDiagnostic):
     name = "Sigma threshold"
     description = "The sigma threshold used for determining which " \
@@ -669,6 +700,14 @@ def get_zaplist(dir):
     zapfn = get_zaplistfn(dir)
     fctr, width = np.loadtxt(zapfn, usecols=(-2,-1), unpack=True)
     return fctr, width
+
+
+def get_calrowsfn(dir):
+    calrows_fns = glob.glob(os.path.join(dir, '*_calrows.txt'))
+    if len(calrows_fns) != 1:
+        raise DiagnosticError("Wrong number of cal rows files found (%d)!" % \
+                            len(calrows_fns))
+    return calrows_fns[0]
 
 
 def find_in_tarballs(dir, matchfunc):
