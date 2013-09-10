@@ -934,7 +934,8 @@ def clean_up(job):
     # Copy all the important stuff to the output directory
     resultglobs = ["*rfifind.[bimors]*", "*.tgz", "*.png", \
                     "*.zaplist", "search_params.txt", "*.accelcands*", \
-                    "*_merge.out", "candidate_attributes.txt", "groups.txt"]
+                    "*_merge.out", "candidate_attributes.txt", "groups.txt", \
+                    "*_calrows.txt"]
     
     # Print some info useful for debugging
     print "Contents of workdir (%s) before copy: " % job.workdir
