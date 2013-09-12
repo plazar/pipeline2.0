@@ -615,26 +615,16 @@ def search_job(job):
                 job.dedispersing_time += timed_execute(cmd)
             
             # Iterate over all the new DMs
+            basenms_forpass = []
             for dmstr in ddplan.dmlist[passnum]:
                 dmstrs.append(dmstr)
                 basenm = os.path.join(job.tempdir, job.basefilenm+"_DM"+dmstr)
+                basenms_forpass.append(basenm)
+
                 datnm = basenm+".dat"
                 fftnm = basenm+".fft"
                 infnm = basenm+".inf"
 
-                # Do the single-pulse search
-                if job.zerodm:
-                    cmd = "single_pulse_search.py -b -p -m %f -t %f %s"%\
-                          (config.searching.singlepulse_maxwidth, \
-                           config.searching.singlepulse_threshold, datnm)
-                else:
-                    cmd = "single_pulse_search.py -p -m %f -t %f %s"%\
-                          (config.searching.singlepulse_maxwidth, \
-                           config.searching.singlepulse_threshold, datnm)
-                job.singlepulse_time += timed_execute(cmd)
-                try:
-                    shutil.move(basenm+".singlepulse", job.workdir)
-                except: pass
 
                 # FFT, zap, and de-redden
                 cmd = "realfft %s"%datnm
@@ -685,18 +675,31 @@ def search_job(job):
                                         job.workdir)
                     except: pass
 
-                # Move the .inf files
-                try:
-                    shutil.move(infnm, job.workdir)
-                except: pass
-                # Remove the .dat and .fft files
-                try:
-                    os.remove(datnm)
-                except: pass
+                # Remove the .fft files
                 try:
                     os.remove(fftnm)
                 except: pass
 
+            # Do the single-pulse search
+            dats_str = '.dat '.join(basenms_forpass) + '.dat'
+            if job.zerodm:
+                cmd = "single_pulse_search.py -b -p -m %f -t %f %s"%\
+                      (config.searching.singlepulse_maxwidth, \
+                       config.searching.singlepulse_threshold, dats_str)
+            else:
+                cmd = "single_pulse_search.py -p -m %f -t %f %s"%\
+                      (config.searching.singlepulse_maxwidth, \
+                       config.searching.singlepulse_threshold, dats_str)
+            job.singlepulse_time += timed_execute(cmd)
+
+            # Move .singlepulse and .inf files and delete .dat files
+            for basenm in basenms_forpass:
+                try:
+                    shutil.move(basenm+".singlepulse", job.workdir)
+                    shutil.move(basenm+".inf", job.workdir)
+                    os.remove(basenm+".dat")
+                except: pass
+            
             if config.searching.use_subbands:
                 if config.searching.fold_rawdata:
                     # Subband files are no longer needed
