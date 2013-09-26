@@ -620,7 +620,7 @@ class MockPsrfitsData(MockPsrfitsBaseData):
                         (cal_end, num_subints)
                 print msg
                 calrowsfile.write(msg+'\n')
-                numrows = cal_end
+                numrows = cal_end+1 # Subints are counted starting with 0
                 rowdelcmds.append("fitsdelrow %s[SUBINT] %d %d" % \
                                 (mergedfn, 1, numrows))
                 total_removed += numrows
